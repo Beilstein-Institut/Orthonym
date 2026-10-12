@@ -868,7 +868,6 @@ RETAINED_NAMES = {
     # === BENZALDEHYDE DERIVATIVES (a phase expansion) ===
     "COc1cc(C=O)ccc1O": "vanillin",           # 4-hydroxy-3-methoxybenzaldehyde
     "O=Cc1ccc(O)cc1": "4-hydroxybenzaldehyde",
-    "COc1ccc(C=O)cc1": "anisaldehyde",        # 4-methoxybenzaldehyde
     "O=Cc1cccnc1": "nicotinaldehyde",         # pyridine-3-carbaldehyde
     "O=Cc1ccncc1": "isonicotinaldehyde",      # pyridine-4-carbaldehyde
 

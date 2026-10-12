@@ -124,6 +124,7 @@ from .naming_utils import (
     multiplied_component,
     should_omit_locant_one,
 )
+from .chain_prefix_positions import chain_prefix_positions
 from .substituent_enumerator import (
     classify_and_name_fragment,
     extract_ring_substituents,
@@ -7470,6 +7471,19 @@ def _assemble_amide_name(features: Any, style: str) -> str:
     return final_name
 
 
+def _ring_prefix_at_free_valence(mol: Any, ring: Any, free_valence_atom: int) -> Optional[str]:
+    """The substituent name of ``ring`` with its free valence on ``free_valence_atom``.
+
+     Citation of locants (the Blue Book): the free-valence locant of the ring is
+    essential, so the ring atom bonded to the rest of the molecule is passed as the attachment
+    point; an atom outside the ring passes none."""
+    from ..rules.ring_substituents import get_ring_substituent_name
+
+    return get_ring_substituent_name(
+        mol, tuple(ring),
+        attachment_point=free_valence_atom if free_valence_atom in ring else None)
+
+
 def _walk_amine_n_substituents(
     mol: Any, n_idx: int, chain_set: set, stop_set: Optional[set] = None,
     hetero_aware: bool = False,
@@ -7597,10 +7611,7 @@ def _walk_amine_n_substituents(
                             and idx not in ring_set_inner
                         )
                         if non_ring_c == 0:
-                            from ..rules.ring_substituents import (
-                                get_ring_substituent_name as _get_rsn,
-                            )
-                            ring_prefix = _get_rsn(mol, tuple(ring))
+                            ring_prefix = _ring_prefix_at_free_valence(mol, ring, nbr_idx)
                             if ring_prefix:
                                 n_subs.append(ring_prefix)
                                 has_ring_sub = True
@@ -9440,9 +9451,7 @@ def _generate_ring_substituent_prefixes(features: Any) -> List[NameFragment]:
             raise UnnameableSubstituentError('ring_substituent_unnameable')
 
         # Detect substituents on the ring itself
-        sub_name = _build_substituted_ring_name(
-            features.mol, ring_atoms, chain_set, base_name
-        )
+        sub_name = _build_substituted_ring_name(features.mol, ring_atoms, chain_set, base_name)
         # Wave2 conservation: None = the ring carries branches this
         # machinery cannot express -- never drop the branch atoms. Same void
         # signal as the unnameable-ring case above (trace 2026-09-25: both T3
@@ -9457,6 +9466,7 @@ def _generate_ring_substituent_prefixes(features: Any) -> List[NameFragment]:
                               detail='ring_substituent_branches_unnameable')
             raise UnnameableSubstituentError('ring_substituent_branches_unnameable')
 
+        sub_name = _with_ring_yl_descriptor(features.mol, ring_atoms, chain_set, _ring_attach_atom, sub_name)
         ring_sub_groups[sub_name].append(locant)
         ring_sub_group_atoms[sub_name].append(frozenset(ring_atom_set))
 
@@ -9518,6 +9528,33 @@ def _generate_ring_substituent_prefixes(features: Any) -> List[NameFragment]:
     prefixes.sort(key=lambda f: alpha_sort_key(f.text))
 
     return prefixes
+
+
+def _with_ring_yl_descriptor(mol, ring_atoms, chain_set: set, attach_atom, ring_name: str) -> str:
+    """``ring_name`` with the descriptor of its free-valence stereocentre at its front.
+
+     NAMING OF STEREOISOMERS (the Blue Book), second paragraph (:44643): "When
+    they relate to substituent groups, they are cited at the front of the corresponding
+    prefix." The ring prefix of a chain parent is built without it ('(oxetan-2-yl)
+    methanol'), and the descriptor the outer injector then writes in front of the whole
+    name cites the prefix's locant against the parent. The branch is the ring and what
+    hangs from it outside the parent chain; ``ring_yl_attachment_descriptor`` derives the
+    descriptor from it, or declines."""
+    if attach_atom is None or not ring_name or ring_name.startswith('('):
+        return ring_name
+    branch = set(ring_atoms)
+    stack = list(ring_atoms)
+    while stack:
+        cur = stack.pop()
+        for nb in mol.GetAtomWithIdx(cur).GetNeighbors():
+            ni = nb.GetIdx()
+            if ni in branch or ni in chain_set or nb.GetAtomicNum() <= 1:
+                continue
+            branch.add(ni)
+            stack.append(ni)
+    from .substituent_naming import ring_yl_attachment_descriptor
+    descriptor = ring_yl_attachment_descriptor(mol, branch, attach_atom, ring_name=ring_name)
+    return f'{descriptor}-{ring_name}' if descriptor else ring_name
 
 
 def _build_substituted_ring_name(
@@ -9631,6 +9668,8 @@ def _build_substituted_ring_name(
 
     # Build prefix string for ring substituents
     from ..assembly.naming_utils import (
+        _is_fully_enclosed,
+        apply_enclosing_marks,
         get_multiplier_prefix,
         is_complex_substituent,
         needs_brackets,
@@ -9657,17 +9696,17 @@ def _build_substituted_ring_name(
         # is_complex_substituent / di-vs-bis deliberately unchanged, see the
         # needs-parens-consolidation tripwire).
         _enclose = is_complex_substituent(name) or needs_brackets(name)
+        # (the Blue Book) and (:7444): the marks go round the whole
+        # compound prefix. One that opens with marks of its own ('(aziridin-1-yl)methyl') is not
+        # enclosed yet and takes the next mark, '[(aziridin-1-yl)methyl]'; one that is enclosed
+        # as a whole is left as it is.
+        marked = (apply_enclosing_marks(name, -1)
+                  if _enclose and not _is_fully_enclosed(name) else name)
         if count == 1:
-            if _enclose and not name.startswith('('):
-                prefix_parts.append(f'{loc_str}-({name})')
-            else:
-                prefix_parts.append(f'{loc_str}-{name}')
+            prefix_parts.append(f'{loc_str}-{marked}')
         else:
             mult = get_multiplier_prefix(count, name)
-            if _enclose and not name.startswith('('):
-                prefix_parts.append(f'{loc_str}-{mult}({name})')
-            else:
-                prefix_parts.append(f'{loc_str}-{mult}{name}')
+            prefix_parts.append(f'{loc_str}-{mult}{marked}')
 
     ring_prefix = '-'.join(prefix_parts)
     # Wrap in parentheses: (3,4-dihydroxyphenyl)
@@ -10451,7 +10490,7 @@ def _generate_alkyl_prefixes(features: Any) -> List[NameFragment]:
         )
 
     # Count total number of substituents for locant omission decision
-    total_substituents = sum(len(locs) for locs in substituent_groups.values())
+    total_substituents = chain_prefix_positions(features, sum(map(len, substituent_groups.values())))
 
     # Check if this is a simple hydrocarbon (no functional group suffix)
     # In that case, monosubstituted at position 1 omits the locant
@@ -10646,7 +10685,7 @@ def _assemble_decorated_amino_prefix(branch_entries, enclose: bool = True,
     """
     from collections import Counter
 
-    from .naming_utils import alpha_sort_key, apply_enclosing_marks
+    from .naming_utils import _is_fully_enclosed, alpha_sort_key, apply_enclosing_marks
     from .substituent_enumerator import (
         cite_organyl_in_composed_prefix,
         composed_prefix_multiplier,
@@ -10662,7 +10701,12 @@ def _assemble_decorated_amino_prefix(branch_entries, enclose: bool = True,
         # decorated branch was ALWAYS parenthesized before, so honouring the flag
         # guarantees this rewrite can only add marks, never drop a pair.
         compound = marked != bname or _decorated
-        if compound and marked == bname:
+        if _is_fully_enclosed(bname):
+            # a branch the namer cites enclosed ('(methylsulfamoyl)') is a compound prefix
+            # whose marks are already there, the Blue Book): a second pair
+            # would read '((methylsulfamoyl))'
+            compound, marked = True, bname
+        elif compound and marked == bname:
             from .naming_utils import apply_enclosing_marks
             marked = apply_enclosing_marks(bname, -1)
         if k == 1:
@@ -11674,7 +11718,14 @@ def _name_c_attached_ring_substituent_fallback(
                 and idx not in ring_set_inner
             )
             if non_ring_c == 0:
-                ring_prefix = _get_ring_sub_name_c(mol, tuple(ring))
+                # (the Blue Book): the free-valence locant of the ring is
+                # essential, so the ring atom bonded to the attachment atom is passed
+                ring_attach_c = next(
+                    (ra for ra in ring_set_inner
+                     if any(nb.GetIdx() == attach_atom
+                            for nb in mol.GetAtomWithIdx(ra).GetNeighbors())), None)
+                ring_prefix = _get_ring_sub_name_c(
+                    mol, tuple(ring), attachment_point=ring_attach_c)
                 if ring_prefix:
                     from .naming_utils import needs_brackets
                     if needs_brackets(ring_prefix):

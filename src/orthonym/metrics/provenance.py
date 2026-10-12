@@ -42,6 +42,10 @@ GATE_OUTCOME_UNAVAILABLE = "unavailable"
 GATE_OUTCOME_DESCRIPTIVE_FALLBACK = "descriptive_fallback"
 #: the gate suppressed a candidate to the descriptive fallback.
 GATE_OUTCOME_SUPPRESSED = "suppressed"
+#: the gate suppressed a candidate that OPSIN parsed to the input but read as ambiguous
+#: (warning ``APPEARS_AMBIGUOUS``, ``validation.opsin_ambiguity``); the name is named once more
+#: with every locant cited before it is withdrawn.
+GATE_OUTCOME_AMBIGUOUS_SUPPRESSED = "opsin_ambiguous_suppressed"
 #: OPSIN parsed the FULL name and returned verdict "ok". The ONE
 #: state that may claim a bare.
 GATE_OUTCOME_SELF01 = "self_consistency_verified"

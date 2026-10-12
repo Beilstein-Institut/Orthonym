@@ -196,6 +196,7 @@ def _assemble_explicit_fields(node: NameTreeNode, style: str) -> str:
         is_ring_parent_name,
         resolve_suffix_prefix_collision,
     )
+    from ..rules.locant_validation import suffix_leaves_no_room_for_a_prefix
     from .naming_utils import (
         format_suffix_with_locants,
         get_suffix_multiplier_prefix,
@@ -243,7 +244,7 @@ def _assemble_explicit_fields(node: NameTreeNode, style: str) -> str:
     # gap #1: suffix<->prefix locant collision (hydride ring parents only;
     # the general_acyclic-chain path is a no-op early return inside the resolver).
     if (hydride_parent and node.suffix and node.locants and prefix_pairs
-            and is_ring_parent_name(stem)):
+            and is_ring_parent_name(stem) and suffix_leaves_no_room_for_a_prefix(node.suffix)):
         prefix_pairs = resolve_suffix_prefix_collision(
             list(node.locants), prefix_pairs,
             is_ring=True, parent_size=_estimate_parent_size_from_name(stem),

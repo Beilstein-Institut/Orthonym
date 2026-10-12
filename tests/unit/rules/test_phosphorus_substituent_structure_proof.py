@@ -92,11 +92,14 @@ def test_unbranched_terminal_alkyl_still_named(smiles, expected):
     "smiles,expected",
     [
         ("CP(C)c1ccccc1", ("aryl", "phenyl")),
-        ("CP(C)c1ccc2ccccc2c1", ("aryl", "naphthyl")),
+        ("CP(C)c1ccc2ccccc2c1", ("aryl", "naphthalen-2-yl")),
     ],
 )
 def test_aryl_path_unaffected(smiles, expected):
-    """The aromatic branch is a lookup on ring size, not a chain count."""
+    """The aromatic branch is a lookup on ring size, not a chain count. The naphthalene
+    prefix cites its free-valence locant: General methodology for naming
+    substituent groups, method (2) (the Blue Book), 'naphthalen-2-yl (preferred
+    prefix)' (:2865)."""
     mol, p, nbrs = _char(smiles)
     results = [_characterize_substituent(mol, n, {p}) for n in nbrs]
     assert expected in results, f"{smiles}: expected {expected} in {results}"

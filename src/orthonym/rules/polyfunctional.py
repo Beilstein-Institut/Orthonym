@@ -1771,6 +1771,18 @@ def _retained_acetaldehyde(mol, atom_to_locant, all_prefixes, features):
     return name, stereo_prefix
 
 
+def _mononuclear_prefix_texts(prefixes: List[str], chain_length: int) -> List[str]:
+    """The prefixes of a chain parent of one atom with the marks gives them
+    (the Blue Book): "The second and further substituents are each enclosed with
+    parentheses even for simple substituents"; the first keeps the marks of its own locant. A
+    list that cites a locant (the N of a suffix nitrogen) is left to its producer."""
+    from ..assembly.naming_utils import starts_with_locant
+    if chain_length != 1 or any(starts_with_locant(p) for p in prefixes):
+        return prefixes
+    from ..assembly.composition_primitives import apply_mononuclear_enclosing
+    return apply_mononuclear_enclosing(prefixes, True, enclose_after_marked_first=True)
+
+
 def name_polyfunctional(features: Any) -> Optional[str]:
     """
     Generate IUPAC name for a polyfunctional compound.
@@ -3821,7 +3833,7 @@ def name_polyfunctional(features: Any) -> Optional[str]:
                 stem, unsaturation, suffix, suffix_locants, multiplier
             )
         if prefixes:
-            prefix_str = _join_prefixes(prefixes)
+            prefix_str = _join_prefixes(_mononuclear_prefix_texts(prefixes, chain_length))
             # A hyphen between the prefixes and a name that opens with a locant.
             from ..assembly.composition_primitives import _join_prefix_to_name
             _n = _join_prefix_to_name(prefix_str, _n)

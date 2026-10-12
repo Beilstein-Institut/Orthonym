@@ -407,6 +407,49 @@ def _opsin_stdout_uncached(name: str, allow_radicals: bool,
     return ("\n" if smiles is None else str(smiles) + "\n"), True
 
 
+class OpsinUnavailable(RuntimeError):
+    """The in-process OPSIN path cannot answer. The command line prints warnings on
+    stderr without the name, so a subprocess cannot give a per-name answer."""
+
+
+def opsin_warnings(name: str, allow_radicals: bool = True) -> Tuple[Tuple[str, str], ...]:
+    """OPSIN's warnings for ONE name as ``(type, message)`` pairs, for example
+    ``(("APPEARS_AMBIGUOUS", "Positioning of radical on: aziridin"),)``. Empty when OPSIN
+    raises no warning or rejects the name. Same parse and configuration as
+    :func:`opsin_stdout`; memoised the same way (a pure function of the name).
+
+    Raises:class:`OpsinUnavailable` when the in-process path cannot serve the name (no
+    JVM or jar, an embedded newline, a Java-side failure); an unserved answer is never
+    cached."""
+    from .assembly.memo import _MODE as _memo_mode, _process_cache, _PROCESS_MAX
+    ck = ("opsin_warnings", (name, allow_radicals))
+    if _memo_mode == "on" and _PROCESS_MAX > 0:
+        hit = _process_cache.get(ck)
+        if hit is not None:
+            _process_cache.move_to_end(ck)
+            return hit
+    if not name or "\n" in name or "\r" in name:
+        raise OpsinUnavailable("name cannot be served in-process")
+    if not _ensure_jvm() or _N2S_CLS is None:
+        raise OpsinUnavailable("in-process OPSIN not available")
+    # Faithful to Cli.interactiveSmilesOutput: parse only up to the first TAB.
+    tab = name.find("\t")
+    if tab >= 0:
+        name = name[:tab]
+    try:
+        with _LOCK:
+            _attach_thread()
+            result = _n2s().parseChemicalName(name, _cfg(allow_radicals))
+            out = tuple((str(w.getType()), str(w.getMessage())) for w in result.getWarnings())
+    except Exception as exc:  # a Java-side failure is transient, like a crashed CLI
+        raise OpsinUnavailable(f"in-process OPSIN failed: {exc}") from exc
+    if _memo_mode == "on" and _PROCESS_MAX > 0:
+        _process_cache[ck] = out
+        if len(_process_cache) > _PROCESS_MAX:
+            _process_cache.popitem(last=False)
+    return out
+
+
 REJECTED = "__opsin_rejected__"   # sentinel: OPSIN parsed the request and definitively rejected the name (Lever A, 2026-09-12)
 
 

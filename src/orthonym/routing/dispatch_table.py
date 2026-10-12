@@ -1496,6 +1496,12 @@ def _systematic_pin_before_natural_product(mol) -> Optional[str]:
 # Re-entrancy flag for _handle_peptide's substitutive sub-namer (see its body).
 _PEPTIDE_SUBST_ACTIVE = False
 
+# True while the second attempt of that sub-namer names a molecule that has a peptide name: the
+# demoted N-acyl float is then not offered on an amino acid with a systematic name
+# (decomposition.engine.gate_nonsuffix_nacyl_float). Part of every memo key that carries
+# _PEPTIDE_SUBST_ACTIVE.
+_PEPTIDE_NAME_STANDS = False
+
 # Size ceiling for the substitutive sub-namer attempt. Above it, the general
 # path cannot build a clean substitutive PIN anyway (it drops backbone atoms on
 # big/branched peptides -> RT-fails -> retained fallback), so a full general pass
@@ -1560,7 +1566,7 @@ def _handle_peptide(mol, smiles, canonical_smiles, features=None, *,
     # this handler on a sub-fragment that is itself a small peptide. Without this
     # guard each level would spawn a fresh sub-namer -> exponential blow-up/hang.
     # Only the TOP-level peptide gets the substitutive attempt.
-    global _PEPTIDE_SUBST_ACTIVE
+    global _PEPTIDE_SUBST_ACTIVE, _PEPTIDE_NAME_STANDS
     _in = canonical_smiles or smiles
     if (_in and not _PEPTIDE_SUBST_ACTIVE
             and mol.GetNumHeavyAtoms() <= _PEPTIDE_SUBST_MAX_HEAVY):
@@ -1579,7 +1585,7 @@ def _handle_peptide(mol, smiles, canonical_smiles, features=None, *,
                         and _rt_full_match(name, mol))
 
             def _attempt():
-                global _PEPTIDE_SUBST_ACTIVE
+                global _PEPTIDE_SUBST_ACTIVE, _PEPTIDE_NAME_STANDS
                 _PEPTIDE_SUBST_ACTIVE = True
                 try:
                     # User decision A (2026-09-26): an amino acid substituted on its
@@ -1600,11 +1606,17 @@ def _handle_peptide(mol, smiles, canonical_smiles, features=None, *,
                         # Pass 2 (only when pass 1 failed because the gate withheld a
                         # float): the float ships as an honest demotion -- still validated,
                         # but not a PIN ('N-(4-hydroxyoctanoyl)glycine', a general
-                        # name,:54480).
+                        # name,:54480). A molecule that has a peptide name keeps it where the
+                        # float would cite N on an amino acid with a systematic name
+                        #,.
+                        _peptide_name = name_peptide(mol)
+                        _PEPTIDE_NAME_STANDS = bool(
+                            _peptide_name and not is_failure_name(_peptide_name))
                         _subst = _sub_name()
                         _demoted = True
                 finally:
                     _PEPTIDE_SUBST_ACTIVE = False
+                    _PEPTIDE_NAME_STANDS = False
                 return (_subst if _usable(_subst) else None), _demoted
 
             # One substitutive attempt per peptide per top-level naming call. The
@@ -1641,6 +1653,7 @@ def _handle_peptide(mol, smiles, canonical_smiles, features=None, *,
                 return _subst
         except Exception:
             _PEPTIDE_SUBST_ACTIVE = False
+            _PEPTIDE_NAME_STANDS = False
     _retained = name_peptide(mol)
     if _retained and not is_failure_name(_retained):
         # The retained acyl-prefix peptide name ('prolylalanylalanine') is kept

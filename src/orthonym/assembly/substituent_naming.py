@@ -31,6 +31,7 @@ from rdkit import Chem
 
 from ..data.multipliers import multiplier_table
 from ..perception.stereo import assign_stereochemistry
+from .capped_name import carries_capped_locants, chain_stem_ending, terminal_yl_prefix
 from .fragment_naming import name_fragment_recursively
 from .naming_utils import SIMPLE_MULTIPLIERS, alpha_sort_key, get_alkyl_name, has_structural_hyphen, multiplied_component, simple_multiplier_word
 from ..perception.smarts_cache import compiled as _compiled_smarts
@@ -5773,31 +5774,6 @@ class _AttachLocantUnknown:
 ATTACH_LOCANT_UNKNOWN = _AttachLocantUnknown()
 
 
-#: chain stem -> carbon count, the whole range of ``get_chain_prefix`` (1-9999),
-#: built on first use (``_chain_stem_ending``).
-_CHAIN_STEM_CARBONS: Optional[Dict[str, int]] = None
-
-
-def _chain_stem_ending(stem: str) -> Optional[Tuple[str, int]]:
-    """The longest ending of ``stem`` that is a chain stem of
-    (``get_chain_prefix``), as ``(text before it, carbon count)``; None when no
-    ending is one.
-
-    Longest first, so a numerical term belongs to its stem: 'undec' -> ('', 11),
-    'dodec' -> ('', 12) 'undeca', 'dodeca'), and 'methoxymeth' ->
-    ('methoxy', 1) rather than 'methoxym' on 'eth'; '2-methylprop' -> ('2-methyl', 3).
-    """
-    global _CHAIN_STEM_CARBONS
-    if _CHAIN_STEM_CARBONS is None:
-        from ..data.chain_names import get_chain_prefix
-        _CHAIN_STEM_CARBONS = {get_chain_prefix(n): n for n in range(1, 10000)}
-    for cut in range(len(stem)):
-        n = _CHAIN_STEM_CARBONS.get(stem[cut:])
-        if n is not None:
-            return stem[:cut], n
-    return None
-
-
 def parent_to_prefix(parent_name: str, chain_length: int, *, attach_locant) -> str:
     """Convert a parent compound name to substituent prefix form.
 
@@ -6316,7 +6292,7 @@ def parent_to_prefix(parent_name: str, chain_length: int, *, attach_locant) -> s
         # from the table itself, so the numerical term of a longer chain
         # is not taken for a prefix: 'undecane' and 'dodecane' are unbranched
         # chains ('undecyl', 'dodecyl'), not 'un' or 'do' on 'decane'.
-        _chain = _chain_stem_ending(stem)
+        _chain = chain_stem_ending(stem)
         if _chain is not None and _chain[0] and _chain[1] >= 2:
             return _decline_unjustifiable(
                 "chain prefix", "prefix locants borrowed from the capped molecule")
@@ -6335,8 +6311,8 @@ def parent_to_prefix(parent_name: str, chain_length: int, *, attach_locant) -> s
     # ---- Heterocyclic -ine ending ---- (IUPAC
     # e.g., "pyridine" -> "pyridinyl", "piperidine" -> "piperidinyl"
     # Note: -ine must come BEFORE the generic -e fallback
-    if name.endswith('ine'):
-        return name[:-1] + "yl"  # pyridine -> pyridinyl
+    if name.endswith('ine'):  # (2), the Blue Book: a ring name that cites locants numbers the capped molecule, not the prefix (an imine is no ring)
+        return None if carries_capped_locants(name) and not name.endswith('imine') else name[:-1] + "yl"  # pyridine -> pyridinyl
 
     # ---- fail-closed guard  ----
     # A FUNCTIONAL-PARENT name that reaches the terminal fallbacks below has NO
@@ -6377,13 +6353,13 @@ def parent_to_prefix(parent_name: str, chain_length: int, *, attach_locant) -> s
         if name.endswith('imide'):
             # imide -> imido form (e.g., "succinimide" -> "succinimido")
             return name[:-1] + 'o'  # -imide -> -imido
-        return name[:-1] + "yl"
+        return terminal_yl_prefix(name, name[:-1] + "yl") or _decline_unjustifiable("terminal-yl", "places not proven")
 
     # If name already ends in -yl, return as-is
     if name.endswith('yl'):
         return name
 
-    return name + "yl"
+    return terminal_yl_prefix(name, name + "yl") or _decline_unjustifiable("terminal-yl", "places not proven")
 
 
 # ============================================================================
@@ -7433,32 +7409,42 @@ def _acyclic_alkyl_located_stereo_name(mol, sub_atoms, attach_idx):
         mol, sub_atoms, attach_idx, with_pos=True)
 
 
-def carbocyclic_ring_yl_attachment_descriptor(mol, frag_atoms, attach_idx):
-    """``'(1R)'`` (or ``'(1S)'``, ``'(1r)'``,...) for a substituent group whose
-    free-valence atom ``attach_idx`` lies in a carbocyclic monocycle and is the
-    group's ONLY stereogenic unit; else ``None``.
+def ring_yl_attachment_descriptor(mol, frag_atoms, attach_idx, ring_name=None):
+    """``'(1R)'`` (or ``'(2S)'``, ``'(1r)'``,...) for a substituent group whose free-valence
+    atom ``attach_idx`` lies in a monocycle and is the group's ONLY stereogenic unit; else
+    ``None``.
 
-    Derived from structure, not from the group's name: in a carbocyclic monocycle
-    no heteroatom or indicated hydrogen precedes the free valence in the
-    order, so criterion (c) gives the free valence locant 1 (the Blue Book
-    "(c) principal characteristic groups and free valences (suffixes)",:3268
-    'cyclohex-3-en-1-yl (preferred prefix)'). (:44643): stereodescriptors
-    relating to a substituent group "are cited at the front of the corresponding
-    prefix. They are preceded by a numerical or letter locant to describe the
-    position of the stereogenic unit when such locants are present" --
-    '[(1R)-1-chloropropyl]benzene (PIN)'. So '(1R)-cyclohex-3-en-1-yl', never the
-    locant-free '(R)-cyclohex-3-en-1-yl'.
+    Derived from structure, not from the group's name: the locant is the one the ring's own
+    numbering gives the free valence.
 
-    Guarded to the case where the numbering is certain: the ring of ``attach_idx``
-    is a single, unfused, all-carbon, non-aromatic ring wholly inside the group;
-    the group holds no other ring atom (a second ring could make the prefix a ring
-    assembly with its own numbering); the only CIP-labelled atom of the group is
-    ``attach_idx`` and no bond of the group carries a stereodescriptor.
+    * A carbocyclic monocycle: no heteroatom or indicated hydrogen precedes the free valence
+      in the order, so criterion (c) gives the free valence locant 1 (the Blue Book
+      "(c) principal characteristic groups and free valences (suffixes)",:3268
+      'cyclohex-3-en-1-yl (preferred prefix)').
+    * A heteromonocycle: the locant of ``rules.monocycle_forms.monocycle_form`` for the free
+      valence ('oxetan-2-yl' -> '(2S)'), and only when the prefix of that form is the text
+      the caller prints (``ring_name``), so the descriptor cites the numbering of the name.
+
+     (:44643): stereodescriptors relating to a substituent group "are cited at the
+    front of the corresponding prefix. They are preceded by a numerical or letter locant to
+    describe the position of the stereogenic unit when such locants are present" --
+    '[(1R)-1-chloropropyl]benzene (PIN)'; (:7489):
+    '10-{[(3S)-1-phosphabicyclo[2.2.2]octan-3-yl]methyl}-10H-phenoxazine (PIN)'. So
+    '(1R)-cyclohex-3-en-1-yl' and '(2S)-oxetan-2-yl', never the locant-free
+    '(R)-cyclohex-3-en-1-yl' or the descriptor at the front of the whole name.
+
+    Guarded to the case where the numbering is certain: the ring of ``attach_idx`` is a single,
+    unfused, non-aromatic ring wholly inside the group; the group holds no other ring atom (a
+    second ring could make the prefix a ring assembly with its own numbering); the only
+    CIP-labelled atom of the group is ``attach_idx`` and no bond of the group carries a
+    stereodescriptor.
     """
     try:
         frag = set(frag_atoms)
         if attach_idx is None or attach_idx not in frag:
             return None
+        if mol.GetAtomWithIdx(attach_idx).GetChiralTag() == Chem.ChiralType.CHI_UNSPECIFIED:
+            return None          # no stereocentre to cite, and no CIP assignment to make for it
         assign_stereochemistry(mol)
         ri = mol.GetRingInfo()
         if ri.NumAtomRings(attach_idx) != 1:
@@ -7466,13 +7452,15 @@ def carbocyclic_ring_yl_attachment_descriptor(mol, frag_atoms, attach_idx):
         ring = next(set(r) for r in ri.AtomRings() if attach_idx in r)
         if not ring <= frag:
             return None
+        carbocycle = True
         for a in frag:
             atom = mol.GetAtomWithIdx(a)
             if ri.NumAtomRings(a) and a not in ring:
                 return None
-            if a in ring and (atom.GetAtomicNum() != 6 or atom.GetIsAromatic()
-                              or ri.NumAtomRings(a) != 1):
-                return None
+            if a in ring:
+                if atom.GetIsAromatic() or ri.NumAtomRings(a) != 1:
+                    return None
+                carbocycle = carbocycle and atom.GetAtomicNum() == 6
         labelled = [a for a in frag if mol.GetAtomWithIdx(a).HasProp('_CIPCode')]
         if labelled != [attach_idx]:
             return None
@@ -7481,7 +7469,15 @@ def carbocyclic_ring_yl_attachment_descriptor(mol, frag_atoms, attach_idx):
                     and (b.HasProp('_CIPCode')
                          or b.GetStereo() != Chem.BondStereo.STEREONONE)):
                 return None
-        return f"(1{mol.GetAtomWithIdx(attach_idx).GetProp('_CIPCode')})"
+        locant = 1
+        if not carbocycle:
+            from ..rules.monocycle_forms import monocycle_form
+            form = monocycle_form(mol, sorted(ring), attach_idx) if ring_name else None
+            if (form is None or form.kind != 'heteromonocycle'
+                    or form.prefix(attach_idx) != ring_name):
+                return None
+            locant = form.numbering[attach_idx]
+        return f"({locant}{mol.GetAtomWithIdx(attach_idx).GetProp('_CIPCode')})"
     except Exception:  # noqa: BLE001 -- not derivable: the caller keeps its form
         return None
 
@@ -7618,8 +7614,8 @@ def _add_substituent_stereo_text(mol, sub_atoms, name, attach_idx=None, located=
         # derived, not guessed: 'N-[(1R)-cyclohex-3-en-1-yl]acetamide',
         # the Blue Book), not '(R)-cyclohex-3-en-1-yl'.
         if s_idx == attach_idx and any(ch.isdigit() for ch in name):
-            _ring_d = carbocyclic_ring_yl_attachment_descriptor(
-                mol, sub_atoms, attach_idx)
+            _ring_d = ring_yl_attachment_descriptor(
+                mol, sub_atoms, attach_idx, ring_name=name)
             if _ring_d is not None:
                 return f"{_ring_d}-{name}"
         # Otherwise: a single stereocenter on a parent-hydride-style substituent
@@ -8014,7 +8010,7 @@ def _nsf_memo_key(mol, sub_atoms, attach_idx, parent_chain):
             getattr(_g, 'session_depth', 0), id(getattr(_g, 'cache', None)),
             best_effort_ctx.get(), general_fallback_ctx.get(),
             allow_aromatic_general_ctx.get(), full_coverage_ctx.get(),
-            nacyl_float_refusing(), _dt._PEPTIDE_SUBST_ACTIVE, _gate_is_reentrant(),
+            nacyl_float_refusing(), _dt._PEPTIDE_SUBST_ACTIVE, _dt._PEPTIDE_NAME_STANDS, _gate_is_reentrant(),
             getattr(_IN_SPLIT_PROBE, 'active', False), forced_locant_reason(),
             _ISOTOPIC_NAMING_SCOPE.get(), _ISOTOPE_PARENT_POSITIONAL.get(),
             book_forms_var.get())

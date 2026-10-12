@@ -18,6 +18,7 @@ from rdkit import Chem
 
 from ..assembly.naming_utils import (
     alpha_sort_key,
+    enclose_if_compound,
     get_multiplier_prefix,
     is_complex_substituent,
 )
@@ -335,12 +336,14 @@ def _enrich_ring_n_substituent(mol, base_name: str, sub_atoms: List[int]) -> str
     for name, locants in prefix_groups.items():
         locants.sort(key=lambda x: (0, x) if isinstance(x, int) else (1, str(x)))
         count = len(locants)
+        # (the Blue Book): a compound prefix is cited in enclosing marks
+        enclosed = enclose_if_compound(name)
         if count == 1:
-            prefix_parts.append(f"{locants[0]}-{name}")
+            prefix_parts.append(f"{locants[0]}-{enclosed}")
         else:
             locant_str = ",".join(str(loc) for loc in locants)
             from ..assembly.naming_utils import multiplied_component as _mc
-            prefix_parts.append(f"{locant_str}-{_mc(count, name, name)}")
+            prefix_parts.append(f"{locant_str}-{_mc(count, name, enclosed)}")
 
     prefix_parts.sort(key=lambda x: alpha_sort_key(x))
 

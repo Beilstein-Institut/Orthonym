@@ -366,64 +366,69 @@ def test_memo_reading_run_leaves_no_trace(monkeypatch):
         memo.pop_scope(token)
 
 
-# dev-set rows whose floor stand-in the offer replaces with a clean engine name
-# (TRIAGE 'Breadth -- PubChem losses', class C), each named by the fresh-memo
-# run after the probe: the probe gives the same engine name for the first, the
-# stand-in back for the next two, and for the fourth an engine name built on the
-# memo's best-effort fragment names ('...-3-(2-hydroxy-1,3-dioxa-2-thiapropa-
-# 1,2-dienyl)benzene'), which must not ship.
-CLEAN_OFFER_ROWS = [
+# dev-set rows named by the main path, with no floor stand-in for the offer to replace.
+# The sulfonyl azo row of dev2000 ('O=S(=O)(O)c1cccc(N=Nc2ccc(Nc3ccccc3)cc2)c1', once
+# '1-{[4-(phenylamino)phenyl]diazenyl}-3-sulfobenzene') is named on the parent of its principal
+# group, '3-[(4-anilinophenyl)diazenyl]benzene-1-sulfonic acid',
+# the Blue Book,:38791; '4-(phenyldiazenyl)benzene-1-sulfonic acid (PIN)',:38798;
+# 'anilino (preferred prefix)',:17800), so the main path names it and the offer never runs. The
+# row is a PIN in tests/unit/assembly/test_leads_l3_43e_organyl_diazenyl.py.
+#
+# The hexatrienyl row carries a chain prefix that cites the locant of its free valence
+# ('hexa-1,3,5-trien-1-yl',, the Blue Book), so the main path names it and the
+# offer never runs. The glucosinolate row carries the oxime ester group =N-O-SO3H as the prefix
+# '[(sulfooxy)imino]': "Compounds containing the group =N-OR are named substitutively as alkoxy
+# substituted imines" Oximes, the Blue Book; '4-[(ethoxyimino)methyl]benzene-
+# 1-sulfonic acid (PIN)',:38485) and '3-(sulfooxy)propanoic acid (PIN)' (:36488). The group is
+# not the skeletal replacement chain C-N-O-S-O: (:6465) "The chain must be terminated
+# by a C atom or one of the following heteroatoms: P, As, Sb, Bi, Si, Ge, Sn, Pb, B, Al, Ga, In,
+# or Tl", and that chain ends on an O atom. The row takes its three ring hydroxy groups as the
+# suffix 'triol': Seniority order for parent structures, (the Blue Book):
+# "The senior parent structure has the maximum number of substituents corresponding to the
+# principal characteristic group (suffix)...". The prefix cited first in alphanumerical order,
+# 'hydroxymethyl', takes the lower locant (g),:3307); the CIP labels of the five ring
+# stereocentres are those of the input read from the ring numbered from the CH2OH carbon.
+# UNVERIFIED: the Blue Book has no verbatim example of '[(sulfooxy)imino]'; the spelling is
+# composed from '(ethoxyimino)' (:38485) and '(sulfooxy)' (:36488). The constitution and the
+# stereo layer are confirmed by the full-InChIKey round trip below.
+# Not PIN claims: the names are the systematic form.
+MAIN_PATH_ROWS = [
     # a dev split / milestone1500
     ("CO/C=C(C(=O)OC)\\C(C)=C/C=C/c1ccc(OCC=C(C)C)c(O)c1",
      "2-hydroxy-4-[(1E,3Z,5E)-6-methoxy-5-(methoxycarbonyl)-4-methylhexa-1,3,5-trien-"
-     "1-yl]-1-[(3-methylbut-2-en-1-yl)oxy]benzene",
-     [(1, False), (1, True)]),
+     "1-yl]-1-[(3-methylbut-2-en-1-yl)oxy]benzene"),
     # dev2000
-    # roadmap N5c (name-quality lane L2): the chain no longer ends on the S that roots
-    # 'sulfanyl', the Blue Book); the hexavalent S keeps the
-    # chain spelling (plan decision 5)
     ("C=CCC(=NOS(=O)(=O)O)S[C@@H]1O[C@H](CO)[C@@H](O)[C@H](O)[C@H]1O",
-     "(2R,3S,4S,5R,6S)-6-{[4,4-dioxo-1-(prop-2-en-1-yl)-3,5-dioxa-4λ6-thia-2-"
-     "azapent-1-en-1-yl]sulfanyl}-3,4,5-trihydroxy-2-(hydroxymethyl)oxane",
-     [(1, False), (1, True)]),
-    # The sulfonyl azo row of dev2000 ('O=S(=O)(O)c1cccc(N=Nc2ccc(Nc3ccccc3)cc2)c1', once
-    # '1-{[4-(phenylamino)phenyl]diazenyl}-3-sulfobenzene') is no longer a clean-offer row: leads
-    # program L3 (43e) names it on the parent of its principal group, '3-[(4-anilinophenyl)diazenyl]
-    # benzene-1-sulfonic acid', the Blue Book,:38791; '4-(phenyldiazenyl)
-    # benzene-1-sulfonic acid (PIN)',:38798; 'anilino (preferred prefix)',:17800), so the main path
-    # names it and the offer never runs. The row is a PIN in
-    # tests/unit/assembly/test_leads_l3_43e_organyl_diazenyl.py. The two rows above still reach the offer.
+     "(2R,3S,4S,5R,6S)-2-(hydroxymethyl)-6-({1-[(sulfooxy)imino]but-3-en-1-yl}"
+     "sulfanyl)oxane-3,4,5-triol"),
 ]
 
 
-@pytest.mark.parametrize("smiles,expected,offer_runs", CLEAN_OFFER_ROWS,
-                         ids=["hexatrienyl", "glucosinolate"])
-def test_clean_offer_names_are_kept(monkeypatch, smiles, expected, offer_runs):
+@pytest.mark.parametrize("smiles,expected", MAIN_PATH_ROWS, ids=["hexatrienyl", "glucosinolate"])
+def test_chain_prefix_rows_are_named_without_the_offer(monkeypatch, smiles, expected):
     runs = _spy_clean_offer(monkeypatch)
     row = name_best_effort(smiles)
     assert row["name"] == expected
     assert row["tier"] == "systematic_verified"
     assert_full_rt(row["name"], smiles)
-    assert runs == offer_runs
+    assert runs == []
 
 
 # Roadmap N5 (name-quality lane L2): with the book spellings ('phenoxy', 'benzoyl',
 # '(...)amino'; the Blue Book,:30446,:6465) the
-# main path names a row of this class and the offer never runs. The offer is pinned on the
-# row that still reaches it with the book spellings switched off (``mechanical_forms``): the
-# glucosinolate row of ``CLEAN_OFFER_ROWS`` (the sulfonyl azo row went with leads program L3 43e,
-# see ``CLEAN_OFFER_ROWS``), named with the mechanical spellings the switch keeps. Not PIN
-# claims: the names are the systematic form.
-MECHANICAL_OFFER_ROWS = [
+# main path names the rows above. With the book spellings switched off (``mechanical_forms``) the
+# glucosinolate row is named with the mechanical spellings the switch keeps, the chain prefix again
+# citing the locant of its free valence, the Blue Book) and the ring the suffix
+# 'triol',:18875). Not PIN claims: the names are the systematic form.
+MECHANICAL_ROWS = [
     ("C=CCC(=NOS(=O)(=O)O)S[C@@H]1O[C@H](CO)[C@@H](O)[C@H](O)[C@H]1O",
-     "(2R,3S,4S,5R,6S)-6-[5,5-dioxo-2-(prop-2-en-1-yl)-4,6-dioxa-1,5\u03bb6-dithia-3-"
-     "azahex-2-en-1-yl]-3,4,5-trihydroxy-2-(hydroxymethyl)oxane"),
+     "(2S,3R,4S,5S,6R)-2-[5,5-dioxo-2-(prop-2-en-1-yl)-4,6-dioxa-1,5\u03bb6-dithia-3-"
+     "azahex-2-en-1-yl]-6-(hydroxymethyl)oxane-3,4,5-triol"),
 ]
 
 
-@pytest.mark.parametrize("smiles,expected", MECHANICAL_OFFER_ROWS,
-                         ids=["glucosinolate"])
-def test_clean_offer_name_is_kept_mechanical_spelling(monkeypatch, smiles, expected):
+@pytest.mark.parametrize("smiles,expected", MECHANICAL_ROWS, ids=["glucosinolate"])
+def test_chain_prefix_row_is_named_without_the_offer_mechanical_spelling(monkeypatch, smiles, expected):
     from orthonym.assembly.book_prefixes import mechanical_forms
     runs = _spy_clean_offer(monkeypatch)
     with mechanical_forms():
@@ -431,7 +436,7 @@ def test_clean_offer_name_is_kept_mechanical_spelling(monkeypatch, smiles, expec
     assert row["name"] == expected
     assert row["tier"] == "systematic_verified"
     assert_full_rt(row["name"], smiles)
-    assert runs == [(1, False), (1, True)]
+    assert runs == []
 
 
 def test_the_former_offer_row_with_an_n_substituted_benzamide_is_the_pin():

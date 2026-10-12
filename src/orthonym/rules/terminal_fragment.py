@@ -912,6 +912,27 @@ def _book_acyl_fragment(mol, frag: Set[int], attach_idx: int
                                 atoms=frozenset(frag))
 
 
+def _ps_in(mol, path) -> bool:
+    """True when the wider tiers spell the P and S groups as prefixes and ``path`` runs through
+    the centre of such a group or the O or NH that links one. The centre is never a skeletal
+    atom of a chain: (the Blue Book) allows an 'a' chain "when none of the
+    heteroatoms constitute all or part of the principal characteristic group", and a sulfonamide
+    or phosphonate group is a characteristic group with a prefix of its own,:32971;
+    ``rules.oxoacid_group_prefix``), so the chain is not one the book allows."""
+    if not _ps_on():
+        return False
+    from .oxoacid_group_prefix import is_oxoacid_centre, is_oxoacid_linker
+    return any(is_oxoacid_centre(mol, a) or is_oxoacid_linker(mol, a) for a in path)
+
+
+def _ps_on() -> bool:
+    """True at the wider tiers with the book spellings of the P and S groups on (the PIN-path
+    callers of this writer keep the 'a' chain; see ``_book_oxoacid_fragment``)."""
+    from ..assembly.book_prefixes import forms_enabled
+    from .oxoacid_group_prefix import ps_tier_ctx
+    return bool(ps_tier_ctx.get()) and forms_enabled("ps")
+
+
 def _book_oxoacid_fragment(mol, frag: Set[int], attach_idx: int
                            ) -> Optional[TerminalFragmentName]:
     """A P or S oxoacid group (sulfo, phosphono, '[ethoxy(hydroxy)phosphoryl]oxy',...) is one
@@ -1034,7 +1055,7 @@ def _terminal_fragment_name_impl(
                              stop_at_ring=not _is_acyclic(mol, frag))
         _het = [a for a in _bb if mol.GetAtomWithIdx(a).GetAtomicNum() != 6]
         # (:6465) ends and (:23348) four or more hetero atoms, at least one C
-        licensed_a = bool(_het) and (a_chain_licensed(mol, _bb) or (
+        licensed_a = bool(_het) and not _ps_in(mol, _bb) and (a_chain_licensed(mol, _bb) or (
             len(_het) >= 4 and len(_het) < len(_bb)
             and all(mol.GetAtomWithIdx(e).GetSymbol() in ("C", "P", "As", "Sb", "Bi", "Si", "Ge",
                                                           "Sn", "Pb", "B", "Al", "Ga", "In", "Tl")
@@ -1060,8 +1081,8 @@ def _terminal_fragment_name_impl(
     backbone = _backbone_from(mol, frag, attach_idx, ranks,
                               stop_at_ring=_frag_has_ring)
     if (book and mol.GetAtomWithIdx(attach_idx).GetAtomicNum() == 6
-            and not a_chain_licensed(mol, backbone)
-            and hetero_roots_composable(mol, backbone, group_leaves=forms_enabled('chain'))):
+            and (not a_chain_licensed(mol, backbone) or _ps_in(mol, backbone))
+            and hetero_roots_composable(mol, backbone, forms_enabled('chain'), _ps_on())):
         # Roadmap N5c: (the Blue Book) and (:23348) allow an
         # 'a' chain only with C (or P, As, Sb, Bi, Si, Ge, Sn, Pb, B, Al, Ga, In, Tl)
         # ends, at least one carbon atom and four or more heterounits; otherwise the

@@ -109,6 +109,16 @@ def detect_locant_collisions(
     return collisions
 
 
+def suffix_leaves_no_room_for_a_prefix(suffix_text: str) -> bool:
+    """True for a suffix that is a divalent group on its ring carbon (``one``, ``thione``,
+    ``imine``: =O, =S, =NH): that carbon has no valence left for a prefix, so a prefix locant
+    equal to the suffix locant cannot belong to the same carbon. A monovalent suffix
+    (``carboxylic acid``, ``sulfonic acid``, ``ol``, ``amine``) leaves one valence, so a prefix at
+    the locant of the suffix is substitution of a quaternary carbon, (the Blue Book)
+    cites it: '1-isothiocyanatocyclohexa-2,4-diene-1-sulfonic acid'."""
+    return suffix_text.strip().endswith(("one", "imine"))
+
+
 def validate_stereo_locants(
     stereo_descriptors: List[Tuple[Any, str]],
     parent_size: int,

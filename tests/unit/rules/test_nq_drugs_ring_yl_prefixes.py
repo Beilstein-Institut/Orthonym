@@ -105,13 +105,18 @@ def test_a_stereocentre_in_a_connective_ring_yl_declines(smiles, a, b, mancude):
 
 
 @pytest.mark.parametrize("smiles,misplaced,best_effort", [
-    # main's best-effort names (the descriptor at the front of the prefix, without its locant)
+    # the descriptor of the ring-yl stands at the front of its prefix, with the locant of the prefix
+    # NAMING OF STEREOISOMERS, the Blue Book,:44643: "When they relate to substituent
+    # groups, they are cited at the front of the corresponding prefix. They are preceded by a
+    # numerical or letter locant..."; the example under,:7489,
+    # '10-{[(3S)-1-phosphabicyclo[2.2.2]octan-3-yl]methyl}-10H-phenoxazine (PIN)'). OPSIN reads
+    # each name without a warning and returns the input's InChIKey.
     ("OC(=O)c1ccc(N[C@@H]2CCCNC2)cc1", "(3R)-4-[(piperidin-3-yl)amino]benzoic acid",
-     "4-[(R)-(piperidin-3-yl)amino]benzoic acid"),
+     "4-{[(3R)-piperidin-3-yl]amino}benzoic acid"),
     ("NC(=O)c1cccc(N[C@@H]2CCCNC2)c1", "(3R)-3-[(piperidin-3-yl)amino]benzamide",
-     "3-[(R)-(piperidin-3-yl)amino]benzamide"),
+     "3-{[(3R)-piperidin-3-yl]amino}benzamide"),
     ("OC(=O)c1ccc(S[C@@H]2CCCNC2)cc1", "(3R)-4-[(piperidin-3-yl)sulfanyl]benzoic acid",
-     "4-[(R)-(piperidin-3-yl)sulfanyl]benzoic acid"),
+     "4-{[(3R)-piperidin-3-yl]sulfanyl}benzoic acid"),
 ])
 def test_a_connective_stereocentre_is_not_cited_in_front_of_the_whole_name(
         smiles, misplaced, best_effort):

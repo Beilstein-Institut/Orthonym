@@ -2986,7 +2986,7 @@ def _assemble_fragments(
                        'oxetan', 'azetidin', 'thietan')
         )
         if is_ring_parent:
-            from ...rules.locant_validation import detect_locant_collisions
+            from ...rules.locant_validation import detect_locant_collisions, suffix_leaves_no_room_for_a_prefix
 
             suffix_locants_list = list(suffix_frag.locants)
             prefix_locant_groups = [
@@ -3001,7 +3001,7 @@ def _assemble_fragments(
                     parent_type="ring",
                     parent_size=parent_size,
                 )
-                if collisions:
+                if collisions and suffix_leaves_no_room_for_a_prefix(suffix_frag.text):
                     import logging
                     _log = logging.getLogger(__name__)
                     collision_set = set(loc for _, loc in collisions)

@@ -309,9 +309,16 @@ def test_pin_default_is_untouched(smiles):
     that newly name under the general tier also change on the PIN path and this
     test fails on them.
     """
+    # General methodology for naming substituent groups, method (2)
+    # (the Blue Book): "...except for mononuclear parent hydrides or the suffix
+    # 'ylidyne', the locant '1' must be cited." The attachment atom is the first ring
+    # carbon, so its locant is its distance from the heteroatom plus one: oxane O at
+    # index 3 -> 4, piperazine N at index 2 -> 2 (the carbon next to N), thiane S at
+    # index 2 -> 3; the Blue Book's own examples read 'ethyl 3-(2-oxooxan-3-yl)propanoate
+    # (PIN)' (:32126) and '(1λ4-thian-3-yl)' (:21636).
     expected = {
-        'C1CCOCC1': 'oxanyl', 'C1CNCCN1': 'piperazinyl', 'c1ccccc1': 'phenyl',
-        'C1CCCCC1': 'cyclohexyl', 'C1CSCCC1': 'thianyl', 'C1=NC=NC1': None,
+        'C1CCOCC1': 'oxan-4-yl', 'C1CNCCN1': 'piperazin-2-yl', 'c1ccccc1': 'phenyl',
+        'C1CCCCC1': 'cyclohexyl', 'C1CSCCC1': 'thian-3-yl', 'C1=NC=NC1': None,
         'C1COCCOCCOCCOCCO1': None, 'C1=CCOC1': None, 'C1CC[Hg]CC1': None,
         'C1C2CC3CC1CC(C2)C3': None,
     }

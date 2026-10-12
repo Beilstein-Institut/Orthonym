@@ -172,6 +172,10 @@ CLASS_ROWS = [
     ("S=C(N1CCCC1)N1CCCC1", "di(pyrrolidin-1-yl)methanethione"),
     ("O=C(N1CCc2ccccc21)N1CCc2ccccc21", "bis(2,3-dihydro-1H-indol-1-yl)methanone"),     #:38232
     ("O=C(N1CCCCCC1)N1CCCCCC1", "bis(azepan-1-yl)methanone"),                            #:7176
+    # (2),:15814 ("the locant '1' must be cited") and (c),:7165-7178
+    # (a Hantzsch-Widman ring opening with an 'a' prefix takes 'bis')
+    ("O=C(N1CC1)N1CC1", "bis(aziridin-1-yl)methanone"),
+    ("O=C(N1CCC1)N1CCC1", "bis(azetidin-1-yl)methanone"),
     ("CCOC(=O)c1ccc(Oc2ccc(Br)c(C(=O)OC)c2)cc1",
      "methyl 2-bromo-5-[4-(ethoxycarbonyl)phenoxy]benzoate"),
 ]
@@ -223,8 +227,6 @@ def test_pin_at_both_tiers(smiles, pin):
 # the multiplicative name is never labelled a PIN, and best-effort stays RT-exact.
 KETONE_PARENT_UNBUILT_ROWS = [
     ("O=C(n1ccc2ccccc21)n1ccc2ccccc21", "1,1'-carbonylbis(1H-indole)"),
-    ("O=C(N1CC1)N1CC1", "1,1'-carbonylbis(aziridine)"),
-    ("O=C(N1CCC1)N1CCC1", "1,1'-carbonylbis(azetidine)"),
 ]
 
 

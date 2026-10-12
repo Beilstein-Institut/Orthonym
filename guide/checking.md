@@ -20,13 +20,15 @@ When they match, the name ships. Here is caffeine, from the engine's own output:
 </div>
 ```
 
-## The three checks
+## The four checks
 
 **1. Every atom is named.** Every heavy atom of your structure must be claimed by exactly one part of the name, and every part must appear in the final name. This check decides for the names of the general engine (the `valid`, `complete` and `best-effort` tiers). On the strict path of the default tier it is recorded but does not decide; the OPSIN checks below do.
 
 **2. OPSIN must be able to read the name.** At the `valid`, `complete` and `best-effort` tiers, a name OPSIN cannot read is not emitted.
 
 **3. What OPSIN read must be your molecule.** At the `valid`, `complete` and `best-effort` tiers the full InChIKey must match: constitution, charge and stereochemistry. A name with a missing or wrong stereodescriptor is therefore not emitted there. At the default tier the check accepts the same full InChIKey, or the same constitution, charge and protonation state with no stereodescriptor that disagrees with your structure.
+
+**4. OPSIN must read the name once.** Orthonym also rejects a name that OPSIN reads as ambiguous (warning `APPEARS_AMBIGUOUS`): a name that leaves out a locant it needs can read back to the right structure and still not say where a group stands. The engine first names the molecule again with every locant cited. A molecule with no other name keeps the ambiguous one at the best-effort tier, labelled below the preferred name, and the default tier declines it. The few names the Blue Book itself prints in a form OPSIN reads as ambiguous (`propylium`, `[1-(methylperoxy)sulfanyl]butan-1-one`) are not rejected.
 
 A candidate that fails is withdrawn, and the engine tries the next way of naming the molecule. When none passes, it declines and says why ([Declines](declines.md)).
 

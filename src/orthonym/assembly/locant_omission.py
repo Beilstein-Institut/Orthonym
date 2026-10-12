@@ -71,6 +71,7 @@ __all__ = [
     "scope_has_isotopic_modification",
     "isotope_parent_positional_scope",
     "parent_scope_has_positional_isotope",
+    "parent_positional_scope",
     "isotope_labelled_original_scope",
     "isotope_label_on_atoms",
 ]
@@ -1006,6 +1007,17 @@ def isotope_parent_positional_scope(reason: str = "isotope"):
 def parent_scope_has_positional_isotope() -> bool:
     """True when an enclosing:func:`isotope_parent_positional_scope` is active."""
     return _ISOTOPE_PARENT_POSITIONAL.get() is not None
+
+
+@contextlib.contextmanager
+def parent_positional_scope(reason: str):
+    """Declare that a suffix of the PARENT hydride being named cites a locant (an ionic centre,
+    ````, ``:2869``): every licence of ```` is off, the licences that restore
+    the parent's own substituent-position locant included. Without a feature at a cited
+    position the parent has one kind of position and ```` (``:2939``) omits the
+    locant ('methylcyclohexane'); with it ('1-methylcyclohexan-1-ide') the positions differ."""
+    with forced_locant_scope(reason), isotope_parent_positional_scope(reason):
+        yield
 
 
 # The labelled molecule itself, declared by ``rules/isotopes.py`` around the same

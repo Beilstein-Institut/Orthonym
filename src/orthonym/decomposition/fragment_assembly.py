@@ -43,6 +43,7 @@ from ..errors import is_refusal_sentinel
 # structural decision via get_principal_group, NOT a string match on the name.
 from ..perception.functional_groups import detect_functional_groups
 from ..rules.seniority import SENIORITY_ORDER, get_principal_group
+from .amide_n_substituents import amide_n_substituent_block
 
 # The top of the hydroxy band. primary_alcohol (== 54) admits
 # methanol/ethanol/2-aminoethanol/phenol; everything senior to hydroxy (ketone,
@@ -59,9 +60,13 @@ def _join_components(left: str, right: str) -> str:
     """Join two name components with IUPAC-compliant hyphenation.
 
     Inserts a hyphen when:
-    - Left ends with letter/')' and right starts with digit
-    - Left ends with letter/')' and right starts with uppercase letter
-      (N-substitution, L/D/R/S stereodescriptors)
+    - Left ends with a letter or an enclosing mark and right starts with digit
+    - Left ends with a letter or an enclosing mark and right starts with uppercase
+      letter (N-substitution, L/D/R/S stereodescriptors)
+
+     Multiple types of enclosing marks (the Blue Book): "the nesting order is
+    as follows: {[({})]}", so a term that ends in any of ')', ']' and '}' takes the
+    hyphen before a following locant alike.
 
     This matches the logic in composer.py _join_prefix_to_name.
 
@@ -78,9 +83,9 @@ def _join_components(left: str, right: str) -> str:
     last = left[-1]
     first = right[0]
 
-    if (last.isalpha() or last in (')', ']')) and first.isdigit():
+    if (last.isalpha() or last in (')', ']', '}')) and first.isdigit():
         return f"{left}-{right}"
-    if (last.isalpha() or last in (')', ']')) and first.isupper():
+    if (last.isalpha() or last in (')', ']', '}')) and first.isupper():
         return f"{left}-{right}"
 
     return f"{left}{right}"
@@ -1249,12 +1254,25 @@ def _assemble_amide(fragment_names: Dict[str, str], style: str,
         amide_name = _acid_to_amide(acid_name)
         if amide_name:
             if amine_prefix.startswith("N-") or amine_prefix.startswith("N,"):
-                # Prefix already carries N-substitution from recursive naming
-                # (e.g., "N-methylcyclohexyl" from "N-methylcyclohexanamine").
-                # Do NOT prepend another "N-" -- the N is already in the prefix.
-                # Result: "N-methylcyclohexylacetamide" (correct).
-                result = _join_components(amine_prefix, amide_name)
-                order_parts = (_re.sub(r"^N(?:,N)*-", "", amine_prefix), amide_name)
+                # The amine is a secondary amine ('N-methylcyclohexanamine'): both groups
+                # stay on the amide N and each is cited with the locant N,
+                # the Blue Book). A prefix that merges them ('N-methylcyclohexyl')
+                # names one group, so no amide is built from it; the acyl-prefix branch
+                # below takes the amine instead.
+                n_cited = amide_n_substituent_block(
+                    amine_name, _amine_to_prefix, (fragment_smiles or {}).get("amine"))
+                if n_cited and n_prefix_breaks_citation_order(n_cited[1], amide_name):
+                    # NAMING OF STEREOISOMERS (the Blue Book): stereodescriptors
+                    # "are placed at the front of the complete name when related to the parent
+                    # structure"; ALPHANUMERICAL ORDER (:3440): "Alphanumerical order is
+                    # used to establish the order of citation of detachable substituent
+                    # prefixes". The N block cannot stand in front of such an amide name and
+                    # the concatenation does not sort it among the prefixes, so this split
+                    # names no amide; another producer names the molecule.
+                    return None
+                if n_cited:
+                    result = _join_components(n_cited[0], amide_name)
+                    order_parts = (n_cited[1], amide_name)
             else:
                 # Check if prefix has a multiplier (di, tri, tetra) indicating
                 # multiple identical N-substituents. In that case, expand the
@@ -1354,7 +1372,8 @@ def _assemble_amide(fragment_names: Dict[str, str], style: str,
             return result
 
     if order_parts is not None:
-        _record_if_out_of_citation_order(result, [order_parts[0]], order_parts[1])
+        n_prefixes = order_parts[0] if isinstance(order_parts[0], list) else [order_parts[0]]
+        _record_if_out_of_citation_order(result, n_prefixes, order_parts[1])
     return result
 
 

@@ -362,6 +362,7 @@ _PIN_HETEROARYL_STEMS: Dict[str, str] = {
 # eliminated for the numbering consumer. A unit test pins the equality.
 from .locants import ELEMENT_NUMBERING_SENIORITY as _ELEMENT_NUMBERING_SENIORITY
 from ..perception.smarts_cache import compiled as _compiled_smarts
+from .ring_position_kinds import one_kind_of_ring_position
 
 _HETEROATOM_SENIORITY: Dict[str, int] = {
     sym: rank
@@ -2564,6 +2565,15 @@ def name_ring_system_substituent(
                                              allow_mancude=allow_mancude)
         except Exception:
             name = None
+        if name is not None and not name.startswith('('):
+            # (the Blue Book): the descriptor of the free-valence stereocentre
+            # stands at the front of the ring-yl prefix, with the locant of the prefix's
+            # own numbering ('[(2S)-oxetan-2-yl]methyl').
+            from ..assembly.substituent_naming import ring_yl_attachment_descriptor
+            _descriptor = ring_yl_attachment_descriptor(
+                mol, frag_atoms, attach_idx, ring_name=name)
+            if _descriptor is not None:
+                name = f'{_descriptor}-{name}'
         if name is None:
             # A fragment made only of ring atoms that holds MORE than one ring
             # system, joined by bonds: the ring system bearing the free valence
@@ -3171,10 +3181,10 @@ def _compound_ring_on_chain_substituent(
         from rdkit import Chem
 
         from ..assembly.substituent_naming import (
-            carbocyclic_ring_yl_attachment_descriptor,
+            ring_yl_attachment_descriptor,
         )
-        _ring_d = carbocyclic_ring_yl_attachment_descriptor(
-            mol, frag_ring_atoms, ring_side_atoms[0])
+        _ring_d = ring_yl_attachment_descriptor(
+            mol, frag_ring_atoms, ring_side_atoms[0], ring_name=ring_name)
         if _ring_d is not None and not any(
                 b.GetBeginAtomIdx() in frag_set and b.GetEndAtomIdx() in frag_set
                 and b.GetStereo() != Chem.BondStereo.STEREONONE
@@ -3476,6 +3486,71 @@ def _fragment_is_ring_assembly(mol, frag_atoms) -> bool:
     return detect_ring_assembly(mol, frag_systems) is not None
 
 
+def _is_single_heteromonocycle(mol, ring_atoms) -> bool:
+    """A 3- to 10-membered ring whose atoms lie in that ring only, with at least one
+    ring heteroatom."""
+    ring = list(ring_atoms)
+    ri = mol.GetRingInfo()
+    return (3 <= len(ring) <= 10 and all(ri.NumAtomRings(a) == 1 for a in ring)
+            and any(mol.GetAtomWithIdx(a).GetSymbol() != "C" for a in ring))
+
+
+def _book_monocycle_prefix(mol, ring_atoms, attachment_point) -> Optional[str]:
+    """The book prefix of one heteromonocycle with the free valence at ``attachment_point``:
+    'aziridin-1-yl', 'oxetan-2-yl', '1,3-oxazol-2-yl'. General methodology for
+    naming substituent groups, method (2) (the Blue Book): "...the locant '1' must be
+    cited." ``None`` when ``monocycle_form`` has no form for the ring, or when
+    lets the caller keep the locant-free prefix of a ring with one kind of position."""
+    from .monocycle_forms import monocycle_form
+
+    form = monocycle_form(mol, ring_atoms, attachment_point)
+    if form is None or form.kind != "heteromonocycle":
+        return None
+    if one_kind_of_ring_position(mol, ring_atoms):
+        return None
+    return form.prefix(attachment_point)
+
+
+_NO_DECISION = object()
+
+
+def _heteromonocycle_prefix_decision(mol, ring_atoms, attachment_point):
+    """The prefix of a heteromonocycle joined through ``attachment_point``: the PIN heteroaryl
+    prefix, else the book prefix, else ``None`` when the ring is declined, else
+    ``_NO_DECISION`` (the caller goes on to its table forms).
+
+     Citation of locants (the Blue Book) with General methodology for
+    naming substituent groups, method (2) (:15814): a heteromonocycle with more than one kind
+    of position cites the locant of its free valence. The locant-free table forms ('aziridinyl',
+    'oxetanyl', 'furyl') are not book spellings. A ring that ``monocycle_form`` cannot spell (a
+    charged or labelled ring, an element outside the Hantzsch-Widman table) declines, so a later
+    producer names it."""
+    pin_name = pin_heteroaryl_substituent_name(mol, ring_atoms, attachment_point)
+    if pin_name is not None:
+        return pin_name
+    book = _book_monocycle_prefix(mol, ring_atoms, attachment_point)
+    if book is not None:
+        return book
+    if (_is_single_heteromonocycle(mol, ring_atoms)
+            and not one_kind_of_ring_position(mol, ring_atoms)):
+        return None
+    return _NO_DECISION
+
+
+def naphthalenyl_prefix(mol, aromatic_atoms, attach_idx: int) -> Optional[str]:
+    """'naphthalen-1-yl' / 'naphthalen-2-yl' for the naphthalene system ``aromatic_atoms``
+    joined through ``attach_idx``, else ``None``. Naphthalene has two kinds of position,
+    so its prefix cites the free-valence locant: General methodology for naming
+    substituent groups, method (2) (the Blue Book): "...the locant '1' must be
+    cited."; 'naphthalen-2-yl (preferred prefix)' (:2865). For the writers that
+    characterise an aryl group by its aromatic carbon count."""
+    atoms = tuple(sorted(aromatic_atoms))
+    if len(atoms) != 10 or attach_idx not in atoms:
+        return None
+    name = get_ring_substituent_name(mol, atoms, attach_idx)
+    return name if name and name.startswith("naphthalen-") else None
+
+
 def get_ring_substituent_name(
     mol,
     ring_atoms: Tuple[int, ...],
@@ -3759,11 +3834,9 @@ def get_ring_substituent_name(
     # falls through to the legacy forms below whenever the locant is not
     # provably PIN-correct (benzene, saturated rings, substituted rings, etc.).
     if attachment_point is not None:
-        pin_name = pin_heteroaryl_substituent_name(
-            mol, ring_atoms, attachment_point
-        )
-        if pin_name is not None:
-            return pin_name
+        decision = _heteromonocycle_prefix_decision(mol, ring_atoms, attachment_point)
+        if decision is not _NO_DECISION:
+            return decision
 
     # Check for position-specific name
     if ring_name in POSITION_SPECIFIC_RINGS and attachment_point is not None:

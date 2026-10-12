@@ -129,7 +129,6 @@ FUNCTIONS = {
     "src/orthonym/rules/polyfunctional.py::_generate_alkyl_prefixes_for_polyfunctional#1": 521,
     "src/orthonym/rules/polyfunctional.py::_name_ring_as_parent_polyfunctional#1": 404,
     "src/orthonym/rules/polyfunctional.py::name_polyfunctional#1": 2171,
-    "src/orthonym/rules/pseudoketones.py::name_acyl_hetero_pseudoketone#1": 202,
     "src/orthonym/rules/ring_assemblies.py::_compute_per_system_ring_locants#1": 227,
     "src/orthonym/rules/ring_assemblies.py::_name_ring_assembly_prefix_oriented#1": 213,
     "src/orthonym/rules/ring_assemblies.py::name_mixed_ring_prefix#1": 203,

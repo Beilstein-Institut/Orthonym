@@ -13,6 +13,7 @@ but IUPAC prefers R/S notation over D/L for PINs.
 """
 
 import logging
+import re
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -723,3 +724,31 @@ def record_if_non_pin_amino_acid_name(name: Optional[str]) -> None:
     if name and name.lower() in NON_PIN_AMINO_ACID_NAMES:
         from ..metrics.provenance import record_non_pin_fragment
         record_non_pin_fragment(name)
+
+#: the descriptor that a retained amino-acid name carries ('L-alanine', 'D-allothreonine')
+_RETAINED_NAME_DESCRIPTOR = re.compile(r"^(?:DL|D|L)-(?:allo-?)?|^allo-?", re.IGNORECASE)
+
+_RETAINED_AMINO_ACID_NAMES: Optional[frozenset] = None
+
+
+def is_retained_amino_acid_name(name: Optional[str]) -> bool:
+    """True when ``name`` is a retained amino-acid name ('glycine', 'L-proline',
+    'D-allothreonine'): a name of this module's tables, with the descriptor that it carries.
+
+     Derivatives formed by substitution (the Blue Book): "Retained names are used
+    to indicate carbon, nitrogen, oxygen and sulfur substitution." The locant 'N' of such a
+    derivative cites the nitrogen of a retained name. Systematic substitutive names
+    (:54247): "When not denoted by a retained name, amino acids receive systematic substitutive
+    names" ('2-amino-3-methylbutanoic acid'), which cite their nitrogen as the prefix 'amino' or
+    by a numerical locant ('pyrrolidine-2-carboxylic acid', N = 1), never as 'N'."""
+    global _RETAINED_AMINO_ACID_NAMES
+    if not name:
+        return False
+    if _RETAINED_AMINO_ACID_NAMES is None:
+        # a name that cites a locant ('4-aminobutanoic acid') is systematic, not retained
+        _RETAINED_AMINO_ACID_NAMES = frozenset(
+            retained.lower()
+            for table in (STANDARD_AMINO_ACIDS, NON_STANDARD_AMINO_ACIDS, GENERAL_ONLY_AMINO_ACIDS)
+            for retained in table.values()
+            if not any(ch.isdigit() for ch in retained))
+    return _RETAINED_NAME_DESCRIPTOR.sub("", name.strip(), count=1).lower() in _RETAINED_AMINO_ACID_NAMES

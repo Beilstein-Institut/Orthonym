@@ -1926,7 +1926,9 @@ def _build_o_acyl_prefix_terms(o_acyl_mods):
         return None  # >4 of one acyl -> out of scope, fail closed
     locs = sorted(loc for loc, _w in o_acyl_mods)
     marker = f"{mult}-O-" if mult else "O-"
-    return [(word, f"{','.join(str(x) for x in locs)}-{marker}{word}")]
+    # (the Blue Book): a compound acyl group is cited in enclosing marks
+    from ..assembly.naming_utils import enclose_if_compound
+    return [(word, f"{','.join(str(x) for x in locs)}-{marker}{enclose_if_compound(word)}")]
 
 
 def _bfs_branch(mol, start_idx: int, exclude_idx: int):

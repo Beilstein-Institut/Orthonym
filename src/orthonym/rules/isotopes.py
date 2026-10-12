@@ -329,6 +329,42 @@ def _charge_free(mol: Chem.Mol) -> Chem.Mol:
     return m.GetMol()
 
 
+def heavy_label_on_delocalized_atoms(mol: Chem.Mol) -> bool:
+    """True when every heavy nuclide of ``mol`` labels one atom of a delocalized group, so that
+    the label put on any other atom of the group is the same compound drawn as another
+    resonance structure (the oxygens of a nitro group, of a carboxylate, the nitrogens of a
+    guanidinium).
+
+     DELOCALIZED RADICALS AND IONS (the Blue Book), "Delocalization in names involving
+    one radical or ionic center in an otherwise conjugated double bonds structure is denoted by
+    the appropriate suffix without locants" (:43542): the compound is one species whatever atom a
+    drawing puts the charge on, so the descriptor '(18O)' of '(18O)nitrobenzene' has no position
+    to cite. OPSIN reads such a descriptor as ambiguous ('Position of isotope on nitr'). A label
+    that moves to a symmetric partner without changing the molecule is another case
+    and one whose move gives a different compound (the two oxygens of an ester) is not this one."""
+    labelled = [a for a in mol.GetAtoms() if a.GetIsotope() and a.GetAtomicNum() > 1]
+    if not labelled:
+        return False
+    try:
+        own = Chem.MolToSmiles(mol)
+        for atom in labelled:
+            for other in mol.GetAtoms():
+                if (other.GetIdx() == atom.GetIdx() or other.GetAtomicNum() != atom.GetAtomicNum()
+                        or other.GetIsotope()):
+                    continue
+                moved = Chem.RWMol(mol)
+                moved.GetAtomWithIdx(atom.GetIdx()).SetIsotope(0)
+                moved.GetAtomWithIdx(other.GetIdx()).SetIsotope(atom.GetIsotope())
+                moved = moved.GetMol()
+                if Chem.MolToSmiles(moved) != own and _kekule_forms_of_one_compound(mol, moved):
+                    break
+            else:
+                return False
+    except Exception:                                           # noqa: BLE001
+        return False
+    return True
+
+
 def _kekule_forms_of_one_compound(a: Chem.Mol, b: Chem.Mol) -> bool:
     """True iff ``a`` and ``b`` are ONE compound drawn as two of its resonance
     structures -- two Kekule alternations of a ring system, or one charge placed on
@@ -967,7 +1003,12 @@ def _element_scope(mol: Chem.Mol, start: int, el: str) -> set:
         stay in one scope.
 
     A C-C bond is therefore traversed only when it lies inside a ring (fused/ring
-    positions) or joins two acyclic (chain) atoms."""
+    positions) or joins two acyclic (chain) atoms.
+
+    The unit of a ring atom is its ring system, the parent hydride: the atoms of element
+    ``el`` that other ring atoms separate (C-2 of pyrimidine, the two nitrogens of
+    imidazolidine-2,4-dione) are in its scope, so ("only one atom of a given
+    element", the Blue Book) does not omit the locant of a label on one of them."""
     seen = {start}
     stack = [start]
     while stack:
@@ -981,7 +1022,24 @@ def _element_scope(mol: Chem.Mol, start: int, el: str) -> set:
             if bond.IsInRing() or (not ai.IsInRing() and not nb.IsInRing()):
                 seen.add(j)
                 stack.append(j)
+    if mol.GetAtomWithIdx(start).IsInRing():
+        seen |= {a for a in _ring_system(mol, start) if mol.GetAtomWithIdx(a).GetSymbol() == el}
     return seen
+
+
+def _ring_system(mol: Chem.Mol, start: int) -> set:
+    """The atoms joined to ring atom ``start`` through ring bonds: its fused, spiro or bridged
+    ring system, one parent hydride."""
+    system = {start}
+    stack = [start]
+    while stack:
+        i = stack.pop()
+        for nb in mol.GetAtomWithIdx(i).GetNeighbors():
+            j = nb.GetIdx()
+            if j not in system and mol.GetBondBetweenAtoms(i, j).IsInRing():
+                system.add(j)
+                stack.append(j)
+    return system
 
 
 def _single_label_is_immaterial(original: Chem.Mol, mass: int, el: str,
@@ -1093,8 +1151,15 @@ def _split_yields_distinct_isomer(original: Chem.Mol, mass: int, el: str,
 
 
 def _placement_unambiguous(original: Chem.Mol,
-                           complete_sub_omission: bool = False) -> bool:
+                           complete_sub_omission: bool = False,
+                           slot: Optional[Tuple[str, int]] = None) -> bool:
     """: may the isotope descriptor's position-locant(s) be OMITTED?
+
+    ``slot`` is the skeleton name and the offset where the descriptor would stand. When the
+    unit it modifies, a substituent group between enclosing marks, cites a locant in its
+    unmodified name ('aziridin-1-yl'), the immaterial placement on a symmetric orbit does not
+    omit the locant: (the Blue Book) omits a locant only "if no locants are
+    necessary in unmodified names". and still do.
 
     ``complete_sub_omission`` enables the single-carrier
     complete-substitution omission (``(2H3)acetonitrile``). It is True ONLY on the
@@ -1234,6 +1299,8 @@ def _placement_unambiguous(original: Chem.Mol,
         if len(orbit) < 2:                        # unique singleton position -> cite
             return False
         if len(carriers) == 1:                    # all labels on ONE carrier of a symmetric orbit
+            if slot is not None and _enclosing_unit_cites_a_locant(*slot):
+                return False                      # cl.1 needs no locant in the name
             carrier = next(iter(carriers))
             # cl.1: a label whose orbit member is immaterial (moving the
             # WHOLE group to a symmetric partner reproduces the molecule) may omit
@@ -1943,6 +2010,43 @@ def _unit_completely_labelled(skel: str, off: int, keys,
     return True
 
 
+def _is_held_locant_free(original: Chem.Mol, skel: str, off: int, candidate: str) -> bool:
+    """A locant-free candidate that round-trips but does not specify its position: a hydrogen
+    nuclide on a nitrogen that has other hydrogens in its unit, or a hydrogen nuclide that OPSIN
+    places on one of several hydrogens. It is kept below the preferred names, for want of a
+    locanted one. Only for hydrogen: a heavy nuclide on equivalent atoms (the oxygens of a nitro
+    group, of a carboxylate) is one species whatever the position, the Blue Book),
+    and OPSIN warns there too."""
+    return (_nitrogen_hydrogen_needs_locant(original, skel, off)
+            or (any(a.GetAtomicNum() == 1 and a.GetIsotope() for a in original.GetAtoms())
+                and _opsin_reads_ambiguously(candidate)))
+
+
+def _opsin_reads_ambiguously(name: str) -> bool:
+    """Does OPSIN read ``name`` with the warning APPEARS_AMBIGUOUS? A locant-free descriptor
+    that OPSIN places on one of several atoms has not specified its position,
+    the Blue Book), although its round trip can match. False when OPSIN cannot say."""
+    from ..jvm_bridge import OpsinUnavailable, opsin_warnings
+    try:
+        return any(kind == "APPEARS_AMBIGUOUS" for kind, _msg in opsin_warnings(name))
+    except OpsinUnavailable:
+        return False
+
+
+def _enclosing_unit_cites_a_locant(skel: str, off: int) -> bool:
+    """Does the substituent group between the enclosing marks around ``off`` cite a locant in
+    its unmodified name ('aziridin-1-yl')? The locants of units nested in it are theirs and do
+    not count. False for a descriptor outside any enclosing marks."""
+    enclosing = [(o, c) for (o, c) in _enclosing_pairs(skel) if o < off <= c]
+    if not enclosing:
+        return False
+    o, c = max(enclosing, key=lambda pair: pair[0])
+    inner = skel[o + 1:c]
+    for (io, ic) in sorted(_enclosing_pairs(inner), reverse=True):
+        inner = inner[:io] + inner[ic + 1:]
+    return any(ch.isdigit() for ch in inner)
+
+
 def _find_best_placement(
     skel: str, keys, original: Chem.Mol, n_pos: int,
     allow_front_hyphen: bool = False,
@@ -2050,13 +2154,12 @@ def _find_best_placement(
                     # shipped the ambiguous nested form -- a review review 2026-09-08.)
                     if (locant is None
                             and not _placement_unambiguous(
-                                original, complete_sub_omission)
+                                original, complete_sub_omission, (skel, off))
                             and (multi_descriptor
                                  or not _unit_completely_labelled(
                                      skel, off, keys, original))):
                         continue
-                    if (locant is None
-                            and _nitrogen_hydrogen_needs_locant(original, skel, off)):
+                    if locant is None and _is_held_locant_free(original, skel, off, candidate):
                         held.append((p4542, loc_rank, sub_rank,
                                      _placement_quality(skel, off, locant_free=True),
                                      off, desc, candidate))
@@ -3005,6 +3108,10 @@ def _ring_carbon_systematic_parent(
                 if ring and _ring_monosubstituted(original, ring):
                     return "benzenecarbaldehyde"
 
+        if atom.GetSymbol() == "H" and atom.GetDegree() == 1:
+            respelled = _benzyl_respelled(original, atom.GetNeighbors()[0], retained_name)
+            if respelled:
+                return respelled
         if atom.GetSymbol() != "C":
             continue
         nbrs = list(atom.GetNeighbors())
@@ -3042,23 +3149,43 @@ def _ring_carbon_systematic_parent(
                 if ring and gem == 2:
                     return "1-carboxycyclohexane-1-carboxylic acid"
 
-        # (3) benzyl: labelled CH2 bonded to a monosubstituted benzene carbon and
-        # exactly one non-aromatic heavy atom -> respell the retained substituent
-        # benzyl -> (phenylmethyl), giving [phenyl(13C)methyl]... (the Blue Book). A
-        # re-anchored (structurally gated), OPSIN-RT-audited respell, not a blind
-        # rewrite: the negative lookahead keeps benzyloxy/benzylidene/... intact.
-        if retained_name and atom.GetTotalNumHs() == 2 and atom.GetDegree() == 2:
-            ar = [nb for nb in nbrs if nb.GetSymbol() == "C" and nb.GetIsAromatic()]
-            nonar = [nb for nb in nbrs
-                     if not (nb.GetSymbol() == "C" and nb.GetIsAromatic())]
-            if len(ar) == 1 and len(nonar) == 1:
-                ring = _aromatic_benzene(original, ar[0].GetIdx())
-                if ring and _ring_monosubstituted(original, ring):
-                    respelled = re.sub(
-                        r"benzyl(?!oxy|idene|sulfan|amino|thio|carbon)",
-                        "(phenylmethyl)", retained_name, count=1)
-                    if respelled != retained_name:
-                        return respelled
+        respelled = _benzyl_respelled(original, atom, retained_name)
+        if respelled:
+            return respelled
+    return None
+
+
+def _benzyl_respelled(original: Chem.Mol, carbon, retained_name: Optional[str]) -> Optional[str]:
+    """(3) benzyl: labelled CH2 bonded to a phenyl (a monosubstituted benzene ring) and to one
+    other heavy atom -> respell the retained substituent benzyl -> (phenylmethyl), giving
+    [phenyl(13C)methyl]... (the Blue Book), and benzyloxy -> (phenylmethoxy). A re-anchored
+    (structurally gated), OPSIN-RT-audited respell, not a blind rewrite: the negative
+    lookahead keeps benzylidene/benzylamino/... intact. The two hydrogens of the CH2 count
+    whatever their nuclide: a D or T is an atom of ``original``, not an implicit hydrogen."""
+    if not retained_name:
+        return None
+    nbrs = [nb for nb in carbon.GetNeighbors() if nb.GetAtomicNum() > 1]
+    if carbon.GetTotalNumHs(includeNeighbors=True) != 2 or len(nbrs) != 2:
+        return None
+    phenyls = []
+    for nb in nbrs:
+        if nb.GetSymbol() == "C" and nb.GetIsAromatic():
+            ring = _aromatic_benzene(original, nb.GetIdx())
+            if ring and _ring_monosubstituted(original, ring):
+                phenyls.append(nb)
+    if len(phenyls) != 1:
+        return None
+    for retained, systematic in (("benzyloxy", "phenylmethoxy"),
+                                 ("benzyl(?!oxy|idene|sulfan|amino|thio|carbon)",
+                                  "phenylmethyl")):
+        found = re.search(retained, retained_name)
+        if found is None:
+            continue
+        start, end = found.span()
+        enclosed = (start > 0 and retained_name[start - 1] in "([{"
+                    and retained_name[end:end + 1] in ")]}")
+        return (retained_name[:start] + (systematic if enclosed else f"({systematic})")
+                + retained_name[end:])
     return None
 
 

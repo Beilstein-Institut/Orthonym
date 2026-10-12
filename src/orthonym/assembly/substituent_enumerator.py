@@ -2568,7 +2568,7 @@ def _name_substituent_cascade(mol, frag_atoms, attach_idx,
     if (allow_mancude and _oxoacid_prefix_wanted()
             and attach_idx is not None and attach_idx in frag_atoms_set):
         from ..rules.oxoacid_group_prefix import note_ps_form, oxoacid_group_prefix_ex
-        _og, _og_preferred = oxoacid_group_prefix_ex(mol, frag_atoms_set, attach_idx)
+        _og, _og_preferred = oxoacid_group_prefix_ex(mol, frag_atoms_set, attach_idx, stereo_ok=True)
         if _og is not None:
             note_ps_form(_og, _og_preferred)
             return _stereo_route(_og)

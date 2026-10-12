@@ -11,6 +11,11 @@ carbonyl carbon::
     CCC(=O)N1CCCCC1 -> 1-(piperidin-1-yl)propan-1-one
     CC(=S)N1CCCC1 -> 1-(pyrrolidin-1-yl)ethane-1-thione
 
+A formyl group (-CHO, -CHS) on the ring heteroatom is an aldehyde group, not a ketone: the name
+is the ring parent hydride with the suffix 'carbaldehyde', 'carbothialdehyde'...::
+
+    O=CN1CCCC1 -> pyrrolidine-1-carbaldehyde
+
 Detection is on the original graph: the amide N must be a RING member and the
 carbonyl carbon must be EXOCYCLIC to that ring (so a lactam, whose C=O is itself
 in the ring, is excluded and stays a cyclic amide/one). An ordinary acyclic
@@ -45,6 +50,12 @@ _AMIDE_FGS = (
 # carbonyl chalcogen symbol -> ketone (pseudoketone) suffix per /.
 _CHALCOGEN_KETONE_SUFFIX = {"O": "one", "S": "thione", "Se": "selone", "Te": "tellone"}
 _CHALCOGENS = ("O", "S", "Se", "Te")
+
+# carbonyl chalcogen symbol -> suffix of the -CHX group on a ring,.
+_CHALCOGEN_CARBALDEHYDE_SUFFIX = {
+    "O": "carbaldehyde", "S": "carbothialdehyde", "Se": "carboselenaldehyde",
+    "Te": "carbotelluraldehyde",
+}
 
 
 def _ring_system_atoms(mol, seed_idx: int) -> Tuple[int, ...]:
@@ -106,6 +117,25 @@ def is_hidden_amide(mol, amide_match) -> Optional[Tuple[int, int, str]]:
             return None  # lactam: carbonyl C in the ring -> not a pseudoketone
         return (c_idx, n_idx, chalcogen)
     return None
+
+
+def _ring_aldehyde_name(mol, ring_atoms, ring_n: int, chalcogen: str) -> Optional[str]:
+    """The name of a -CHX group on the heteroatom ``ring_n`` of a single ring that carries
+    nothing else, as the ring parent hydride with the suffix of the group: 'pyrrolidine-1-
+    carbaldehyde', 'aziridine-1-carbothialdehyde', the Blue Book;,:35036). The parent and the locant are those of ``monocycle_form``, the numbering
+    of with the free valence on ``ring_n``. ``None`` for a ring system that is not a
+    heteromonocycle, or whose free valence sits on a hydro-prefix atom."""
+    suffix = _CHALCOGEN_CARBALDEHYDE_SUFFIX.get(chalcogen)
+    if suffix is None:
+        return None
+    from .monocycle_forms import monocycle_form
+    form = monocycle_form(mol, ring_atoms, ring_n)
+    if form is None or form.kind != "heteromonocycle":
+        return None
+    loc = form.numbering.get(ring_n)
+    if loc is None or loc == form.fv_hydro_locant:
+        return None
+    return f"{form.parent}-{loc}-{suffix}"
 
 
 def name_pseudoketone(features: Any, style: str = "pin") -> Optional[str]:
@@ -195,12 +225,21 @@ def name_pseudoketone(features: Any, style: str = "pin") -> Optional[str]:
     base = f"{get_chain_prefix(length)}ane"  # 'methane', 'ethane', 'propane',...
     joined = apply_vowel_elision(base, ketone_suffix)  # 'methanone' / 'ethanethione'
     if length == 1:
-        # (a) (the Blue Book): "The locant '1' is omitted...
-        # (a) in substituted mononuclear parent hydrides" (cf. CH3Cl ->
-        # chloromethane). A one-carbon stem is methane, so BOTH the ketone
-        # locant and the ring-substituent locant drop:
-        # '(pyrrolidin-1-yl)methanethione', not '1-(...)methane-1-thione'.
-        return f"({ringyl}){joined}"
+        # The carbonyl carbon carries a hydrogen: the group is -CHO (-CHS,...) on a ring
+        # heteroatom, an aldehyde group and not a ketone. "Names based on
+        # suffixes" (the Blue Book): "The suffix 'carbaldehyde' is used when the -CHO
+        # group is attached to a carbon atom of a ring or ring system, or to a heteroatom";
+        # the chalcogen analogues take the suffixes of (:35036).
+        aldehyde = _ring_aldehyde_name(mol, ring_atoms, ring_n, chalcogen)
+        if aldehyde is not None:
+            return aldehyde
+        # No book parent for this ring system here: the methanone name is valid and is
+        # kept for the wider tiers, recorded as not the preferred name.
+        from ..metrics.provenance import record_non_pin_label
+        name = f"({ringyl}){joined}"
+        record_non_pin_label(name, rule="P-66.6.1.1.3",
+                             detail="a -CHO group on a ring heteroatom is named as a carbaldehyde")
+        return name
     stem_part = joined[: len(joined) - len(ketone_suffix)]  # 'ethan' / 'ethane'
     parent = f"{stem_part}-1-{ketone_suffix}"  # 'ethan-1-one' / 'ethane-1-thione'
 
@@ -210,17 +249,21 @@ def name_pseudoketone(features: Any, style: str = "pin") -> Optional[str]:
 __all__ = ["is_hidden_amide", "name_pseudoketone"]
 
 
-def name_acyl_hetero_pseudoketone(mol) -> Optional[str]:
-    """(b) / acyl on Si/Ge/P/As (Wave-2 completion C):
-    CC(=O)[SiH3] -> 1-silylethan-1-one, [PH2]C(=O)CCC -> 1-phosphanylbutan-1-one
-    (both BB verbatim). The ketone SMARTS requires C on both flanks, so these
-    molecules previously perceived NO functional group and died unnamed.
+# Hub elements of an acyl pseudoketone: Group 14 and 15 (named with the prefix of their
+# hydride) and the Group 16 elements below oxygen.
+_HUBS = frozenset({'Si', 'Ge', 'P', 'As'})
+_CHALCOGEN_HUBS = frozenset({'S', 'Se', 'Te'})
 
-    Fail-closed graph classifier (mirrors name_pseudoketone): exactly one
-    non-ring carbonyl C whose heavy neighbours are {terminal =O, one chain C,
-    one acyclic hub in Si/Ge/P/As}; the acyl chain is clean unbranched all-C;
-    the hub carries only H (silyl/phosphanyl) or pure organyls
-    (trimethylsilyl/dimethylphosphanyl); nothing else in the molecule."""
+
+def _acyl_hub_parts(mol):
+    """The acyl group of ``mol`` that sits on an acyclic hub atom, as
+    ``(carbonyl carbon, hub, hub fragment, acyl chain)``, or None.
+
+    Fail-closed graph classifier (mirrors name_pseudoketone): one neutral fragment with
+    exactly one non-ring carbonyl C whose heavy neighbours are {terminal =O, one chain C, one
+    acyclic hub in Si/Ge/P/As/S/Se/Te}; the acyl chain is a clean unbranched all-C chain with
+    no ring atom in it (the acyl group of a ring is not this class). The hub fragment is the
+    hub and everything on its far side of the carbonyl carbon."""
     from rdkit import Chem
     if mol is None:
         return None
@@ -229,14 +272,7 @@ def name_acyl_hetero_pseudoketone(mol) -> Optional[str]:
     for atom in atoms_of(mol):
         if atom.GetFormalCharge() != 0 or atom.GetNumRadicalElectrons() != 0:
             return None
-    _HUBS = {'Si', 'Ge', 'P', 'As'}
-    # Group-16 hubs: an acyl on a chalcogen whose non-acyl
-    # neighbour is a HETEROATOM (compound substituent) is a pseudoketone
-    # (R-CO-S-OO-CH3 -> [1-(methylperoxy)sulfanyl]butan-1-one). A chalcogen hub
-    # carrying a PLAIN CARBON (R-CO-S-C) is an ordinary thioester (senior, named
-    # elsewhere) and the discriminator below declines it.
-    _CHALCOGEN_HUBS = {'S', 'Se', 'Te'}
-    _ALL_HUBS = _HUBS | _CHALCOGEN_HUBS
+    all_hubs = _HUBS | _CHALCOGEN_HUBS
 
     carbonyls = []
     for atom in atoms_of(mol):
@@ -249,7 +285,7 @@ def name_acyl_hetero_pseudoketone(mol) -> Optional[str]:
             if (other.GetSymbol() == 'O' and other.GetDegree() == 1
                     and b.GetBondType() == Chem.BondType.DOUBLE):
                 oxo = other
-            elif (other.GetSymbol() in _ALL_HUBS
+            elif (other.GetSymbol() in all_hubs
                     and b.GetBondType() == Chem.BondType.SINGLE
                     and not other.GetIsAromatic() and not other.IsInRing()):
                 hub = other
@@ -287,6 +323,13 @@ def name_acyl_hetero_pseudoketone(mol) -> Optional[str]:
         return None
     if chain[0] != catom.GetIdx() and chain[-1] != catom.GetIdx():
         return None
+    # A ring is never an acyclic chain. The longest path runs through ring atoms (benzoyl gives
+    # a chain of seven carbons, cyclopropanecarbonyl one of four), and the acyl group of a ring
+    # is named from the ring: Acyl groups derived from systematically named
+    # carboxylic acids (the Blue Book, example:30628), 'cyclohexanecarbonyl'.
+    ring_info = mol.GetRingInfo()
+    if any(ring_info.NumAtomRings(c) for c in chain):
+        return None
     if chain[0] != catom.GetIdx():
         chain = list(reversed(chain))
     chain_set = set(chain)
@@ -298,39 +341,109 @@ def name_acyl_hetero_pseudoketone(mol) -> Optional[str]:
             if c == catom.GetIdx() and ni in (oxo.GetIdx(), hub.GetIdx()):
                 continue
             return None
+    return catom, hub, hub_frag, chain
 
-    # Group-16 (chalcogen) hub: acyl-hetero pseudoketone. The
-    # hub's non-acyl neighbour must be a HETEROATOM (a compound substituent such
-    # as the -OO-CH3 peroxy chain); a PLAIN-CARBON non-acyl neighbour makes this
-    # an ordinary thioester (R-CO-S-C, senior) which must NOT be swallowed here —
-    # decline so the cascade reaches the thioester handler. A bare -SH / -SeH
-    # (thioic S-acid) has no heteroatom substituent and also declines.
+
+def _acyl_carbon(atom) -> bool:
+    """True when ``atom`` is a carbon with a double bond to a Group 16 atom (an acyl carbon)."""
+    from rdkit import Chem
+    return atom.GetSymbol() == 'C' and any(
+        b.GetBondType() == Chem.BondType.DOUBLE
+        and b.GetOtherAtom(atom).GetSymbol() in ('O', 'S', 'Se', 'Te')
+        for b in atom.GetBonds())
+
+
+def _peroxy_pseudoester(catom, hub) -> bool:
+    """The class of the pseudoester example of Pseudoesters (the Blue Book,
+    example:32078): an acyl group on S, Se or Te whose other bond goes to a peroxy chain
+    -O-O-R' that ends in an organyl carbon, R-CO-E-O-O-R' with R' not an acyl group.
+
+    Its diacyl analogue (R' acyl) is (:32358) and a chalcogen chain that does not start
+    with a peroxy group is (:39473); the book spells both with the locant in front of the
+    marks."""
+    others = [nb for nb in hub.GetNeighbors()
+              if nb.GetIdx() != catom.GetIdx() and nb.GetAtomicNum() > 1]
+    if len(others) != 1 or others[0].GetSymbol() != 'O':
+        return False
+    o_far = [nb for nb in others[0].GetNeighbors() if nb.GetIdx() != hub.GetIdx()
+             and nb.GetAtomicNum() > 1]
+    if len(o_far) != 1 or o_far[0].GetSymbol() != 'O':
+        return False
+    r_end = [nb for nb in o_far[0].GetNeighbors() if nb.GetIdx() != others[0].GetIdx()
+             and nb.GetAtomicNum() > 1]
+    return len(r_end) == 1 and r_end[0].GetSymbol() == 'C' and not _acyl_carbon(r_end[0])
+
+
+def _group16_pseudoketone_name(mol, catom, hub, hub_frag, chain) -> Optional[str]:
+    """Group-16 (chalcogen) hub: acyl-hetero pseudoketone. The
+    hub's non-acyl neighbour must be a HETEROATOM (a compound substituent such
+    as the -OO-CH3 peroxy chain); a PLAIN-CARBON non-acyl neighbour makes this
+    an ordinary thioester (R-CO-S-C, senior) which must NOT be swallowed here —
+    decline so the cascade reaches the thioester handler. A bare -SH / -SeH
+    (thioic S-acid) has no heteroatom substituent and also declines."""
+    non_acyl = [nb for nb in hub.GetNeighbors() if nb.GetIdx() != catom.GetIdx()]
+    if any(nb.GetAtomicNum() == 6 for nb in non_acyl):
+        return None  # thioester (plain carbon on the chalcogen) -> decline
+    if not any(nb.GetAtomicNum() not in (1, 6) for nb in non_acyl):
+        return None  # no compound-heteroatom substituent -> not this class
+    from ..assembly.substituent_enumerator import name_substituent
+    hubyl = name_substituent(mol, sorted(hub_frag), hub.GetIdx())
+    if not hubyl:
+        return None  # unnameable hub substituent -> fail closed
+    base_name = f"{get_chain_prefix(len(chain))}an"
+    from ..assembly.naming_utils import _is_fully_enclosed, apply_enclosing_marks
+    if _peroxy_pseudoester(catom, hub):
+        # Pseudoesters (the Blue Book, "When 'E' is an element belonging to
+        # Group 16, the pseudoester is named as a pseudoketone") prints its example with the locant
+        # inside the marks of the prefix: '[1-(methylperoxy)sulfanyl]butan-1-one (PIN)' (:32078).
+        # OPSIN reads that spelling as ambiguous, so the validity gate licenses this class
+        # (validation.opsin_ambiguity.licensed_ambiguity).
+        return f"{apply_enclosing_marks('1-' + hubyl, -1)}{base_name}-1-one"
+    # The hub substituent is a prefix of the ketone, cited with the locant of the carbonyl
+    # carbon in front of its enclosing marks: (the Blue Book) '1-{[(methylsulfanyl)
+    # oxy]selanyl}propan-1-one (PIN)' (:39497), '1-[(acetylperoxy)sulfanyl]ethan-1-one
+    # (PIN)' (:32368), '1-[(dimethylamino)oxy]ethan-1-one (PIN)' (:32070) and
+    # '1-(methoxydisulfanyl)ethan-1-one (PIN)' (:28277). The marks of the prefix follow
+    # the nesting order of (:7444), so a prefix that has marks of its own takes the next
+    # level. Citation of locants (:2869): the locant stands in front of the marks, and
+    # OPSIN reads the name once.
+    marked = hubyl if _is_fully_enclosed(hubyl) else apply_enclosing_marks(hubyl, -1)
+    return f"1-{marked}{base_name}-1-one"
+
+
+def pseudoester_book_name(mol) -> Optional[str]:
+    """The name of ``mol`` when it belongs to the class of the pseudoester example of
+    (:func:`_peroxy_pseudoester`), as the Blue Book prints it, else None. The class predicate of
+    the validity gate's licence (``validation.opsin_ambiguity.licensed_ambiguity``)."""
+    parts = _acyl_hub_parts(mol)
+    if parts is None:
+        return None
+    catom, hub, hub_frag, chain = parts
+    if hub.GetSymbol() not in _CHALCOGEN_HUBS or not _peroxy_pseudoester(catom, hub):
+        return None
+    return _group16_pseudoketone_name(mol, catom, hub, hub_frag, chain)
+
+
+def name_acyl_hetero_pseudoketone(mol) -> Optional[str]:
+    """(b) / acyl on Si/Ge/P/As (Wave-2 completion C):
+    CC(=O)[SiH3] -> 1-silylethan-1-one, [PH2]C(=O)CCC -> 1-phosphanylbutan-1-one
+    (both BB verbatim). The ketone SMARTS requires C on both flanks, so these
+    molecules previously perceived NO functional group and died unnamed.
+
+    Fail-closed graph classifier (mirrors name_pseudoketone): exactly one
+    non-ring carbonyl C whose heavy neighbours are {terminal =O, one chain C,
+    one acyclic hub in Si/Ge/P/As}; the acyl chain is clean unbranched all-C;
+    the hub carries only H (silyl/phosphanyl) or pure organyls
+    (trimethylsilyl/dimethylphosphanyl); nothing else in the molecule.
+
+    An acyl group on S, Se or Te whose other bond goes to a heteroatom is named by
+    :func:`_group16_pseudoketone_name`."""
+    parts = _acyl_hub_parts(mol)
+    if parts is None:
+        return None
+    catom, hub, hub_frag, chain = parts
     if hub.GetSymbol() in _CHALCOGEN_HUBS:
-        non_acyl = [nb for nb in hub.GetNeighbors()
-                    if nb.GetIdx() != catom.GetIdx()]
-        if any(nb.GetAtomicNum() == 6 for nb in non_acyl):
-            return None  # thioester (plain carbon on the chalcogen) -> decline
-        if not any(nb.GetAtomicNum() not in (1, 6) for nb in non_acyl):
-            return None  # no compound-heteroatom substituent -> not this class
-        from ..assembly.substituent_enumerator import name_substituent
-        hubyl = name_substituent(mol, sorted(hub_frag), hub.GetIdx())
-        if not hubyl:
-            return None  # unnameable hub substituent -> fail closed
-        length = len(chain)
-        base_name = f"{get_chain_prefix(length)}an"
-        # Two distinct shapes share this hub substituent, distinguished by whether
-        # the hub-substituent name ALREADY carries its own internal enclosing marks:
-        # * (hubyl has inner marks, e.g. '(methylperoxy)sulfanyl'):
-        # the locant sits INSIDE the outer bracket -->
-        # '[1-(methylperoxy)sulfanyl]butan-1-one' (BB verbatim).
-        # * (hubyl is a flat compound word with NO inner marks, e.g.
-        # 'methoxydisulfanyl'): the hub substituent is parenthesised and the
-        # locant sits OUTSIDE --> '1-(methoxydisulfanyl)ethan-1-one' (the Blue Book).
-        # The old template emitted the shape for both, so the flat-word
-        # case shipped the malformed '[1-methoxydisulfanyl]ethan-1-one'.
-        if '(' in hubyl or '[' in hubyl:
-            return f"[1-{hubyl}]{base_name}-1-one"
-        return f"1-({hubyl}){base_name}-1-one"
+        return _group16_pseudoketone_name(mol, catom, hub, hub_frag, chain)
 
     # Hub scope (fail-closed): the hub carries only H or pure ORGANYL
     # substituents — a heteroatom on the hub (Si-OH: silanol territory,

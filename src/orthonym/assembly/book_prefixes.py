@@ -688,7 +688,8 @@ MONONUCLEAR_HEAD = {"Si": "silyl", "Ge": "germyl", "Sn": "stannyl", "Pb": "plumb
                     "P": "phosphanyl", "As": "arsanyl", "B": "boranyl"}
 
 
-def hetero_roots_composable(mol, path, group_leaves: bool = True) -> bool:
+def hetero_roots_composable(mol, path, group_leaves: bool = True,
+                            ps_groups: bool = False) -> bool:
     """True when every heteroatom of the atom ``path`` can root a composed substituent
     prefix ('methoxy', '(R)amino', 'azaniumyl', 'trimethylsilyl'): an element of
     ``HETERO_ROOT_VALENCE`` at its standard bonding number with no charge and no isotope
@@ -701,12 +702,19 @@ def hetero_roots_composable(mol, path, group_leaves: bool = True) -> bool:
     (``hetero_group_prefixes``; the Blue Book "'R′-peroxy' (not R′-dioxy)",
     '(methylperoxy)ethane (PIN)',:27870;:27944). (An -SS- link is cut:
     '[(R)sulfanyl]sulfanyl' reads back, the book's 'R-disulfanyl' of the same rule is not
-    built either; residual.)"""
+    built either; residual.) With ``ps_groups`` the centre of a phosphorus or sulfur oxoacid
+    group and the O or NH that links one to the path root a prefix of their own
+    (``rules.oxoacid_group_prefix``: 'sulfamoyl', '(methoxysulfonyl)', 'sulfooxy'), as the
+    standard-valence heteroatoms do."""
     on_path = set(path)
     for a in path:
         atom = mol.GetAtomWithIdx(a)
         if atom.GetAtomicNum() == 6:
             continue
+        if ps_groups:
+            from ..rules.oxoacid_group_prefix import is_oxoacid_centre, is_oxoacid_linker
+            if is_oxoacid_centre(mol, a) or is_oxoacid_linker(mol, a):
+                continue
         sym = atom.GetSymbol()
         if (not group_leaves and sym == "O"
                 and any(nb.GetAtomicNum() == 8 and nb.GetIdx() in on_path

@@ -2594,6 +2594,8 @@ def _tree_neighbors(ctx: _Ctx, atom: int, component: FrozenSet[int]) -> List[int
             # case, generalised). Ring path already branches it.
         if _is_diazo_root(ctx.mol, j):
             continue  # M2: diazo N_beta likewise -- always the ``diazo`` leaf.
+        if _is_diazonium_root(ctx.mol, j):
+            continue  # the diazonium N is always the ``diazonio`` leaf (its charge is genuine)
         if _is_isocyano_root(ctx.mol, j):
             continue  # M2 inc3: the isocyanide N (R-[N+]#[C-]) is always the
             # ``isocyano`` branch leaf, never threaded into the chain
@@ -3198,6 +3200,11 @@ def _chain_score(ctx: _Ctx, order: List[int], component: Optional[FrozenSet[int]
     mol = ctx.mol
     hetero = [i + 1 for i, a in enumerate(order)
               if mol.GetAtomWithIdx(a).GetAtomicNum() != 6]
+    # NUMBERING (the Blue Book), criterion (c) "principal characteristic groups and
+    # free valences (suffixes)" (:3256): a cumulative ionic suffix ('-ylium', '-ium', '-ide',
+    # (2),:4777) is decided before unsaturation (e) and the detachable prefixes (f)
+    ionic_atoms = {s['atom_idx'] for s in ctx.cation_sites + ctx.anion_sites}
+    ionic = [i + 1 for i, a in enumerate(order) if a in ionic_atoms]
     unsat = []
     for i in range(len(order) - 1):
         bond = mol.GetBondBetweenAtoms(order[i], order[i + 1])
@@ -3216,7 +3223,7 @@ def _chain_score(ctx: _Ctx, order: List[int], component: Optional[FrozenSet[int]
     # fully symmetric remaining tie the SAME way regardless of input atom
     # numbering (never falls back to raw atom index / iteration order).
     canon_tie = tuple(ctx.canon_rank[a] for a in order)
-    return (hetero, unsat, branch_locants, canon_tie)
+    return (hetero, ionic, unsat, branch_locants, canon_tie)
 
 
 def _is_offspine_root(mol, j: int, cyano: bool = False, ps: bool = False) -> bool:
@@ -3227,7 +3234,7 @@ def _is_offspine_root(mol, j: int, cyano: bool = False, ps: bool = False) -> boo
     expand a spine-walk through it (mirroring ``_tree_neighbors`` keeping these
     off-spine, but applied to the SOURCE so a piece cannot leak across one)."""
     return (_is_nitro_root(mol, j) or _is_azide_root(mol, j)
-            or _is_diazo_root(mol, j) or _is_isocyano_root(mol, j)
+            or _is_diazo_root(mol, j) or _is_diazonium_root(mol, j) or _is_isocyano_root(mol, j)
             or _is_nitrooxy_root(mol, j) or _is_phosphinate_oxide_root(mol, j)
             or (cyano and _is_cyano_root(mol, j))
             or (ps and _is_oxoacid_group_root(mol, j)))
@@ -3280,6 +3287,8 @@ def _offspine_leaf_atoms(mol, component: FrozenSet[int],
             atoms = _azide_nitrogens(mol, j)
         elif _is_diazo_root(mol, j):
             atoms = _diazo_nitrogens(mol, j)
+        elif _is_diazonium_root(mol, j):
+            atoms = _diazonium_nitrogens(mol, j)[0]
         elif _is_isocyano_root(mol, j):
             atoms = _isocyanide_atoms(mol, j)
         elif _is_nitrooxy_root(mol, j):
@@ -3608,6 +3617,9 @@ def _charged_leaf_shortcut(mol, component: FrozenSet[int], attach_hint: int):
     carbanion, a bare halide, a substituted onium that is not a bare terminal
     atom) returns ``None`` and is handled by the generic spine/charge machinery
     or voids there -- never mis-spelled here."""
+    diazonium = _diazonium_leaf(mol, component, attach_hint)
+    if diazonium is not None:
+        return diazonium
     if len(component) != 1:
         return None
     idx = next(iter(component))
@@ -3861,6 +3873,8 @@ def _diazo_nitrogens(mol, beta_idx: int):
     # two nitrogens carry a total of 0 or -1; the parent-carbon charge closes it.
     if gamma.GetFormalCharge() not in (-1, 0):
         return None
+    if gamma.GetFormalCharge() == 0 and c_nbr[0].GetFormalCharge() != -1:
+        return None  # R-[N+]#N with no carbanion: a diazonium cation, not a diazo twin
     return frozenset({beta_idx, gamma.GetIdx()})
 
 
@@ -3893,6 +3907,56 @@ def _diazo_shortcut(mol, component: FrozenSet[int], attach_hint: int):
     if len(outside) != 1 or outside[0].GetSymbol() != "C":
         return None
     return "diazo", frozenset(component)
+
+
+# ===========================================================================
+# Diazonium R-[N+]#N (<-> resonance twin R-N=[N+]) (rendered ``diazonio``)
+# ===========================================================================
+
+def _diazonium_nitrogens(mol, alpha_idx: int):
+    """If *alpha_idx* is the ATTACHMENT nitrogen of a terminal diazonium group
+    ``R-[N+]#N`` -- or its resonance twin ``R-N=[N+]`` -- bonded to a parent carbon,
+    return ``(frozenset({alpha, beta}), cation_idx)``, else ``None``. Unlike the diazo
+    group the charge is genuine: ``get_ion_sites`` lists the cationic nitrogen, so the
+    leaf reports it as ``charged``."""
+    alpha = mol.GetAtomWithIdx(alpha_idx)
+    if alpha.GetSymbol() != "N" or alpha.GetTotalNumHs() != 0 or alpha.GetIsAromatic():
+        return None
+    heavy = [n for n in alpha.GetNeighbors() if n.GetAtomicNum() > 1]
+    c_nbr = [n for n in heavy if n.GetSymbol() == "C"]
+    n_nbr = [n for n in heavy if n.GetSymbol() == "N"]
+    if len(heavy) != 2 or len(c_nbr) != 1 or len(n_nbr) != 1:
+        return None
+    beta = n_nbr[0]
+    if beta.GetDegree() != 1 or beta.GetTotalNumHs() != 0 or beta.GetIsAromatic():
+        return None
+    bond = mol.GetBondBetweenAtoms(alpha_idx, beta.GetIdx()).GetBondType()
+    charges = (alpha.GetFormalCharge(), beta.GetFormalCharge())
+    if bond == Chem.BondType.TRIPLE and charges == (1, 0):
+        return frozenset({alpha_idx, beta.GetIdx()}), alpha_idx
+    if bond == Chem.BondType.DOUBLE and charges == (0, 1):
+        return frozenset({alpha_idx, beta.GetIdx()}), beta.GetIdx()
+    return None
+
+
+def _is_diazonium_root(mol, j: int) -> bool:
+    """True if atom *j* is a diazonium group's attachment nitrogen (see
+    ``_diazonium_nitrogens``): the group is always the ``diazonio`` branch leaf, never
+    threaded into a chain as a plain ``aza`` atom, which would drop its charge."""
+    return _diazonium_nitrogens(mol, j) is not None
+
+
+def _diazonium_leaf(mol, component: FrozenSet[int], attach_hint: int):
+    """``R-[N+]#N`` attached via its first nitrogen -- the ``diazonio`` substituent prefix:
+     CATIONIC PREFIX NAMES (the Blue Book), example:42318 'diazyn-1-ium-1-yl
+    (preselected prefix) diazonio'; OPSIN reads ``5-diazonio-pyrimidine-2,4(1H,3H)-dione`` as
+    the cation. Returns ``("diazonio", atom_ids, charged_atom_ids)`` or ``None``."""
+    if len(component) != 2:
+        return None
+    dz = _diazonium_nitrogens(mol, attach_hint)
+    if dz is None or dz[0] != component:
+        return None
+    return "diazonio", frozenset(component), frozenset({dz[1]})
 
 
 # ===========================================================================
@@ -4252,14 +4316,14 @@ def _oxoacid_group_leaf(ctx: _Ctx, component: FrozenSet[int], attach_hint: int,
     charged = {a for a in component if mol.GetAtomWithIdx(a).GetFormalCharge()}
     internal: set = set()
 
-    def name_r(atoms, root):
+    def name_r(atoms, root, order=1):
         atoms = frozenset(atoms)
         sub = _name_component(ctx, atoms, attach_hint=root, is_top=False,
                               emit_branch_stereo=emit_branch_stereo,
                               relative_ring_override=relative_ring_override)
         if sub is None:
             return None
-        rendered = _render_as_substituent(sub, 1)
+        rendered = _render_as_substituent(sub, order)
         if emit_branch_stereo and sub.spine_atom_to_locant:
             outside = [n.GetIdx() for n in mol.GetAtomWithIdx(root).GetNeighbors()
                        if n.GetIdx() not in atoms]

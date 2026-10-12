@@ -343,12 +343,22 @@ def _hydrazinyl(shape: GroupShape, names: Sequence[str]) -> Optional[str]:
     'hydrazinyl (not hydrazin-1-yl)',:2911)."""
     if not names:
         return "hydrazinyl"
+    return hydrazine_substituents(
+        [(part.locant, name) for part, name in zip(shape.parts, names)]) + "hydrazinyl"
+
+
+def hydrazine_substituents(cited: Sequence[Tuple[Optional[int], str]]) -> str:
+    """The substituent prefixes of a hydrazine unit, each with its locant,
+    the Blue Book: deny by default), in alphanumerical order and with identical ones
+    multiplied: '2,2-dimethyl', '1,2-dimethyl', '2-phenyl'. ``cited`` holds one
+    ``(locant, '-yl' prefix name)`` per substituent; the head ('hydrazinyl',
+    'hydrazine-1-sulfonyl') is the caller's."""
     from .naming_utils import alpha_sort_key, format_substituent_prefix
     grouped: dict = {}
-    for part, name in zip(shape.parts, names):
-        grouped.setdefault(name, []).append(part.locant)
+    for locant, name in cited:
+        grouped.setdefault(name, []).append(locant)
     pieces = []
     for name, locs in sorted(grouped.items(), key=lambda kv: alpha_sort_key(kv[0])):
         locs = sorted(locs)
         pieces.append(format_substituent_prefix(name, locs, len(locs)))
-    return "-".join(pieces) + "hydrazinyl"
+    return "-".join(pieces)

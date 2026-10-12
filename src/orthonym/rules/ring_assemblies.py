@@ -3165,7 +3165,7 @@ def _build_mixed_pcg_ring_assembly(
     # '-carbonitrile' (consonant-initial) and 'di'/'tri' (no terminal 'a') are
     # left untouched. Route through the shared elision primitive rather than the
     # raw f-string so ``[1,1'-biphenyl]-2,4,4',6-tetrol`` (PIN) is emitted.
-    from ..assembly.naming_utils import _join_multiplied_suffix
+    from ..assembly.naming_utils import _join_multiplied_suffix, enclose_if_compound
     suffix_text = _join_multiplied_suffix(smult, senior)
     core = (f"[{_multiplied_assembly(connection_str, multiplier, _component_before_suffix(ring_name, suffix_text), count)}]"
             f"-{suffix_loc_str}-{suffix_text}")
@@ -3181,9 +3181,9 @@ def _build_mixed_pcg_ring_assembly(
         loc_str = ",".join(f"{num}{_format_prime(pr)}" for num, pr in keys)
         if len(keys) > 1:
             from ..assembly.naming_utils import multiplied_component as _mc
-            prefix_parts.append(f"{loc_str}-{_mc(len(keys), nm, nm)}")
+            prefix_parts.append(f"{loc_str}-{_mc(len(keys), nm, enclose_if_compound(nm))}")
         else:
-            prefix_parts.append(f"{loc_str}-{nm}")
+            prefix_parts.append(f"{loc_str}-{enclose_if_compound(nm)}")
     prefix_block = "-".join(prefix_parts)
 
     return f"{prefix_block}{core}" if prefix_block else core
@@ -3688,7 +3688,7 @@ def name_ring_assembly(
 
     from ..assembly.naming_utils import (
         alpha_sort_key,
-        get_multiplier_prefix,
+        enclose_if_compound,
     )
 
     # Sort substituents alphabetically by name
@@ -3718,9 +3718,9 @@ def name_ring_assembly(
             f"{loc}{_format_prime(sys_idx)}" for loc, sys_idx in keys)
         if n > 1:
             from ..assembly.naming_utils import multiplied_component as _mc
-            prefix_parts.append(f"{locant_str}-{_mc(n, name, name)}")
+            prefix_parts.append(f"{locant_str}-{_mc(n, name, enclose_if_compound(name))}")
         else:
-            prefix_parts.append(f"{locant_str}-{name}")
+            prefix_parts.append(f"{locant_str}-{enclose_if_compound(name)}")
 
     sub_prefix = "-".join(prefix_parts)
 
