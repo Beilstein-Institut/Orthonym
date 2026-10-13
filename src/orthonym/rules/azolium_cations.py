@@ -9,6 +9,7 @@ from rdkit import Chem
 
 from ..errors import is_failure_name
 from .ions import (
+    _charged_ring_locants,
     _elide_terminal_e,
     _join_prefix_stem,
     _p74_ring_substituent_groups,
@@ -157,6 +158,66 @@ def azolium_demote_name(mol, ring_system, center_idx):
         if _cation_name_rt_ok(name, mol):
             return name
     return ''
+
+
+def azolium_zwitterion_name(mol, ring_system, cation_idx, anchor):
+    """The zwitterion of an azolium whose added hydron sits on ``cation_idx`` (``[nH+]``), whose
+    indicated-hydrogen nitrogen carries a substituent, and whose ring carries a carboxylate
+    (``anchor`` = (carboxyl carbon, ring atom it hangs on)), in one numbering:
+    "Zwitterionic compounds with at least one ionic center on a characteristic group"
+    (the Blue Book),:42447, cationic suffix before anionic, "ionic centers on skeletal atoms
+    of the parent hydride are preferred to the locants for positions of attachment of
+    characteristic groups denoted by ionic suffixes", over the parent hydride of
+    (:41368, '1H-imidazol-3-ium (PIN)',:41396): ``Cn1cc(C(=O)[O-])[nH+]c1C`` is
+    '1,2-dimethyl-1H-imidazol-3-ium-4-carboxylate'. The parent is the ring with every substituent
+    replaced by hydrogen (``_bare_parent``), so the substituted nitrogen is its indicated-hydrogen
+    atom (b),:3246) and the numbering of the parent, which ranks the 'ium' (c) and then the
+    carboxylate, is the one the prefixes are cited in. A ring that is not a five-membered monocycle
+    with that one substituted nitrogen, or whose stem cites an indicated hydrogen elsewhere than
+    the nitrogen the numbering gives it, is declined ('')."""
+    ring = set(ring_system)
+    cation = mol.GetAtomWithIdx(cation_idx)
+    if (len(ring) != 5 or cation.GetAtomicNum() != 7 or not cation.GetIsAromatic()
+            or cation.GetFormalCharge() != 1 or cation.GetTotalNumHs() != 1 or cation.GetDegree() != 2):
+        return ''
+    others = [mol.GetAtomWithIdx(i) for i in ring if i != cation_idx
+              and mol.GetAtomWithIdx(i).GetAtomicNum() not in (1, 6)]
+    substituted = [a.GetIdx() for a in others if a.GetAtomicNum() == 7 and a.GetIsAromatic()
+                   and a.GetDegree() == 3 and not a.GetTotalNumHs()]
+    if len(substituted) != 1 or any(a.GetTotalNumHs() for a in others):
+        return ''
+    built = _bare_parent(mol, ring_system, cation_idx)
+    if built is None:
+        return ''
+    parent, ring_sorted = built
+    to_bare = {o: k for k, o in enumerate(ring_sorted)}
+    carboxyl_c, attach = anchor
+    try:
+        from ..namer import Orthonym
+        stem = Orthonym(style='pin', _disable_opsin_validity_gate=True
+                        ).name(Chem.MolToSmiles(parent))
+    except (RecursionError, ValueError, RuntimeError):
+        return ''
+    indicated = re.match(r'^(\d+)H-', stem or '')
+    if not stem or is_failure_name(stem) or not indicated:
+        return ''
+    bare_subst = {to_bare[i] for i in ring if any(
+        n.GetIdx() not in ring for n in mol.GetAtomWithIdx(i).GetNeighbors())}
+    base, _ind = _charged_ring_locants(parent, list(range(len(ring_sorted))), to_bare[cation_idx],
+                                       anion_attach_idx=to_bare[attach], subst_atoms=bare_subst)
+    if not base or len(base) != len(ring_sorted):
+        return ''
+    locants = {ring_sorted[k]: v for k, v in base.items()}
+    # the indicated hydrogen the stem cites is the substituted nitrogen of this numbering
+    if str(locants[substituted[0]]) != indicated.group(1):
+        return ''
+    carboxyl_atoms = {carboxyl_c} | {n.GetIdx() for n in mol.GetAtomWithIdx(carboxyl_c).GetNeighbors()
+                                     if n.GetAtomicNum() == 8}
+    prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, carboxyl_atoms)
+    if prefix is None:
+        return ''
+    return (f"{_join_prefix_stem(prefix, _elide_terminal_e(stem))}"
+            f"-{locants[cation_idx]}-ium-{locants[attach]}-carboxylate")
 
 
 def ring_has_other_nh_heteroatom(mol, ring_system, center_idx):

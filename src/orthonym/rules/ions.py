@@ -37,7 +37,7 @@ from ..perception.ions import get_ion_sites
 from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..perception.molcache import inchikey_of
 from .ion_locants import cites_a_locant, name_neutral_ring_for_ion
-from .ring_cation_hydro import hydro_ring_cation_name
+from .ring_cation_hydro import hydro_ring_cation_name, hydro_ring_zwitterion_name, neutralized_cation
 
 # F- (DD3,: skeletal heteroatom-hydride anions named with the
 # -anide ending on the parent hydride. element -> the neutral parent-hydride
@@ -5052,36 +5052,28 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
     ** "Zwitterionic compounds with at least one ionic center on a
     characteristic group"** (heading ``:42445``).
 
-    **ONE numbering for the whole name.** This emitter previously ran two
-    branches that each took the ring numbering from the namer's *neutral*-ring
-    supplier and then concatenated a separately-built cation-substituent prefix
-    onto the resulting *substituted* ring name. Two different numberings met in
-    one string. Measured consequences on the DEFAULT path, all of which
-    round-trip cleanly through OPSIN — the molecule is right and only the spelling
-    is wrong, so neither the round-trip metric nor could see them:
+    **ONE numbering for the whole name.** This emitter previously ran two branches that took the
+    ring numbering from the namer's *neutral*-ring supplier and concatenated a separately-built
+    cation-substituent prefix onto the resulting *substituted* ring name: two numberings in one
+    string. Measured on the DEFAULT path (all round-trip through OPSIN, so neither the
+    round-trip metric nor could see them):
+      * ``1-methyl4-methylpyridin-1-ium-2-carboxylate`` — no hyphen, ``1-methyl`` + ``4-methyl`` unmerged;
+      * ``1-methyl4-bromopyridin-1-ium-2-carboxylate`` — 'bromo' must precede 'methyl';
+      * ``1-methyl2,4-dimethylpyridin-1-ium-6-carboxylate`` — carboxylate 6, ``:42447``: 2;
+    and, caught by, ``1-propylpyridin-1-ium-2-carboxylate`` for an **isopropyl** group
+    (the old branch named substituents with the carbon-counting ``classify_substituent``).
+    So the numbering is derived ONCE over the ORIGINAL charged mol, with the
+    anion-attachment criterion (``_charged_ring_locants(..., anion_attach_idx=...)``); every ring
+    substituent is located in THAT numbering by ``_p74_ring_substituent_prefix``; the stem comes
+    from a ring stripped of all of them. A hydro mancude monocycle is named by
+    ``ring_cation_hydro.hydro_ring_zwitterion_name`` (the bare ring's own hydro locants are a second
+    numbering), an azolium with a substituted indicated-hydrogen nitrogen by
+    ``azolium_cations.azolium_zwitterion_name``.
 
-      * ``1-methyl4-methylpyridin-1-ium-2-carboxylate`` — no hyphen, and
-        ``1-methyl`` + ``4-methyl`` never merged to ``1,4-dimethyl``;
-      * ``1-methyl4-bromopyridin-1-ium-2-carboxylate`` — 'bromo' must precede
-        'methyl' alphanumerical order);
-      * ``1-methyl2,4-dimethylpyridin-1-ium-6-carboxylate`` — the carboxylate
-        numbered 6 where ``:42447`` requires 2.
-
-    and one that did catch, turning it into an abstention rather than a
-    wrong molecule: ``1-propylpyridin-1-ium-2-carboxylate`` for an **isopropyl**
-    group, because the old branch named substituents with the carbon-counting
-    ``classify_substituent``.
-
-    So the numbering is now derived ONCE over the ORIGINAL charged mol, with the
-     anion-attachment criterion
-    (``_charged_ring_locants(..., anion_attach_idx=...)``); every ring substituent
-    is located in THAT numbering by ``_p74_ring_substituent_prefix``; and the stem
-    comes from a ring stripped of all of them.
-
-    Fails closed ('') whenever a part is uncorroborated — a fused/bridged ring (no
-    simple cycle, so no numbering), a substituent the authoritative namer
-    cannot spell, or a formal charge anywhere outside the cation/anion pair. The
-    caller then falls through to the legacy path."""
+    Fails closed ('') whenever a part is uncorroborated — a fused/bridged ring (no simple cycle,
+    so no numbering), a substituent the authoritative namer cannot spell, or a formal
+    charge anywhere outside the cation/anion pair. The caller then falls through to the legacy
+    path."""
     from ..perception.rings import get_ring_systems
     # Only the cation/anion pair may carry charge. A third charged atom means a
     # further ionic centre, which requires to be expressed as its own suffix
@@ -5104,9 +5096,15 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
     if anchor is None:
         return ''
     carboxyl_c, ring_attach = anchor
+    from .azolium_cations import azolium_zwitterion_name
+    #: one numbering for the 'ium', the 'carboxylate' and the parent's own hydrogens
+    one_numbering = (hydro_ring_zwitterion_name(mol, ring_system, cation_idx, anion_idx, anchor)
+                     or azolium_zwitterion_name(mol, ring_system, cation_idx, anchor))
+    if one_numbering:
+        return one_numbering
 
     locants, _indicated_h = _charged_ring_locants(
-        mol, ring_system, cation_idx, anion_attach_idx=ring_attach)
+        neutralized_cation(mol, cation_idx) or mol, ring_system, cation_idx, anion_attach_idx=ring_attach)
     if not locants:
         return ''
     cation_locant = locants.get(cation_idx)
@@ -5127,7 +5125,7 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
     stem = _p74_bare_ring_stem(mol, ring_system, cation_idx)
     if not stem:
         return ''
-    return (f"{prefix}{_elide_terminal_e(stem)}"
+    return (f"{_join_prefix_stem(prefix, _elide_terminal_e(stem))}"
             f"-{cation_locant}-ium-{carboxyl_locant}-carboxylate")
 
 

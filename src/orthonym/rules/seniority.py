@@ -1243,6 +1243,27 @@ def _head_principal_group(
     return None, []
 
 
+def without_ring_skeleton_amidine(
+    functional_groups: Dict[str, List[tuple]],
+    ring_atoms,
+) -> Dict[str, List[tuple]]:
+    """``functional_groups`` with the 'amidine' class removed when every amidine of the molecule
+    has its carbon and both nitrogens among ``ring_atoms`` (a ring or ring system), else the
+    dict unchanged.
+
+     "Suffixes for amidines" (the Blue Book): the amidine group is the
+    characteristic group "-C(=NH)-NH2" "attached to a cyclic parent hydride" (:34200); a
+    ring that holds the whole N=C-N unit has those three atoms as skeletal atoms of the
+    heterocycle (a tetrahydropyrimidine, the octahydropyrimido[1,2-a]azepine of
+    1,8-diazabicyclo[5.4.0]undec-7-ene), so no '-imidamide' suffix stands on it and the ring
+    system is the parent. A group of another kind that the ring carries is still seen once
+    the skeletal amidine is set aside."""
+    amidines = functional_groups.get('amidine')
+    if not amidines or not all(all(i in ring_atoms for i in match) for match in amidines):
+        return functional_groups
+    return {k: v for k, v in functional_groups.items() if k != 'amidine'}
+
+
 def get_suffix(fg_name: str, is_ring: bool = False) -> Optional[str]:
     """
     Get the suffix form for a functional group.

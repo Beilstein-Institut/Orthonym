@@ -123,10 +123,11 @@ _HYDRO_LOCANTS = re.compile(
 
 #: the ionic and free-valence endings that carry the locants of (c), "principal characteristic groups
 #: and free valences (suffixes)": 'ium', 'ide', 'ylium', 'ylidene', 'ylidyne', and the 'yl' of a substituent
-#: group that ends there ('-1-yl)'; 'ylmethyl' and the like carry their locant as a prefix locant)
+#: group that ends there ('-1-yl)'; 'ylmethyl' and the like carry their locant as a prefix locant), and the
+#: 'carboxylate' of a zwitterion, the anionic suffix cited after the cationic one,:42447)
 _ENDING = re.compile(
     r"-((?:\d+[a-z]?|[NOPS]'*)(?:,(?:\d+[a-z]?|[NOPS]'*))*)-(?:di|tri|tetra|penta|hexa)?"
-    r"(?:ium|ide|uide|ylium|ylidene|ylidyne|yl|aminium|aminide|iminium)(?:\b|$)")
+    r"(?:ium|ide|uide|ylium|ylidene|ylidyne|yl|aminium|aminide|iminium|carboxylate)(?:\b|$)")
 
 _ENE_MULTIPLIER = (r"(?:mono|di|tri|tetra|penta|hexa|hepta|octa|nona|deca|undeca|dodeca|trideca|tetradeca|"
                    r"pentadeca|hexadeca|heptadeca|octadeca|nonadeca|icosa|[a-z]{0,9}cosa|[a-z]{0,9}triaconta|"
