@@ -3157,6 +3157,18 @@ def name_general(
     ``valid`` / the PIN default (``allow_aromatic_general`` False) charge is
     still refused -> byte-identical to pre-P5.
     """
+    # (g) (the Blue Book): the engine's ring numberings key their prefix tier on
+    # the names of the prefixes it cites, so they are asked with the argument it names them with
+    from .engine_prefix_ordering import engine_prefix_ordering
+    with engine_prefix_ordering(allow_aromatic_general):
+        return _name_general_dispatch(mol, features, allow_aromatic_general,
+                                      allow_suffix_free)
+
+
+def _name_general_dispatch(
+    mol, features, allow_aromatic_general: bool, allow_suffix_free: bool,
+) -> Optional[GeneralEngineResult]:
+    """The body of:func:`name_general` (the engine run its prefix-ordering scope covers)."""
     allow_charged = allow_aromatic_general
     ring_atoms = any(a.IsInRing() for a in atoms_of(mol)) if mol else False
     if not ring_atoms or getattr(features, 'chain_is_parent', False):

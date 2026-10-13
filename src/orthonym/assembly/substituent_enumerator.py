@@ -46,6 +46,7 @@ from ..metrics.candidate_ledger import record_candidate as _ledger_record
 from ..perception.molcache import atoms_of, bonds_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..rules.seniority import get_prefix
 from ..errors import CASCADE_REFUSAL
+from .engine_prefix_ordering import engine_orders_with_mancude
 from .naming_utils import SIMPLE_MULTIPLIERS, get_alkyl_name
 from .substituent_naming import _name_aryl_methyl_ether, name_substituent_fragment
 from .substituent_prefix_forms import _check_substituent_prefix_form
@@ -1126,7 +1127,7 @@ def _substituent_memo_key(mol, frag_atoms, attach_idx, allow_mancude,
             bool(allow_mancude), best_effort_val, atom_cips, bond_cips,
             ext_bond_orders, frozenset(frag_atoms), attach_idx,
             general_fallback_ctx.get(), allow_aromatic_general_ctx.get(),
-            full_coverage_ctx.get())
+            full_coverage_ctx.get(), engine_orders_with_mancude())
 
 
 def _mol_graph_key(mol):
@@ -1177,28 +1178,25 @@ def name_substituent_for_ordering(mol, frag_atoms, attach_idx):
     # key, as in ``_substituent_memo_key``. Without them a sort key named in the
     # best-effort context was served to the clean context of the same molecule (and
     # back), ORTHONYM_MEMO=verify raised MemoMismatch here, and the (g) tie of
-    # a 1,4-disubstituted piperazine followed whichever context filled the entry
-    # first: milestone1500 'C1C[C@@H](OC1)CNC(=S)N2CCN(CC2)S(=O)(=O)C3=CC=CC=C3' was
-    # '4-{...}-1-(phenylsulfonyl)piperazine' for four spellings and '1-{...}-4-
-    # (phenylsulfonyl)piperazine' for the fifth. The fragment session depth is in the
-    # key too: a deep prefix is named against the depth budget left at that depth (a
-    # recursion-depth fallback deeper down), so the same prefix asked at two depths
-    # can get two names (verify-mode mismatches on two dev rows). Finer key => only
-    # more misses.
+    # a 1,4-disubstituted piperazine followed whichever context filled the entry first.
+    # The fragment session depth is in the key too (a deep prefix is named against the depth
+    # budget left at that depth), and so is ``allow_mancude``, the argument the general engine
+    # names its prefixes with (``engine_prefix_ordering``). Finer key => only more misses.
     from .fragment_naming import _session_depth
+    allow_mancude = engine_orders_with_mancude()
     try:
         key = (_mol_graph_key(mol), tuple(sorted(frag_atoms)), attach_idx,
                best_effort_ctx.get(), general_fallback_ctx.get(),
                allow_aromatic_general_ctx.get(), full_coverage_ctx.get(),
-               _session_depth())
+               _session_depth(), allow_mancude)
     except Exception:  # noqa: BLE001 -- no key, no memo
-        return _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx)
+        return _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx, allow_mancude)
     return cache_or_compute(
         "substituent_ordering_name", key,
-        lambda: _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx))
+        lambda: _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx, allow_mancude))
 
 
-def _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx):
+def _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx, allow_mancude=False):
     from . import substituent_naming as _sn
     from .fragment_naming import speculative_fragment_naming
     from .memo import pop_sandbox, push_sandbox
@@ -1211,7 +1209,7 @@ def _name_substituent_for_ordering_uncached(mol, frag_atoms, attach_idx):
     token = push_sandbox()
     try:
         with speculative_fragment_naming():
-            name = name_substituent(mol, frag_atoms, attach_idx)
+            name = name_substituent(mol, frag_atoms, attach_idx, allow_mancude=allow_mancude)
     except Exception:  # noqa: BLE001 -- a sort key never fails the naming
         name = None
     finally:

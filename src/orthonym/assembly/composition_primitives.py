@@ -618,9 +618,7 @@ _MULTIPLIER_PREFIXES = (
 )
 
 
-def apply_mononuclear_enclosing(
-    prefix_texts: List[str], is_mononuclear: bool, enclose_after_marked_first: bool = False
-) -> List[str]:
+def apply_mononuclear_enclosing(prefix_texts: List[str], is_mononuclear: bool) -> List[str]:
     """Apply the mononuclear enclosing rule (the Blue Book).
 
     For a mononuclear parent hydride with >= 2 substituents: the FIRST cited
@@ -635,13 +633,9 @@ def apply_mononuclear_enclosing(
     comment words) and therefore a second copy of the compound-hyphen test; it now
     calls this function.
 
-    ``enclose_after_marked_first`` extends the rule to a list whose first prefix carries a
-    locant or marks of its own ('(oxetan-2-yl)', '(4-chlorophenyl)'): the first stays as it is
-    and every simple prefix after it is enclosed ('(oxetan-2-yl)(phenyl)methanone', the book's
-    '(4-chlorophenyl)(phenyl)methanone oxime', the Blue Book). Without it such a list is
-    left bare, the spelling of the general-acyclic assembler, whose gold row
-    R6-DIARYL-KETONE (``benchmarks/the gold set/packs/w8_p1_roots.json``) asserts
-    '(4-chlorophenyl)phenylmethanone'.
+    A first prefix that carries a locant or marks of its own ('(oxetan-2-yl)', '(4-chlorophenyl)')
+    stays as it is and every simple prefix after it is enclosed ('(oxetan-2-yl)(phenyl)methanone',
+    the book's '(4-chlorophenyl)(phenyl)methanone oxime', the Blue Book).
     """
     if not (is_mononuclear and len(prefix_texts) >= 2):
         return prefix_texts
@@ -674,8 +668,7 @@ def apply_mononuclear_enclosing(
     #: "the first cited substituent never has enclosing marks unless it includes a
     # locant"; the second and further are enclosed all the same. A multiplied prefix keeps the
     # all-bare form of the carve-out above.
-    if not enclose_after_marked_first or any(
-            any(t.startswith(mp) for mp in _MULTIPLIER_PREFIXES) for t in prefix_texts):
+    if any(any(t.startswith(mp) for mp in _MULTIPLIER_PREFIXES) for t in prefix_texts):
         return prefix_texts
     return [prefix_texts[0]] + [f"({t})" if _is_simple_prefix(t) else t
                                 for t in prefix_texts[1:]]

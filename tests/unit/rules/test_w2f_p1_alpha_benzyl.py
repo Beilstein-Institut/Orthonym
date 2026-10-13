@@ -138,8 +138,8 @@ class TestAlphaBenzylFailClosedAndGuards:
     def test_alpha_oh_stays_with_methanol_parent(self):
         # α-OH = PCG -> carbinol/methanol path owns it; the halogen
         # whitelist excludes O by construction. HEAD emits the RT-OK
-        # '(4-bromophenyl)phenylmethanol' (pre-existing marks style defect,
-        # research D — do NOT pin the exact marks, only the parent).
+        # '(4-bromophenyl)(phenyl)methanol' (the second prefix enclosed,,
+        # the Blue Book, 'cyclopropyl(phenyl)methanol (PIN)',:7302); this test pins only the parent.
         out = name_compound("OC(c1ccccc1)c1ccc(Br)cc1")
         assert out.endswith("methanol")
 

@@ -1,6 +1,7 @@
 """Lever G: the optimised _substituent_memo_key must return EXACTLY the value of the frozen
 reference below (a verbatim copy of the function as of commit b48165466, 2026-09-12), followed by
-the three breadth-flag components that dd759cc50 (a lever, 2026-09-17) appended on purpose."""
+the three breadth-flag components that dd759cc50 (a lever, 2026-09-17) appended on purpose and the
+engine-ordering mark that engine_prefix_ordering appended after them."""
 import itertools
 import pytest
 from rdkit import Chem
@@ -140,8 +141,10 @@ def test_key_identical_to_reference(smi):
                     # at one breadth configuration is never served to another; the first ten components
                     # are still byte-identical to the frozen reference.
                     assert key[:10] == ref
+                    # engine_prefix_ordering appended the mark of a general-engine run (the engine's
+                    # allow_mancude decides the ordering names of the prefixes it numbers): False here
                     assert key[10:] == (general_fallback_ctx.get(), allow_aromatic_general_ctx.get(),
-                                        full_coverage_ctx.get())
+                                        full_coverage_ctx.get(), False)
     finally:
         memo.pop_scope(tok)
 

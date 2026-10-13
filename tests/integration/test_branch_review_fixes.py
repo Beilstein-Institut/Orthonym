@@ -850,9 +850,12 @@ def test_m_the_ordering_sort_key_memo_is_keyed_by_the_naming_context(monkeypatch
     # every memo mode and every spelling. The sulfonyl group is the preferred acyl prefix of the
     # sulfonic acid, Acyl groups derived from sulfonic, sulfinic, etc. acids
     # (the Blue Book): "the preferred prefixes are enclosed in parentheses even though they
-    # are simple prefixes". The orientation is not pinned here: the clean context cannot name
-    # the thiocarbamoyl prefix for the (g) key, so the canonical ranks decide it (the strict
-    # xfail below holds the (g) name).
+    # are simple prefixes". NUMBERING (the Blue Book), criterion (g) "lowest locants
+    # for the substituent cited first as a prefix in the name" (:3307): 'benzenesulfonyl' begins
+    # with 'b' and the other prefix with 'o',:3477), so the sulfonyl group takes
+    # locant 1. The clean context names the thiocarbamoyl prefix only for the engine that cites
+    # it (``allow_mancude``), so its ordering name is asked the same way
+    # (``engine_prefix_ordering``): the canonical ranks no longer decide the orientation.
     from orthonym.assembly import memo
     seen = set()
     for mode in ("on", "verify", "off"):
@@ -863,22 +866,9 @@ def test_m_the_ordering_sort_key_memo_is_keyed_by_the_naming_context(monkeypatch
     names = {name for _mode, name in seen}
     assert len(names) == 1, seen
     (name,) = names
-    assert "(benzenesulfonyl)" in name, name
-    assert "[({[(2R)-oxolan-2-yl]methyl}amino)(sulfanylidene)methyl]" in name, name
-    assert name.endswith("piperazine"), name
+    assert name == ("1-(benzenesulfonyl)-4-[({[(2R)-oxolan-2-yl]methyl}amino)"
+                    "(sulfanylidene)methyl]piperazine"), name
     assert_full_rt(name, PIPERAZINE_THIOUREA)
-
-
-@pytest.mark.xfail(strict=True, reason=(
-    "the clean context cannot name the thiocarbamoyl prefix for the P-14.4 (g) key, so the "
-    "canonical ranks decide which prefix takes locant 1"))
-def test_m_the_piperazine_prefix_cited_first_takes_locant_1():
-    # NUMBERING, criterion (g) (the Blue Book): "lowest locants for the substituent
-    # cited first as a prefix in the name"; 'benzenesulfonyl' begins with 'b' and the other
-    # prefix with 'o',:3477), so the sulfonyl group takes locant 1.
-    row = _row(PIPERAZINE_THIOUREA, "best-effort")
-    assert row["name"] == ("1-(benzenesulfonyl)-4-[({[(2R)-oxolan-2-yl]methyl}amino)"
-                           "(sulfanylidene)methyl]piperazine"), row
 
 
 @pytest.mark.parametrize("smiles,expected", [

@@ -396,9 +396,10 @@ def test_general_acyclic_asymmetric_diaryl_ethanedione_rendering(
      "`apply_mononuclear_enclosing`, whose 'any multiplied simple prefix => all "
      "bare' carve-out (BB PROTECT) must survive — the polynuclear rule must NOT "
      "touch it"),
-    ("O=C(c1ccccc1)c1ccc(Cl)cc1", "(4-chlorophenyl)phenylmethanone",
-     "MONONUCLEAR control: a diaryl methanone stays on its existing rendering "
-     "(the polynuclear rule is scoped away from mononuclear parents)"),
+    ("O=C(c1ccccc1)c1ccc(Cl)cc1", "(4-chlorophenyl)(phenyl)methanone",
+     "MONONUCLEAR control: a diaryl methanone keeps the mononuclear rendering, the second "
+     "prefix enclosed (P-16.5.1.3.1, BB:7272; '(4-chlorophenyl)(phenyl)methanone oxime', "
+     "BB:47666); the polynuclear rule is scoped away from mononuclear parents"),
 ])
 def test_asymmetric_ethanedione_rendering_controls(namer, smiles, expected, why):
     assert namer.name(smiles) == expected, why
