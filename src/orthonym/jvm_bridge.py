@@ -50,10 +50,10 @@ batch plus 60 single calls, **0 mismatches**.
 SAFETY
 ------
 * **Lazy.** Importing ``orthonym`` starts no JVM and touches no network. The JVM boots on
-  first actual use. Nothing is ever downloaded: jars are resolved by the existing
-  ``_find_opsin_jar`` / ``_find_centres_jar`` helpers, which glob the vendored jars at
-  PROJECT_ROOT (OPSIN 2.9.0 — the version ``eval/goals.json`` records in its baseline
-  provenance — and centres 1.2.1).
+  first actual use. Jars are resolved by the existing ``_find_opsin_jar`` /
+  ``_find_centres_jar`` helpers through ``orthonym.jars.find_jar``, which uses a local jar
+  and downloads a missing one on first use (OPSIN 2.9.0 — the version ``eval/goals.json``
+  records in its baseline provenance — and centres 1.2.1).
 * **Fallback, never failure.** Every entry point returns a sentinel meaning "I could not
   do this; use your subprocess path" when jpype is absent, the jars are missing, or the
   JVM will not start. A missing JVM must never hard-fail a name (``centres_bridge``).
@@ -64,7 +64,9 @@ SAFETY
   record the pid that actually called ``startJVM`` and refuse to touch a JVM started by any
   other pid. In the normal flow this never triggers (laziness means the parent starts no
   JVM and each worker starts its own); it exists so that ordering cannot become a
-  segfault.
+  segfault. The same dead JVM would hang a forked child in its first garbage collection
+  through JPype's ``gc.callbacks`` entry; ``_drop_jpype_gc_callback_in_child`` removes it
+  (see there).
 * **Heap.** ``-Xmx`` defaults to 512 MB (verified sufficient for OPSIN + CDK), overridable
   via ``ORTHONYM_JVM_XMX``. This matters because the worker model is *processes*: the
   reference snippet's ``-Xmx4096M`` times 12 workers would reserve 48 GB.
@@ -73,6 +75,7 @@ SAFETY
 """
 from __future__ import annotations
 
+import gc
 import logging
 import os
 import threading
@@ -93,6 +96,8 @@ _STATE_PID: Optional[int] = None
 # The pid that actually called startJVM. Only that pid may use the JVM.
 _STARTED_PID: Optional[int] = None
 _LOGGED_UNAVAILABLE = False
+# True once the after-fork hook below is registered (os.register_at_fork cannot undo it).
+_FORK_HOOK_REGISTERED = False
 
 # Live Java handles (populated by _start).
 _N2S_CLS = None        # uk.ac.cam.ch.wwmm.opsin.NameToStructure (the class)
@@ -127,6 +132,47 @@ def _reset_handles() -> None:
     _CFG_BY_RADICALS.clear()
 
 
+def _drop_jpype_gc_callback_in_child() -> None:
+    """Runs in every ``fork`` child of a process that started the JVM.
+
+    JPype's ``startJVM`` adds ``_jpype._collect`` to ``gc.callbacks``; it ends every Python
+    collection by calling ``System.gc`` and waiting for the JVM's VM thread. A fork child
+    has no JVM (only the forking thread survives), so its first garbage collection would
+    wait forever on a thread that does not exist (audit 2026-10-13, defect 2). Dropping the
+    callback in the child is correct for the child's own code too: it never has a JVM, and
+    ``_ensure_jvm`` refuses a JVM that another pid started.
+
+    JPype's ``atexit`` hook ``_JTerminate`` calls ``_jpype.shutdown`` into the same dead JVM
+    when ``jpype.config.onexit`` is true (the default), so a child that ends through
+    ``sys.exit`` or by reaching the end of its script hangs too. ``multiprocessing`` children
+    end with ``os._exit`` and skip it; a plain ``os.fork`` child does not. The hook reads
+    ``onexit`` at exit time, so clearing it here turns the shutdown off in the child only.
+    Never raises.
+    """
+    try:
+        import _jpype
+        collect = getattr(_jpype, "_collect", None)
+        if collect is not None:
+            gc.callbacks[:] = [cb for cb in gc.callbacks if cb is not collect]
+    except Exception:  # pragma: no cover - a failing hook must not break fork
+        pass
+    try:
+        import jpype.config
+        jpype.config.onexit = False
+    except Exception:  # pragma: no cover - a failing hook must not break fork
+        pass
+
+
+def _register_fork_hook_once() -> None:
+    """Register:func:`_drop_jpype_gc_callback_in_child` (once per process). Caller holds _LOCK."""
+    global _FORK_HOOK_REGISTERED
+    if _FORK_HOOK_REGISTERED:
+        return
+    _FORK_HOOK_REGISTERED = True
+    if hasattr(os, "register_at_fork"):  # POSIX only; Windows has no fork
+        os.register_at_fork(after_in_child=_drop_jpype_gc_callback_in_child)
+
+
 def _start(pid: int) -> bool:
     """Resolve jars, boot the JVM, bind the classes. Caller holds _LOCK."""
     global _STARTED_PID, _N2S_CLS, _CFG_CLS, _LABELCIP
@@ -142,7 +188,7 @@ def _start(pid: int) -> bool:
         _log_unavailable_once("jpype not installed")
         return False
 
-    # Jars come from the EXISTING resolvers -- vendored only, never downloaded.
+    # Jars come from the EXISTING resolvers (orthonym.jars.find_jar: local, else downloaded once).
     # Imported lazily so this module can be imported from either bridge without
     # a circular import.
     try:
@@ -198,6 +244,7 @@ def _start(pid: int) -> bool:
             _log_unavailable_once(f"startJVM failed: {last}")
             return False
         _STARTED_PID = pid
+        _register_fork_hook_once()
         # The thread that calls startJVM becomes the JVM's creating thread, a
         # USER thread. When that is a worker thread (first use from a
         # per-molecule ThreadPoolExecutor timeout thread), it exits without

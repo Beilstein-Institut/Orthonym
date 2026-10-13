@@ -124,22 +124,38 @@ def test_outcome_is_resolved_once_per_process(fake_spec, monkeypatch):
     assert jars.find_jar("opsin")
 
 
-def _child(q):
+def _child(q, spec):
+    # A spawned child starts from a fresh import of orthonym.jars: it sees the environment
+    # fake_spec set (the jar directory) but not the monkeypatched spec, so it installs it.
     try:
+        jars.JARS["opsin"] = spec
+        jars._reset_cache()
         q.put(jars.find_jar("opsin"))
     except Exception as exc:  # pragma: no cover
         q.put(repr(exc))
 
 
 def test_concurrent_first_use_download(fake_spec):
-    ctx = mp.get_context("fork")
+    """Eight processes find the jar missing at once: all get the same verified path.
+
+    "spawn", not "fork": the pytest worker has a running JVM, and a fork child of it can
+    hang in its first garbage collection (JPype's gc callback waits for the VM thread that
+    did not survive the fork), holding the jar lock and the worker's pipes. The timeout on
+    q.get means that even so this test fails instead of hanging the worker."""
+    spec, _ = fake_spec
+    ctx = mp.get_context("spawn")
     q = ctx.Queue()
-    procs = [ctx.Process(target=_child, args=(q,)) for _ in range(8)]
-    for p in procs:
-        p.start()
-    for p in procs:
-        p.join(60)
-    paths = {q.get() for _ in procs}
+    procs = [ctx.Process(target=_child, args=(q, spec)) for _ in range(8)]
+    try:
+        for p in procs:
+            p.start()
+        paths = {q.get(timeout=120) for _ in procs}
+    finally:
+        for p in procs:
+            p.join(10)
+            if p.is_alive():
+                p.kill()
+                p.join()
     assert len(paths) == 1
     assert Path(paths.pop()).read_bytes() == PAYLOAD
 
