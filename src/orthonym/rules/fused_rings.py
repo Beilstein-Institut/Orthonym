@@ -808,7 +808,9 @@ def _record_non_pin_spelling(fragment: str) -> None:
 
 def _first_cited_prefix_key(subs) -> tuple:
     """ (g) (the Blue Book): the locants of the detachable prefixes taken
-    in alphanumerical citation order, so the prefix cited first gets the lowest."""
+    in alphanumerical citation order (``alpha_sort_key``, the order the assembler cites
+    them in: ignores ``tert-``, ``sec-`` and a leading locant), so the prefix
+    cited first gets the lowest."""
     if not subs:
         return ()
     by_name: Dict[str, List[Any]] = defaultdict(list)
@@ -818,7 +820,7 @@ def _first_cited_prefix_key(subs) -> tuple:
         if 'locant' in other:
             by_name[str(other.get('name', ''))].append(other['locant'])
     return tuple(tuple(sorted(_fused_locant_num(l) for l in by_name[n]))
-                 for n in sorted(by_name, key=lambda n: n.lower()))
+                 for n in sorted(by_name, key=alpha_sort_key))
 
 
 def _substituent_placement(subs) -> tuple:

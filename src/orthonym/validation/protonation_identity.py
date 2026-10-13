@@ -97,6 +97,8 @@ import re
 from rdkit import Chem
 from rdkit.Chem import inchi as _inchi
 
+from ..perception import charge_shift
+
 
 def _has_protonated_heavy_atom(mol) -> bool:
     return any(a.GetAtomicNum() > 1 and a.GetFormalCharge() > 0 and a.GetTotalNumHs() > 0
@@ -180,17 +182,18 @@ _MAX_RESONANCE_STRUCTS = 64
 
 
 def _analogue_inchis(mol) -> set:
-    """``_neutral_analogue_inchi`` of ``mol`` and of each of its resonance
-    structures: a delocalised charge is drawn on either atom (the two nitrogens of
-    an imidazolium), and each drawing gives its own analogue."""
+    """``_neutral_analogue_inchi`` of ``mol`` and of the other drawings of its charge (``_charge_drawings``): a
+    delocalised charge is drawn on either atom (the two nitrogens of an imidazolium), and each drawing gives its own
+    analogue. The drawings are RDKit's when ``charge_shift.pi_work(mol)`` (W0) is at most
+    ``RDKIT_RESONANCE0_MAX_WORK`` and the placements of the +1 of a mobile nitrogen cation above it (see
+    ``_charge_drawings``), so the set above that count can be smaller than RDKit's. An error while the drawings are
+    built leaves the analogues found so far."""
     out = set()
     a = _neutral_analogue_inchi(mol)
     if a:
         out.add(a)
     try:
-        sup = Chem.ResonanceMolSupplier(mol, 0, _MAX_RESONANCE_STRUCTS)
-        for i in range(len(sup)):
-            m = sup[i]
+        for m in _charge_drawings(mol):
             if m is not None:
                 a = _neutral_analogue_inchi(m)
                 if a:
@@ -198,6 +201,28 @@ def _analogue_inchis(mol) -> set:
     except Exception:
         pass
     return out
+
+
+def _charge_drawings(mol):
+    """The drawings of ``mol`` other than the drawn one whose neutral analogues join its own.
+
+    RDKit's enumeration without a flag builds every bond-order arrangement of each group that carries charge or N=X
+    bonds and its C++ call cannot be interrupted, so it is asked only when ``charge_shift.rdkit_flags0_affordable(mol)``
+    (``pi_work`` at most ``RDKIT_RESONANCE0_MAX_WORK``). Above that count the drawings are the placements of the +1 of
+    each mobile nitrogen cation (``charge_shift.charge_placements``). Those move no -1, so the analogues can be fewer
+    than RDKit's and ``_same_up_to_neutral_tautomer`` False more often: a name is rejected, never let through. An
+    undecided matching gives no drawing: RDKit is never asked in its place."""
+    if charge_shift.rdkit_flags0_affordable(mol):
+        return _rdkit_drawings(mol)
+    return charge_shift.charge_placements(mol) or []
+
+
+def _rdkit_drawings(mol):
+    """Each resonance structure RDKit builds for ``mol`` without a flag (at most ``_MAX_RESONANCE_STRUCTS``), one at a
+    time."""
+    sup = Chem.ResonanceMolSupplier(mol, 0, _MAX_RESONANCE_STRUCTS)
+    for i in range(len(sup)):
+        yield sup[i]
 
 
 def _same_up_to_neutral_tautomer(mi, mo) -> bool:
