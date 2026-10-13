@@ -30,7 +30,9 @@ from ..data.ion_retained_names import (
 from ..data.multipliers import multiplier_table
 from ..errors import UnnameableSubstituentError  # a voided candidate (Task 3)
 from ..errors import is_failure_name
-from ..perception import charge_shift
+from .ring_cation_hydron import (  # noqa: F401 (also patched by tests as ions.<name>)
+    _hydron_site_candidates, _hydron_sites_in, _other_ring_heteroatom_with_hydrogen, _rdkit_flags0_structures,
+)
 from ..perception.ions import get_ion_sites
 from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..perception.molcache import inchikey_of
@@ -955,6 +957,23 @@ def _name_mononuclear_hydride_anion(mol) -> str:
     return parent + mult + 'ide' if mult else ''
 
 
+def _roundtripped_acid_ester_anion(mol) -> str:
+    """The acid-ester anion word (``acid_ester_anion.name_acid_ester_anion``) when OPSIN reads it back
+    to ``mol``'s full InChIKey (constitution, stereo and charge) and the anion validator keeps it;
+    '' when the producer declines or the strict round trip cannot confirm the name (the caller
+    falls through)."""
+    from .acid_ester_anion import name_acid_ester_anion
+    ester_anion = name_acid_ester_anion(mol)
+    if not ester_anion:
+        return ''
+    from orthonym.validation.opsin_roundtrip import opsin_parse
+    back = opsin_parse(ester_anion)
+    bm = Chem.MolFromSmiles(back) if back else None
+    if bm is None or Chem.MolToInchiKey(bm) != inchikey_of(mol):
+        return ''
+    return _validate_anion_name(mol, ester_anion)
+
+
 def name_anion(mol, style: str = 'pin', _depth: int = 0, retained_only: bool = False) -> str:
     """
     Generate IUPAC name for an anionic molecule.
@@ -1088,18 +1107,9 @@ def name_anion(mol, style: str = 'pin', _depth: int = 0, retained_only: bool = F
         # Require the SAME strict full-InChIKey round-trip (constitution + stereo +
         # charge) already applied to the poly-anion siblings
         # (dispatch_table.py::_handle_poly_anion, this file's own multi-anion branch).
-        from .acid_ester_anion import name_acid_ester_anion
-        ester_anion = name_acid_ester_anion(mol)
+        ester_anion = _roundtripped_acid_ester_anion(mol)
         if ester_anion:
-            from orthonym.validation.opsin_roundtrip import opsin_parse
-            back = opsin_parse(ester_anion)
-            if back:
-                bm = Chem.MolFromSmiles(back)
-                if bm is not None and Chem.MolToInchiKey(bm) == inchikey_of(mol):
-                    validated = _validate_anion_name(mol, ester_anion)
-                    if validated:
-                        return validated
-            # strict RT could not confirm the name -> fall through (abstain / other paths)
+            return ester_anion
 
         # 169.6-03 (CHOKE-01): for every OTHER single-anion class delegate to the
         # SINGLE route_charged chokepoint. It generalizes _name_oxoacid_anion
@@ -1162,6 +1172,15 @@ def name_anion(mol, style: str = 'pin', _depth: int = 0, retained_only: bool = F
         if oxo_name:
             return _validate_anion_name(mol, oxo_name)
 
+    # method (1): several ionized and at least one un-ionized carboxy group on one
+    # ring ('5-carboxybenzene-1,3-dicarboxylate'). The neutralize-then-name path below ionizes
+    # every group of the neutral acid's suffix, which is not this anion.
+    if all(classify_anion(mol, a) == 'carboxylate' for a in anions):
+        from .acid_salt_anions import name_ring_acid_salt_anion
+        partial_ring = name_ring_acid_salt_anion(mol, anions[0])
+        if partial_ring:
+            return _validate_anion_name(mol, partial_ring)
+
     #: a multi-[O-] acid-ester anion (a phosphate monoester
     # DIANION reaches here with len(anions) == 2). Derive the anion word in
     # place; _try_neutralize_and_name below would emit the NEUTRAL word which
@@ -1178,18 +1197,9 @@ def name_anion(mol, style: str = 'pin', _depth: int = 0, retained_only: bool = F
     # THAT wrong-molecule candidate, and the cascade falls through to here, which had
     # no gate. Require the SAME strict full-InChIKey round-trip (constitution + stereo
     # + charge) so an unverifiable name ABSTAINS instead of shipping.
-    from .acid_ester_anion import name_acid_ester_anion
-    ester_anion = name_acid_ester_anion(mol)
+    ester_anion = _roundtripped_acid_ester_anion(mol)
     if ester_anion:
-        from orthonym.validation.opsin_roundtrip import opsin_parse
-        back = opsin_parse(ester_anion)
-        if back:
-            bm = Chem.MolFromSmiles(back)
-            if bm is not None and Chem.MolToInchiKey(bm) == inchikey_of(mol):
-                validated = _validate_anion_name(mol, ester_anion)
-                if validated:
-                    return validated
-        # strict RT could not confirm the name -> fall through (abstain / other paths)
+        return ester_anion
 
     # A1 Task 5 (defect C): sibling of the single-anion branch's identical
     # call above (:1019) -- a natural-product scaffold carrying an unclaimed
@@ -2332,6 +2342,13 @@ def emit_mono_ionized_polyfunctional(mol, ion_idx: int, kind: str) -> str:
     ion_heavy = [n for n in ion_atom.GetNeighbors() if n.GetSymbol() != 'H']
     if len(ion_heavy) != 1 or ion_heavy[0].GetSymbol() != 'C':
         return ''
+    # The ionic ending ('aminium', 'olate', 'thiolate') names a group joined to the
+    # chain by a SINGLE bond. A heteroatom doubly bonded to its carbon ('=[NH2+]' of an
+    # amidinium or an iminium) is not that group: it is an '-iminium' / '-amidium'
+    # centre of Table 7.4, and naming it here describes another molecule.
+    _ion_bond = mol.GetBondBetweenAtoms(ion_idx, ion_heavy[0].GetIdx())
+    if _ion_bond is None or _ion_bond.GetBondType() != Chem.BondType.SINGLE:
+        return ''
     c0 = ion_heavy[0].GetIdx()
 
     # --- Neutral sibling heteroatoms (same element, neutral, terminal, correct H).
@@ -2341,8 +2358,11 @@ def emit_mono_ionized_polyfunctional(mol, ion_idx: int, kind: str) -> str:
         if a.GetFormalCharge() != 0 or a.IsInRing():
             return False
         heavy = [n for n in a.GetNeighbors() if n.GetSymbol() != 'H']
-        return (len(heavy) == 1 and heavy[0].GetSymbol() == 'C'
-                and a.GetTotalNumHs() == sib_h)
+        if not (len(heavy) == 1 and heavy[0].GetSymbol() == 'C'
+                and a.GetTotalNumHs() == sib_h):
+            return False
+        _sib_bond = mol.GetBondBetweenAtoms(a.GetIdx(), heavy[0].GetIdx())
+        return _sib_bond is not None and _sib_bond.GetBondType() == Chem.BondType.SINGLE
 
     siblings = [a.GetIdx() for a in mol.GetAtoms() if _is_sibling(a)]
     if not siblings:
@@ -4603,68 +4623,6 @@ def _ring_cation_hydron_site(mol, ring_system, center_idx):
     return res, site
 
 
-def _hydron_site_candidates(mol, ring_system, center_idx) -> Dict[int, Any]:
-    """{ring atom: a resonance structure of ``mol`` with the drawn centre neutral and +1 on that atom}.
-
-    RDKit builds every bond-order arrangement of each group that carries charge or
-    N=X bonds and its C++ call cannot be interrupted, so it is asked only when
-    ``charge_shift.rdkit_flags0_affordable(mol)``; above that count the structures
-    come from the matching of the pi bonds (``charge_shift.hydron_sites``). An
-    undecided matching, and an error in either route, give {}: the molecule has no
-    site here and RDKit is never asked in the matching's place."""
-    if charge_shift.rdkit_flags0_affordable(mol):
-        structs = _rdkit_flags0_structures(mol)
-        return {} if structs is None else _hydron_sites_in(structs, ring_system, center_idx)
-    try:
-        return charge_shift.hydron_sites(mol, center_idx, ring_system) or {}
-    except Exception:
-        return {}
-
-
-def _rdkit_flags0_structures(mol):
-    """The resonance structures RDKit builds for ``mol`` without a flag (at most 64), or None when it fails."""
-    try:
-        sup = Chem.ResonanceMolSupplier(mol, 0, 64)
-        return [sup[i] for i in range(len(sup))]
-    except Exception:
-        return None
-
-
-def _hydron_sites_in(structs, ring_system, center_idx) -> Dict[int, Any]:
-    """{ring atom: the first structure of ``structs`` in which the centre is neutral and that atom, neither H nor C,
-    bears +1 and a hydrogen}."""
-    found = {}
-    for r in structs:
-        if r is None or r.GetAtomWithIdx(center_idx).GetFormalCharge() != 0:
-            continue
-        for idx in ring_system:
-            a = r.GetAtomWithIdx(idx)
-            if (idx != center_idx and a.GetAtomicNum() not in (1, 6)
-                    and a.GetFormalCharge() == 1 and a.GetTotalNumHs() >= 1):
-                found.setdefault(idx, r)
-    return found
-
-
-def _other_ring_heteroatom_with_hydrogen(mol, ring_system, center_idx) -> bool:
-    """True when a ring atom other than the centre, neither H nor C, carries a
-    hydrogen in the drawing.
-
-    A resonance structure at flags 0 moves bond orders and charges and keeps the
-    hydrogen count of every atom (RDKit ``Resonance.cpp``, ``fixExplicitImplicitHs``:
-    only an incomplete octet, which flags 0 excludes, derives other implicit
-    hydrogens). The hydron of "General rule for systematically naming
-    cationic centers in parent hydrides" (the Blue Book),:41368: "A cation
-    derived formally by adding one or more hydrons to any position of a neutral
-    parent hydride..." can therefore sit only on a ring heteroatom that has a
-    hydrogen in the drawing; without one no structure has a hydron-carrying
-    heteroatom and the enumeration cannot find a site."""
-    for idx in ring_system:
-        atom = mol.GetAtomWithIdx(idx)
-        if idx != center_idx and atom.GetAtomicNum() not in (1, 6) and atom.GetTotalNumHs() >= 1:
-            return True
-    return False
-
-
 def _neutral_parent_ium_names(res, x: int, ring_system) -> List[str]:
     """'<neutral parent>-<k>-ium' for every ring locant k, where the neutral
     parent is ``res`` with the hydron at ring atom ``x`` removed. The parent's own
@@ -4682,7 +4640,7 @@ def _neutral_parent_ium_names(res, x: int, ring_system) -> List[str]:
         Chem.SanitizeMol(neutral)
     except (RuntimeError, ValueError):
         return []
-    if _ring_bears_principal_group(neutral):
+    if _ring_bears_principal_group(neutral, ring_system):
         return []
     try:
         from ..namer import Orthonym
@@ -4742,7 +4700,10 @@ def _ring_cation_hydron_site_name(mol, center_idx: int, demoted: str) -> str:
         return demoted
     site = _ring_cation_hydron_site(mol, ring_system, center_idx)
     if site is None:
-        return demoted
+        # no ring atom holds the hydron: an azolium with a substituent on every nitrogen is the
+        # parent hydride's indicated hydrogen and its added hydron on two of them
+        from .azolium_cations import azolium_demote_name
+        return azolium_demote_name(mol, ring_system, center_idx) or demoted
     from .charged_router import _cation_name_rt_ok
     res, x = site
     candidates = list(_neutral_parent_ium_names(res, x, ring_system))
@@ -4769,7 +4730,9 @@ def _ring_cation_in_place_name(mol, center_idx: int, in_place: str) -> str:
     at each ring locant is tried ('1-methyl-1H-imidazol-3-ium'). ``in_place`` is
     returned unchanged when it reads back exactly or no candidate does."""
     ring_system = _ring_system_of(mol, center_idx)
-    if ring_system is None or not _ring_has_off_ring_substituent(mol, ring_system):
+    from .azolium_cations import ring_has_other_nh_heteroatom
+    if ring_system is None or not (_ring_has_off_ring_substituent(mol, ring_system)
+                                   or ring_has_other_nh_heteroatom(mol, ring_system, center_idx)):
         return in_place
     from .charged_router import _cation_name_rt_ok
     if in_place and _cation_name_rt_ok(in_place, mol):
@@ -4911,6 +4874,14 @@ def _ring_bears_principal_group(ring_mol, ring_system=None):
         if (pg_name in _PHOSPHINE_GROUPS and ring_system is not None and pg_atoms
                 and all(match and match[0] in ring_system for match in pg_atoms)):
             return False
+        # An amidine whose carbon and both nitrogens are skeletal atoms of the ring (the
+        # 4,5-dihydro-1H-imidazole of naphazoline, a tetrahydropyrimidine) is the ring itself:
+        # no '-imidamide' group stands on it, the parent is the heterocycle. A group of another
+        # kind that the ring carries is still seen once the skeletal amidine is set aside.
+        if (pg_name == 'amidine' and ring_system is not None and pg_atoms
+                and all(all(i in ring_system for i in match) for match in pg_atoms)):
+            rest = {k: v for k, v in fgs.items() if k != 'amidine'}
+            pg_name, pg_atoms = get_principal_group(ring_mol, rest)
         return pg_name is not None
     except (RuntimeError, ValueError, KeyError, IndexError, TypeError):
         return False
@@ -4940,6 +4911,37 @@ def _carboxyl_ring_anchor(mol, anion_idx, ring_system):
     return cC.GetIdx(), ring_attach[0]
 
 
+def _p74_ring_substituent_groups(mol, ring_system, locants, skip_atoms):
+    """The substituent tokens of ``ring_system`` and the locants each is cited at, in the
+    caller's numbering: ``{token: [locant,...]}``, ``None`` to FAIL CLOSED. The tokens come
+    from ``name_substituent``; see ``_p74_ring_substituent_prefix``, which formats them."""
+    from ..assembly.substituent_enumerator import name_substituent
+    ring = set(ring_system)
+    groups = {}
+    for ring_atom in sorted(ring):
+        if ring_atom not in locants:
+            return None
+        for nb in mol.GetAtomWithIdx(ring_atom).GetNeighbors():
+            nbi = nb.GetIdx()
+            if nbi in ring or nb.GetSymbol() == 'H' or nbi in skip_atoms:
+                continue
+            sub_atoms = _collect_substituent_atoms(mol, ring_atom, nbi, ring)
+            if sub_atoms is None:
+                return None
+            if sub_atoms & skip_atoms:
+                continue
+            if nb.GetSymbol() != 'C' and len(sub_atoms) != 1:
+                return None
+            if any(mol.GetAtomWithIdx(k).GetFormalCharge() for k in sub_atoms):
+                return None
+            token = name_substituent(mol, sorted(sub_atoms), nbi)
+            # 'substituent' is the module's documented unnameable sentinel.
+            if not token or token == 'substituent':
+                return None
+            groups.setdefault(token, []).append(locants[ring_atom])
+    return groups
+
+
 def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms):
     """Every exo substituent on ``ring_system``, locanted in the caller's ONE
     numbering, alphabetised into a ready-to-splice prefix string ('' when the ring
@@ -4966,30 +4968,9 @@ def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms):
     here, so such substituents FAIL CLOSED and are recorded in
     `internal notes`."""
     from ..assembly.naming_utils import alpha_sort_key, format_substituent_prefix
-    from ..assembly.substituent_enumerator import name_substituent
-    ring = set(ring_system)
-    groups = {}
-    for ring_atom in sorted(ring):
-        if ring_atom not in locants:
-            return None
-        for nb in mol.GetAtomWithIdx(ring_atom).GetNeighbors():
-            nbi = nb.GetIdx()
-            if nbi in ring or nb.GetSymbol() == 'H' or nbi in skip_atoms:
-                continue
-            sub_atoms = _collect_substituent_atoms(mol, ring_atom, nbi, ring)
-            if sub_atoms is None:
-                return None
-            if sub_atoms & skip_atoms:
-                continue
-            if nb.GetSymbol() != 'C' and len(sub_atoms) != 1:
-                return None
-            if any(mol.GetAtomWithIdx(k).GetFormalCharge() for k in sub_atoms):
-                return None
-            token = name_substituent(mol, sorted(sub_atoms), nbi)
-            # 'substituent' is the module's documented unnameable sentinel.
-            if not token or token == 'substituent':
-                return None
-            groups.setdefault(token, []).append(locants[ring_atom])
+    groups = _p74_ring_substituent_groups(mol, ring_system, locants, skip_atoms)
+    if groups is None:
+        return None
     if not groups:
         return ''
     parts = []
@@ -5388,26 +5369,22 @@ def _is_naphthalene_system(mol, aromatic_idx: int, atom_rings) -> bool:
 
 
 def _branch_all_carbon(mol, start_idx: int, blocked: set) -> bool:
-    """True iff the substituent subtree reached from ``start_idx`` (not crossing
-    into ``blocked``) is a pure hydrocarbon (only carbon heavy atoms) -- i.e. a
-    plain alkyl the simple ring-substituent alkyl namer can count without dropping
-    a heteroatom."""
-    from collections import deque
-    seen = set()
-    dq = deque([start_idx])
-    while dq:
-        i = dq.popleft()
-        if i in seen or i in blocked:
-            continue
-        seen.add(i)
+    """True iff the substituent reached from ``start_idx`` (not crossing into ``blocked``) is a plain
+    n-alkyl: a saturated, unbranched chain of carbon atoms. That is the one shape the simple
+    ring-substituent alkyl namer can name from its carbon count; 'propyl' for three carbons is
+    another group when they form an isopropyl or a propenyl, and the molecule is not the input's."""
+    prev, i = None, start_idx
+    while True:
         a = mol.GetAtomWithIdx(i)
-        if a.GetAtomicNum() > 1 and a.GetSymbol() != 'C':
+        if a.GetSymbol() != 'C' or any(b.GetBondType() != Chem.BondType.SINGLE for b in a.GetBonds()):
             return False
-        for n in a.GetNeighbors():
-            ni = n.GetIdx()
-            if ni not in seen and ni not in blocked:
-                dq.append(ni)
-    return True
+        nxt = [n.GetIdx() for n in a.GetNeighbors()
+               if n.GetIdx() != prev and n.GetIdx() not in blocked and n.GetAtomicNum() > 1]
+        if len(nxt) > 1:
+            return False
+        if not nxt:
+            return True
+        prev, i = i, nxt[0]
 
 
 def _name_aromatic_carboxylate_with_substituents(mol, carboxyl_carbon_idx: int, base_name: str) -> str:
@@ -5958,8 +5935,10 @@ def _name_carboxylate_systematic(mol, anion_site: Dict) -> str:
                           or _anion_name_keeps_hydron_sites(mol, oate_name)):
             return oate_name
         if oate_name:
+            from .acid_salt_anions import name_ring_acid_salt_anion
             own_parent = (_anion_on_its_own_parent(mol, anion_site, acid_name)
-                          or _anion_as_principal_suffix(mol, anion_site))
+                          or _anion_as_principal_suffix(mol, anion_site)
+                          or name_ring_acid_salt_anion(mol, anion_site))
             if own_parent:
                 return own_parent
             # method (2): when every carboxy group of the neutral acid

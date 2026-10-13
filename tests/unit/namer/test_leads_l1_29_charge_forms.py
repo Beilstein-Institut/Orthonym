@@ -44,8 +44,11 @@ PINS = [
     ("CCCN(CCC)C(=[N+](CCC)CCC)N", "CCCN(CCC)C(N(CCC)CCC)=[NH2+]",
      "N,N,N',N'-tetrapropylguanidinium"),
     ("CNC(=[NH2+])NCc1ccccc1", "C[NH+]=C(N)NCc1ccccc1", "N-benzyl-N'-methylguanidinium"),
+    # the N-alkyl azolium pair: the indicated hydrogen of 1H-imidazole and the hydron added by the
+    # '-ium' sit on the two nitrogens and a substituent stands on each (rules/azolium_cations.py);
+    # (g) gives butyl, cited first, the lower locant
+    ("CCCCn1cc[n+](C)c1", "CCCC[n+]1ccn(C)c1", "1-butyl-3-methyl-1H-imidazol-3-ium"),
 ]
-#: the N-alkyl azolium pair: no PIN is built (the PIN tier declines); the wider tiers name it
 IONIC_LIQUID = ("CCCCn1cc[n+](C)c1", "CCCC[n+]1ccn(C)c1")
 WIDER = ["valid", "complete", "best-effort"]
 
@@ -94,17 +97,6 @@ def test_random_atom_orders_of_both_drawings_give_the_pin():
         assert engine.name(order) == pin, order
 
 
-@pytest.mark.parametrize("tier", WIDER)
-def test_the_ionic_liquid_cation_gets_one_name_by_the_lower_locants(tier):
-    # (g) (:3307): the substituent cited first as a prefix, butyl, gets the lowest locant
-    a, b = IONIC_LIQUID
-    rows = [_engine(tier).name_tiered(s) for s in (a, b)]
-    assert rows[0]["name"] == rows[1]["name"] and rows[0]["tier"] == rows[1]["tier"]
-    assert rows[0]["name"].startswith("1-butyl-3-methyl-1"), rows[0]
-    assert rows[0]["tier"] == "systematic_verified"
-    assert opsin_key(rows[0]["name"]) == rdkit_key(a)
-
-
 #: ring cations with two prefixes whose first-cited one has the higher locant in the numbering that
 #: has the lower locant set: (f) decides before (g)
 BENZIMIDAZOLIUMS = [
@@ -132,10 +124,15 @@ def test_the_prefix_locant_set_is_compared_before_the_first_cited_prefix(a, b, p
         assert row["is_pin"] is True
 
 
-def test_the_ionic_liquid_cation_is_declined_by_the_default_tier_for_both_drawings():
-    rows = [_engine("pin").name_tiered(s) for s in IONIC_LIQUID]
-    assert [r["tier"] for r in rows] == ["abstain", "abstain"]
-    assert rows[0]["limit_code"] == rows[1]["limit_code"]
+def test_the_ionic_liquid_cation_is_named_by_the_default_tier_for_both_drawings():
+    # it used to decline at the default tier and be named '1-butyl-3-methyl-1,3-diazol-3-ium' by the
+    # wider ones: 'diazole' is the Hantzsch-Widman name of a ring whose retained name is imidazole
+    #, the Blue Book), and the cation is that ring's, '1H-imidazol-3-ium (PIN)' (:41396)
+    a, b = IONIC_LIQUID
+    rows = [_engine("pin").name_tiered(s) for s in (a, b)]
+    assert [r["name"] for r in rows] == ["1-butyl-3-methyl-1H-imidazol-3-ium"] * 2
+    assert [r["tier"] for r in rows] == ["pin_verified", "pin_verified"]
+    assert opsin_key(rows[0]["name"]) == rdkit_key(a)
 
 
 def test_the_two_forms_of_a_zwitterion_get_one_name_at_the_wider_tiers():

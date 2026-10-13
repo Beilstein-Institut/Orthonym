@@ -170,9 +170,6 @@ def test_linked_phosphonic_acids_are_multiplied(smiles, name):
     ("OC(=O)CC(=O)[O-].[Na+]", "sodium hydrogen propanedioate"),
     ("[O-]C(=O)C(=O)O.[Na+]", "sodium hydrogen oxalate"),
     ("OC(=O)C(Cl)C(=O)[O-].[Na+]", "sodium hydrogen 2-chloropropanedioate"),
-    # a benzene ring: the parent would be the retained benzoate, which the method (1)
-    # producer does not build; method (2), labelled below the PIN
-    ("OC(=O)c1ccccc1C(=O)[O-].[K+]", "potassium hydrogen benzene-1,2-dicarboxylate"),
 ])
 def test_method_2_where_method_1_has_no_parent(smiles, name):
     """Default tier (the paper, Methods, "Tiers", L73: "The default configuration
@@ -196,6 +193,21 @@ def test_method_2_where_method_1_has_no_parent(smiles, name):
     r = declined_pin_row(smiles)
     assert r["name"] == name and r["tier"] == "systematic_verified", r
     parsed = _independent_parse(name)
+    assert parsed and _fixed_h(parsed) == _fixed_h(smiles)
+
+
+def test_benzene_ring_takes_method_1_with_the_retained_benzoate_as_parent():
+    """A benzene ring with one ionized carboxy group has the retained benzoic acid as its parent
+    , the Blue Book), which takes the free acid as a 'carboxy' prefix like any
+    other parent: 'potassium 2-carboxybenzoate' is the PIN (1),:31593,:31596), so
+    the default tier ships it (rules/acid_salt_anions.py). It used to be built only as the method
+    (2) name below the PIN, 'potassium hydrogen benzene-1,2-dicarboxylate'."""
+    jar_or_skip()
+    from tests.support.rt_assert import _independent_parse
+    smiles = "OC(=O)c1ccccc1C(=O)[O-].[K+]"
+    r = _pin(smiles)
+    assert r["name"] == "potassium 2-carboxybenzoate" and r["tier"] == "pin_verified", r
+    parsed = _independent_parse(r["name"])
     assert parsed and _fixed_h(parsed) == _fixed_h(smiles)
 
 
