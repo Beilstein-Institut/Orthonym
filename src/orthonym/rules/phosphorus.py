@@ -76,8 +76,11 @@ def _characterize_substituent(mol, start_idx: int, exclude: set) -> Optional[Tup
             return ("aryl", "phenyl")
 
         elif atom_count == 10:
-            # Naphthalene system (two fused 6-membered aromatic rings)
-            return ("aryl", "naphthyl")
+            # Naphthalene system (two fused 6-membered aromatic rings): its prefix cites
+            # the locant of the free valence (2), the Blue Book)
+            from .ring_substituents import naphthalenyl_prefix
+            naphthalenyl = naphthalenyl_prefix(mol, aromatic_atoms, start_idx)
+            return ("aryl", naphthalenyl) if naphthalenyl else None
 
         # Unrecognized aromatic system
         return None
@@ -180,9 +183,10 @@ def _count_alkyl_carbons(mol, start_idx: int, exclude: set) -> int:
     sub_type, name = result
     if sub_type == "aryl":
         # For aryl groups, return the carbon count of the ring system
-        # phenyl = 6, naphthyl = 10
-        aryl_counts = {"phenyl": 6, "naphthyl": 10}
-        return aryl_counts.get(name, 0)
+        # phenyl = 6, naphthalen-N-yl = 10
+        if name.startswith("naphthalen-"):
+            return 10
+        return {"phenyl": 6}.get(name, 0)
     # For alkyl, reconstruct count via BFS (keep original logic for exact count)
     visited = set()
     queue = deque([start_idx])
@@ -293,6 +297,39 @@ def _build_substituent_string(names: List[str]) -> str:
             parts.append(marked)
 
     return "".join(parts)
+
+
+def _build_locanted_substituent_string(names: List[str], locant: str) -> Optional[str]:
+    """The substituent prefixes of a mononuclear central atom, each cited with the italic
+    locant of that atom: ``P,P-diphenyl``, ``P-methyl-P-phenyl``,
+    ``P,P-bis[4-(trifluoromethyl)phenyl]``.
+
+     Citation of locants (the Blue Book): "if any locants are essential for
+    defining the structure of the parent structure or of a unit of structure... then all
+    locants must be cited". On the functional-class amide of a phosphorus (or arsenic,
+    antimony) acid the organyl groups could stand on the central atom or on the nitrogen
+    of the amide, so each is cited with its locant, as Amides and hydrazides
+    (the Blue Book) writes them: '*N*,*N*,*P*,*P*-tetramethylphosphinic amide (PIN)'.
+    The order is the alphanumerical order of the prefixes; a multiplied prefix is
+    cited once with its locants repeated. ``None`` beyond four equal prefixes."""
+    from collections import Counter
+
+    from ..assembly.naming_utils import (
+        enclose_if_compound,
+        multiplied_component,
+        prefix_citation_sort_key,
+    )
+
+    counts = Counter(names)
+    parts = []
+    for name in sorted(counts, key=prefix_citation_sort_key):
+        count = counts[name]
+        if count not in (1, 2, 3, 4):
+            return None
+        marked = enclose_if_compound(name)
+        token = multiplied_component(count, name, marked) if count > 1 else marked
+        parts.append(f"{','.join([locant] * count)}-{token}")
+    return "-".join(parts)
 
 
 def name_phosphine(mol, phosphorus_idx: int) -> Optional[str]:

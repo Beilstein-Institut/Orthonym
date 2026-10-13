@@ -224,6 +224,17 @@ def _name_chalcogen_chain(
     if chain_len < 1:
         return None
 
+    # An acyl carbon bonded to a ring heteroatom is the carboxy group of a ring parent
+    #, the Blue Book: "The carboxy group can be attached to any atom, carbon
+    # or heteroatom, of any parent hydride"; the chalcogen analogues take the 'carbothioic',
+    # 'carboselenoic' and 'carbotelluroic' suffixes with the name of the parent hydride,,
+    #:30270), not a methane substituted by the ring.
+    ring_on_acyl = _ring_heteroatom_on(mol, anchor_idx, set(frag)) if chain_len == 1 else None
+    if ring_on_acyl is not None:
+        stem = _ring_carbo_stem(mol, anchor_idx, set(frag), ring_on_acyl, x_suffix)
+        if stem is not None:
+            return stem
+
     # Chain prefix: methane / ethane / propane / butane / pentane /...
     try:
         from ...data.chain_names import get_chain_prefix
@@ -282,9 +293,48 @@ def _name_chalcogen_chain(
     except Exception:
         prefix_str = ""
 
-    if prefix_str:
-        return f"{prefix_str}{base}"
-    return base
+    result = f"{prefix_str}{base}" if prefix_str else base
+    if ring_on_acyl is not None:
+        # the methane name is valid but is not the name of the ring parent: kept for the wider
+        # tiers, recorded as not the preferred name
+        from ...metrics.provenance import record_non_pin_label
+        record_non_pin_label(result, rule="P-65.1.2.2",
+                             detail="the carboxy group on a ring heteroatom is a suffix of the ring parent")
+    return result
+
+
+def _ring_heteroatom_on(
+    mol: Any, carbonyl_idx: int, frag_atoms: "set[int]",
+) -> Optional[int]:
+    """The ring heteroatom bonded to the acyl carbon ``carbonyl_idx`` within the acyl side, or
+    ``None``."""
+    atom = mol.GetAtomWithIdx(carbonyl_idx)
+    for nbr in atom.GetNeighbors():
+        k = nbr.GetIdx()
+        if k in frag_atoms and nbr.IsInRing() and nbr.GetAtomicNum() not in (1, 6):
+            return k
+    return None
+
+
+def _ring_carbo_stem(
+    mol: Any, carbonyl_idx: int, frag_atoms: "set[int]", ring_atom: int, x_suffix: str,
+) -> Optional[str]:
+    """'aziridine-1-carbothioate' for an acyl carbon on the heteroatom ``ring_atom`` of a bare
+    single ring: the name of the parent hydride, the locant of the free valence and the 'carbo'
+    suffix, the Blue Book: 'pyrrolidine-1-carboxylic acid (PIN)'). The parent
+    and its numbering are those of ``monocycle_form``. ``None`` for a ring that is not a bare
+    heteromonocycle: the caller keeps the methane name and records it."""
+    from ...rules.monocycle_forms import monocycle_form
+    ring = next((tuple(r) for r in mol.GetRingInfo().AtomRings() if ring_atom in r), None)
+    if ring is None or set(ring) | {carbonyl_idx} != set(frag_atoms):
+        return None
+    form = monocycle_form(mol, ring, ring_atom)
+    if form is None or form.kind != "heteromonocycle":
+        return None
+    loc = form.numbering.get(ring_atom)
+    if loc is None or loc == form.fv_hydro_locant:
+        return None
+    return f"{form.parent}-{loc}-carbo{x_suffix}"
 
 
 def _find_longest_carbon_chain(

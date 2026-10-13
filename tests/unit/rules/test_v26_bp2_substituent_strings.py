@@ -80,4 +80,10 @@ def test_rc1_parent_to_prefix_fail_closed():
     #...but never touches legitimate hydrocarbon / ring substituent parents:
     assert parent_to_prefix("propane", chain_length=3, attach_locant=ATTACH_LOCANT_UNKNOWN) == "propyl"
     assert parent_to_prefix("pyridine", chain_length=0, attach_locant=ATTACH_LOCANT_UNKNOWN) == "pyridinyl"
-    assert parent_to_prefix("prop-1-ene", chain_length=3, attach_locant=ATTACH_LOCANT_UNKNOWN) == "prop-1-enyl"
+    assert parent_to_prefix("ethene", chain_length=2, attach_locant=ATTACH_LOCANT_UNKNOWN) == "ethenyl"
+    # Substituent groups derived from parent hydrides with 'ene' or 'yne' endings,
+    # (the Blue Book): "for acyclic parent structures, all locants for the free
+    # valences, including '1', must be cited." 'prop-1-ene' is the capped molecule of
+    # prop-1-en-1-yl, prop-2-en-1-yl and prop-1-en-2-yl alike, so the name cannot give the free
+    # valence: the converter declines.
+    assert parent_to_prefix("prop-1-ene", chain_length=3, attach_locant=ATTACH_LOCANT_UNKNOWN) is None

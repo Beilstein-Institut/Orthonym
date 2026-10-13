@@ -14,13 +14,13 @@ import pytest
 @pytest.mark.unit
 def test_all_retained_names_at_least_900():
     """ + G5 hard gate: ALL_RETAINED_NAMES must not drop below its floor
-    (900 at a phase close, 306 now -- see the assertion message for the history).
+    (900 at a phase close, 305 now -- see the assertion message for the history).
 
     Source: https://iupac.qmul.ac.uk/BlueBook/P2.html retained-name PIN tier).
     Source: 150-internal notes + G5 +.
     """
     from orthonym.data import ALL_RETAINED_NAMES
-    assert len(ALL_RETAINED_NAMES) >= 306, (
+    assert len(ALL_RETAINED_NAMES) >= 305, (
         f"ALL_RETAINED_NAMES has {len(ALL_RETAINED_NAMES)} entries; "
         "C6 (homo-ring demotion) intentionally denied 6 non-PIN homo- names "
         "(homopiperidine/homomorpholine/homopiperazine/thiahomomorpholine/"
@@ -63,5 +63,11 @@ def test_all_retained_names_at_least_900():
         "names (the Blue Book holds no 'dihydropyran'); the two unsubstituted rings are "
         "named by the generic hydro path to the same strings, pinned by "
         "tests/unit/rules/test_leads_l5_item22.py and "
-        "tests/integration/test_opsin_format_heterocycles.py. New accurate floor: 306."
+        "tests/integration/test_opsin_format_heterocycles.py. The AMB6 change deleted "
+        "'anisaldehyde' ('COc1ccc(C=O)cc1'; 306 -> 305): the Blue Book retains no such name "
+        "(P-66.6.1.2.1, BlueBookV2.md:34964, lists acetaldehyde and benzaldehyde with "
+        "substitution allowed) and OPSIN reads the token 'anis' as more than one structure "
+        "(APPEARS_AMBIGUOUS); the substituted benzaldehyde is the name, pinned by "
+        "tests/unit/opsin_ambiguity/test_amb6_parent_scope_locants.py. "
+        "New accurate floor: 305."
     )

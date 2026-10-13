@@ -516,6 +516,37 @@ def _has_ionic_centres(mol) -> bool:
     return bool(cations) or bool(anions)
 
 
+def _ionic_centre_atoms(mol, parent_atoms) -> frozenset:
+    """The atoms of ``parent_atoms`` that carry a cumulative ionic suffix ('-ylium', '-ium',
+    '-ide', '-uide') of the parent: the genuine ionic centres of the molecule that lie in it."""
+    cations, anions = _genuine_ion_sites(mol)
+    parent = set(parent_atoms)
+    return frozenset(s['atom_idx'] for s in cations + anions if s['atom_idx'] in parent)
+
+
+def _orient_chain_for_ionic_centres(mol, chain, atom_to_locant):
+    """``atom_to_locant`` of a chain parent with the numbering direction that gives its ionic
+    centres the lowest locants.
+
+     NUMBERING (the Blue Book), criterion (c) "principal characteristic groups and
+    free valences (suffixes)" (:3256): a cumulative suffix ('-ylium', (2),:4777,
+    "Cumulative suffixes are used to designate radicals, ions, radical ions") is a suffix, and
+    it is decided before unsaturation and the detachable prefixes. The chain numbering the
+    features carry does not know the charge, so 'CC[CH2+]' and '[CH2+]CC' were numbered by the
+    order of their atoms ('propan-3-ylium' / 'propan-1-ylium'). A chain has two directions;
+    the one that gives the ionic centres the lower locant set wins, and when both give the same
+    set the features' direction stands (it is the one the later criteria chose)."""
+    centres = _ionic_centre_atoms(mol, chain)
+    n = len(chain)
+    if not centres or sorted(atom_to_locant.get(a, 0) for a in chain) != list(range(1, n + 1)):
+        return atom_to_locant
+    reversed_locants = dict(atom_to_locant)
+    reversed_locants.update({a: n + 1 - atom_to_locant[a] for a in chain})
+    forward = sorted(atom_to_locant[a] for a in centres)
+    backward = sorted(reversed_locants[a] for a in centres)
+    return reversed_locants if backward < forward else atom_to_locant
+
+
 # / cationic suffix bases, keyed by ``classify_cation``.
 _ZWIT_CATION_BASES = {
     'aminium': 'ium', 'onium': 'ium', 'quaternary': 'ium', 'ylium': 'ylium',
@@ -787,15 +818,16 @@ def name_general_chain(
     if any(mol.GetAtomWithIdx(i).GetSymbol() != 'C' for i in chain):
         return _refuse("hetero parent chain (replacement nomenclature)")
 
-    part = _partition(mol, features, chain, allow_mancude=allow_mancude)
+    part = _partition(mol, features, chain, allow_mancude=allow_mancude,
+                      allow_charged=allow_charged)
     if part is None:
         return None
     return _assemble(mol, features, chain, part, allow_charged=allow_charged,
                      allow_mancude=allow_mancude)
 
 
-def _partition(mol, features, chain, allow_mancude: bool = False
-               ) -> Optional[dict]:
+def _partition(mol, features, chain, allow_mancude: bool = False,
+               allow_charged: bool = False) -> Optional[dict]:
     """Split heavy atoms into chain / suffix / substituent fragments.
 
     Suffix atoms (PG-match atoms off the chain) are folded into the
@@ -825,6 +857,8 @@ def _partition(mol, features, chain, allow_mancude: bool = False
                           or {a: i + 1 for i, a in enumerate(chain)})
     if set(chain) - set(atom_to_locant):
         return _refuse("chain atom missing from atom_to_locant")
+    if allow_charged and not getattr(features, 'principal_group', None):
+        atom_to_locant = _orient_chain_for_ionic_centres(mol, chain, atom_to_locant)
 
     suffix_core = None
     suffix_atoms: set = set()
@@ -2154,16 +2188,22 @@ def _bond_ring_locant(la: int, lb: int, n: int) -> int:
     return min(la, lb)
 
 
-def _orient_carbocycle(mol, ring_order, sub_positions, pg_ring_atoms):
+def _orient_carbocycle(mol, ring_order, sub_positions, pg_ring_atoms, ionic=False):
     """Number an all-carbon monocycle by lowest locants to, in order:
     principal group -> ring unsaturation -> substituents -> canonical rank
      /. Returns (oriented_ring, atom_to_locant).
+
+    ``ionic``: the carbon that carries a cumulative ionic suffix ('-ylium') is numbered like a
+    principal characteristic group: NUMBERING (the Blue Book), criterion (c)
+    "principal characteristic groups and free valences (suffixes)" (:3256).
 
     The canonical-rank final tier is a deterministic symmetry-breaker; among
     orientations that tie on every IUPAC criterion the choice is round-trip
     equivalent (is the downstream authority for the emitted string)."""
     ring_list = list(ring_order)
     n = len(ring_list)
+    if ionic:
+        pg_ring_atoms = pg_ring_atoms | _ionic_centre_atoms(mol, ring_list)
     canon = list(Chem.CanonicalRankAtoms(mol, breakTies=True))
     best_key = None
     best_oriented = None
@@ -2396,7 +2436,7 @@ def name_general_monocycle(
         parent_name = name_heterocycle(mol, parent_ring)
     else:
         oriented, atom_to_locant = _orient_carbocycle(
-            mol, parent_ring, sub_positions, pg_ring_atoms)
+            mol, parent_ring, sub_positions, pg_ring_atoms, ionic=allow_charged and not pg)
         parent_name = _carbocycle_parent_name(mol, oriented, atom_to_locant)
     # A hetero ring that carries a ring ketone/lactone '-one' is named below by the shared
     # hydrogen rule under the numbering in use, so the bare-ring name may be missing here.

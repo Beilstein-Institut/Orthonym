@@ -169,7 +169,7 @@ def _name_fragment_t4_rescue(smiles: str) -> Optional[str]:
     from ..routing import dispatch_table as _dispatch_table
     key = (smiles, general_fallback_ctx.get(), best_effort_ctx.get(),
            allow_aromatic_general_ctx.get(), full_coverage_ctx.get(),
-           nacyl_float_refusing(), _dispatch_table._PEPTIDE_SUBST_ACTIVE,
+           nacyl_float_refusing(), _dispatch_table._PEPTIDE_SUBST_ACTIVE, _dispatch_table._PEPTIDE_NAME_STANDS,
            forced_locant_reason(), _ISOTOPIC_NAMING_SCOPE.get(),
            _ISOTOPE_PARENT_POSITIONAL.get())
     from ..assembly.nested_memo import _apply as _replay_provenance
@@ -807,6 +807,29 @@ def nacyl_float_as_acylamino(amine_smiles: Optional[str], amine_name: Optional[s
         return None
 
 
+#: the alpha-amino nitrogen of an amino acid: a nitrogen with a hydrogen on the carbon that
+#: bears the carboxylic acid group ('glycine', 'valine', the ring nitrogen of 'proline')
+_ALPHA_AMINO_ACID_N = Chem.MolFromSmarts("[NX3;H1,H2;!$(N-[#6]=[O,S,N])]-[CX4]-C(=O)[OX2H1]")
+
+
+def _nacyl_float_on_systematic_amino_acid(amine_smiles: str, amine_name: Optional[str]) -> bool:
+    """True when a bare ``N-<acyl>`` float would cite the locant N on the nitrogen of an amino
+    acid whose amine name is systematic ('(2S)-2-amino-3-methylbutanoic acid',
+    '(2R)-pyrrolidine-2-carboxylic acid').
+
+     Derivatives formed by substitution (the Blue Book): "Retained names are used
+    to indicate carbon, nitrogen, oxygen and sulfur substitution", so the locant N cites the
+    nitrogen of a retained name ('N-(glycylglutamyl)glycine'). A systematic name cites that
+    nitrogen as the prefix 'amino' or by the numerical locant of the ring ('2-[(acyl)amino]',
+    '1-(acyl)pyrrolidine-2-carboxylic acid'; Systematic substitutive names,
+    :54247), where N designates nothing."""
+    from ..data.amino_acids import is_retained_amino_acid_name
+    if not amine_name or is_retained_amino_acid_name(amine_name):
+        return False
+    amine = Chem.MolFromSmiles(amine_smiles)
+    return amine is not None and amine.HasSubstructMatch(_ALPHA_AMINO_ACID_N)
+
+
 def gate_nonsuffix_nacyl_float(amine_smiles: Optional[str],
                                float_name: Optional[str],
                                amine_name: Optional[str] = None,
@@ -824,7 +847,13 @@ def gate_nonsuffix_nacyl_float(amine_smiles: Optional[str],
     ships as an honest demotion: validated as before, but recorded as a non-PIN fragment, so
     ``name_tiered`` labels any name that carries it below pin_verified. The acylamino name is
     recorded the same way: it is built from fragment names by a string assembler, which this
-    gate does not certify as the PIN.
+    gate does not certify as the PIN. In the second attempt of the peptide handler for a
+    molecule that has a peptide name (``dispatch_table._PEPTIDE_NAME_STANDS``) the float is
+    withheld (None) where its locant N would cite the nitrogen of an amino acid that the amine
+    name gives its systematic name (``_nacyl_float_on_systematic_amino_acid``): the peptide name
+    cites no N, and the name of an acylated amino acid cites N on a retained name
+    only. Every other caller keeps the float as its demotion, where nothing else
+    names the molecule.
     """
     if (not float_name or not amine_smiles
             or _nacyl_float_n_is_suffix_nitrogen(amine_smiles, amine_name)):
@@ -838,6 +867,10 @@ def gate_nonsuffix_nacyl_float(amine_smiles: Optional[str],
     if acylamino:
         record_non_pin_fragment(acylamino)
         return acylamino
+    from ..routing import dispatch_table as _dispatch_table
+    if (_dispatch_table._PEPTIDE_NAME_STANDS
+            and _nacyl_float_on_systematic_amino_acid(amine_smiles, amine_name)):
+        return None
     record_non_pin_fragment(float_name)
     return float_name
 
@@ -1762,7 +1795,7 @@ def _unproven_split_key(mol, bond: Dict, style: str):
             bond.get("alkyl_atom"), bond.get("amine_atom"), bool(bond.get("roles_swapped")),
             style, general_fallback_ctx.get(), best_effort_ctx.get(),
             allow_aromatic_general_ctx.get(), full_coverage_ctx.get(),
-            nacyl_float_refusing(), _dispatch_table._PEPTIDE_SUBST_ACTIVE,
+            nacyl_float_refusing(), _dispatch_table._PEPTIDE_SUBST_ACTIVE, _dispatch_table._PEPTIDE_NAME_STANDS,
             forced_locant_reason(), _ISOTOPIC_NAMING_SCOPE.get(),
             _ISOTOPE_PARENT_POSITIONAL.get(), _session_depth())
 

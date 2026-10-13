@@ -62,12 +62,14 @@ from rdkit import Chem
 
 from ..data.multipliers import multiplier_table
 from ..perception.ions import _get_internal_charge_atoms, get_ion_sites
+from .ion_locants import ring_ylium_may_be_locant_free
 from .ions import (
     _has_metal,
     apply_ion_suffix_to_name,
     classify_anion,
     classify_cation,
 )
+from .ring_position_kinds import one_kind_of_substitutable_position
 
 # =============================================================================
 # The charged route sets no size limit. Its re-entry of the full naming pipeline
@@ -375,6 +377,111 @@ def _attachment_locant_on_anion_parent(mol, anion_idx: int,
     if not path:
         return None
     return len(path)  # distance(c1, attach) + 1 = the 1-indexed locant
+
+
+def _ring_attachment_locant_on_anion_parent(mol, anion_idx: int, cation_idx: int,
+                                            parent_attach_idx: int):
+    """Locant of the cation substituent on a CARBOCYCLIC MONOCYCLE that is the anion parent
+    (``phenolate``, ``cyclohexanolate``, ``benzoate``, ``cycloheptane-1-carboxylate``), or
+    None when the anion parent is not exactly such a ring.
+
+    The ring atom that carries the anionic group is numbered 1 (the suffix of (c),
+    the Blue Book: "principal characteristic groups and free valences (suffixes)"), and
+    the one substituent takes the lower of the two directions round the ring. The cation is
+    SEVERED before the parent is named, so the parent is bare: every heavy atom outside the
+    cation's own substituent must be a ring atom or an atom of the anionic group, and the
+    cation must hang from a ring atom. Anything else (a fused ring, a ring with other
+    substituents, a chain between the ring and the cation) returns None, and the caller keeps
+    its chain rule."""
+    from rdkit.Chem import rdmolops
+    anion = mol.GetAtomWithIdx(anion_idx)
+    heavy = [n for n in anion.GetNeighbors() if n.GetAtomicNum() > 1]
+    if len(heavy) != 1:
+        return None
+    first = heavy[0]
+    ri = mol.GetRingInfo()
+    group = {anion_idx}
+    if ri.NumAtomRings(first.GetIdx()):
+        ring_atom = first.GetIdx()                       # phenolate, cycloalkanolate
+    else:
+        # carboxylate: the carboxyl carbon and its two oxygens, bonded to the ring atom
+        if first.GetSymbol() != 'C':
+            return None
+        others = [n for n in first.GetNeighbors()
+                  if n.GetIdx() != anion_idx and n.GetAtomicNum() > 1]
+        ring_nbrs = [n.GetIdx() for n in others if ri.NumAtomRings(n.GetIdx())]
+        oxygens = [n.GetIdx() for n in others if n.GetSymbol() == 'O' and n.GetDegree() == 1]
+        if len(ring_nbrs) != 1 or len(oxygens) != 1:
+            return None
+        ring_atom = ring_nbrs[0]
+        group |= {first.GetIdx(), oxygens[0]}
+    if ri.NumAtomRings(ring_atom) != 1:
+        return None
+    ring = next(set(r) for r in ri.AtomRings() if ring_atom in r)
+    if not 3 <= len(ring) <= 10 or parent_attach_idx not in ring:
+        return None
+    if any(mol.GetAtomWithIdx(a).GetAtomicNum() != 6 or ri.NumAtomRings(a) != 1 for a in ring):
+        return None
+    # the cation's own substituent: what is reached from the cation without passing the ring atom
+    # it hangs from
+    side = {cation_idx}
+    stack = [cation_idx]
+    while stack:
+        cur = stack.pop()
+        for nb in mol.GetAtomWithIdx(cur).GetNeighbors():
+            ni = nb.GetIdx()
+            if ni == parent_attach_idx or ni in side or nb.GetAtomicNum() <= 1:
+                continue
+            side.add(ni)
+            stack.append(ni)
+    rest = {a.GetIdx() for a in mol.GetAtoms() if a.GetAtomicNum() > 1} - side
+    if rest != ring | group:
+        return None
+    if parent_attach_idx == ring_atom:
+        return 1                                         # on the atom of the anionic group
+    path = rdmolops.GetShortestPath(mol, ring_atom, parent_attach_idx)
+    if not path or any(a not in ring for a in path):
+        return None
+    around = min(len(path) - 1, len(ring) - (len(path) - 1))
+    return around + 1
+
+
+def _reenter_anion_parent(parent_smi: str, style: str, cite_every_locant: bool) -> str:
+    """The neutral name of the severed anion parent. Citation of locants
+    (the Blue Book): the substituent of a ring parent is cited with its locant, and the
+    suffix of the parent then cites its own ('1-(...)cycloheptane-1-carboxylate'), so a ring
+    parent is named with every locant cited."""
+    if not cite_every_locant:
+        return _reenter(parent_smi, style)
+    from ..assembly.fragment_naming import isolated_naming_session
+    from ..assembly.locant_omission import forced_locant_scope
+    with forced_locant_scope('zwitterion_ring_prefix'), isolated_naming_session(reset_cache=True):
+        return _reenter(parent_smi, style)
+
+
+def _zwitterion_locant_prefix(mol, anion_idx: int, parent_attach_idx: int, parent_anion_name: str,
+                              ring_attach_locant) -> str:
+    """``'2-'`` for the cation prefix on the anion parent, or ''. A ring parent cites the locant
+    that ``_ring_attachment_locant_on_anion_parent`` gives; a chain parent the distance from the
+    carboxyl carbon, when its name admits a chain locant."""
+    if ring_attach_locant is not None:
+        return f'{ring_attach_locant}-'
+    attach_locant = _attachment_locant_on_anion_parent(mol, anion_idx, parent_attach_idx)
+    if attach_locant is not None and attach_locant >= 2 and _parent_has_chain_locants(parent_anion_name):
+        return f'{attach_locant}-'
+    return ''
+
+
+def _record_ring_suffix_without_locant(composed: str, parent_anion_name: str, acls: str,
+                                       ring_attach_locant) -> None:
+    """ (the Blue Book): with the locant of the substituent cited, the suffix of a
+    cycloalkane parent cites its own ('1-(...)cycloheptane-1-carboxylate'); the neutral ring name
+    that is re-entered leaves it out, so the name is valid, OPSIN reads it once, and it is not the
+    preferred spelling."""
+    if (ring_attach_locant is not None and acls == 'carboxylate' and parent_anion_name.startswith('cyclo')
+            and 'carboxylate' in parent_anion_name and not parent_anion_name.endswith('-carboxylate')):
+        from ..metrics.provenance import record_non_pin_fragment
+        record_non_pin_fragment(composed)
 
 
 def _parent_has_chain_locants(parent_anion_name: str) -> bool:
@@ -1204,8 +1311,10 @@ def _route_zwitterion(mol, sites, style: str) -> str:
                                                   parent_attach_idx)
     if not parent_smi:
         return ''
+    ring_attach_locant = _ring_attachment_locant_on_anion_parent(
+        mol, anion_idx, cation_idx, parent_attach_idx)
     try:
-        neutral_name = _reenter(parent_smi, style)
+        neutral_name = _reenter_anion_parent(parent_smi, style, ring_attach_locant is not None)
     except (RecursionError, ValueError, RuntimeError):
         return ''
     if not neutral_name or _is_malformed_parent(neutral_name):
@@ -1235,12 +1344,8 @@ def _route_zwitterion(mol, sites, style: str) -> str:
     # from the carboxyl carbon + 1. Omit only when the parent is too short for an
     # ambiguity (a 1-carbon attach on a 2-carbon acetate, where OPSIN's default
     # is already correct and the retained 'acetate' carries no chain locant).
-    locant_prefix = ''
-    attach_locant = _attachment_locant_on_anion_parent(mol, anion_idx,
-                                                        parent_attach_idx)
-    if attach_locant is not None and attach_locant >= 2 \
-            and _parent_has_chain_locants(parent_anion_name):
-        locant_prefix = f'{attach_locant}-'
+    locant_prefix = _zwitterion_locant_prefix(
+        mol, anion_idx, parent_attach_idx, parent_anion_name, ring_attach_locant)
 
     # 4. Compose: {locant}-(cation-prefix)anion-parent — prefix the
     # cation to the anionic parent). Enclosing marks per (complex
@@ -1248,6 +1353,7 @@ def _route_zwitterion(mol, sites, style: str) -> str:
     # marks: '[ethyldi(methyl)azaniumyl]acetate' (the Blue Book).
     from ..assembly.naming_utils import apply_enclosing_marks
     composed = f'{locant_prefix}{apply_enclosing_marks(cat_prefix, -1)}{parent_anion_name}'
+    _record_ring_suffix_without_locant(composed, parent_anion_name, acls, ring_attach_locant)
 
     # Defensive: never ship a malformed composition where the prefix glues
     # directly onto a parent locant with no separator ('(...)2-hydroxy...'). If
@@ -1481,6 +1587,10 @@ def _name_diazonium(mol, cation_idx: int, style: str) -> str:
     forced = _name_diazonium_as_forced_suffix(mol, proximal_n, terminal_n, style)
     if forced and _full_inchikey_rt_ok(mol, forced):
         return forced
+    # (the Blue Book): 'diazonium' appended to the name of the parent leaves out
+    # its locant only on a parent of one kind of position ('benzenediazonium'); (:2869)
+    if not one_kind_of_substitutable_position(parent_mol):
+        return ''
     try:
         neutral = _reenter(parent_smi, style)
     except (RecursionError, ValueError, RuntimeError):
@@ -1795,6 +1905,38 @@ def emit_secondary_amine_azanide(mol, anion_idx: int, style: str) -> str:
     return name
 
 
+def _azanide_of_substituent(mol, anion_idx: int) -> str:
+    """ Anionic centers on other characteristic groups (the Blue Book): "named
+    on the basis of the corresponding anionic parent hydrides" (``acetylazanide (PIN)``,:41079):
+    a primary amine anion R-[NH-] named as the azanide of the substituent group R, which cites
+    the locant of its own free valence General methodology for naming substituent
+    groups,:15814: "the locant '1' must be cited"). The alternative to ``-aminide`` when the
+    amine locant is needed and the parent name does not carry it. RT-gated on the full
+    InChIKey: '' on any decline."""
+    from ..assembly.naming_utils import apply_enclosing_marks
+    from ..assembly.substituent_naming import name_substituent_fragment
+    from ..metrics.provenance import best_effort_ctx
+    neighbours = [nb.GetIdx() for nb in mol.GetAtomWithIdx(anion_idx).GetNeighbors()
+                  if nb.GetSymbol() != 'H']
+    if len(neighbours) != 1:
+        return ''
+    rw = Chem.RWMol(mol)
+    rw.RemoveBond(anion_idx, neighbours[0])
+    comps = Chem.GetMolFrags(rw.GetMol(), asMols=False, sanitizeFrags=False)
+    sub_atoms = next((list(c) for c in comps if neighbours[0] in c), None)
+    prefix = name_substituent_fragment(mol, sub_atoms, neighbours[0], [anion_idx]) if sub_atoms else ''
+    if sub_atoms and not prefix and best_effort_ctx.get():
+        from ..assembly.universal_substituent import name_universal_substituent_prefix
+        prefix = name_universal_substituent_prefix(mol, sub_atoms, neighbours[0]) or ''
+    name = f"{apply_enclosing_marks(prefix, -1)}azanide" if prefix else ''
+    if not name or not _cation_name_rt_ok(name, mol):
+        return ''
+    # valid, but the preferred name of a primary amine anion is the 'aminide',:41047)
+    from ..metrics.provenance import record_non_pin_fragment
+    record_non_pin_fragment(name)
+    return name
+
+
 def emit_primary_amine_anide(mol, anion_idx: int, style: str) -> str:
     """ (the Blue Book, ``benzenaminide (PIN)``): a PRIMARY
     amine anion R-[NH-] named on the SYSTEMATIC amine parent, converting the
@@ -1811,9 +1953,10 @@ def emit_primary_amine_anide(mol, anion_idx: int, style: str) -> str:
     hydride (`` -> ``benzene``), append ``amine`` (eliding the parent's
     trailing ``e``), then convert ``amine``->``aminide``.
 
-    FULL-InChIKey RT-gated (0-wrong): a substituted / heteroatom parent whose
-    bare (locant-omitted) amine spelling does NOT round-trip -- ``toluenamine``,
-    ``pyridinamine`` -- is REJECTED and the caller abstains. Scope: a single
+    A parent with more than one kind of substitutable position (``toluene``,
+    ``pyridine``, any parent that carries other groups) cannot leave the amine locant
+    out,: it is named as the azanide of its substituent group
+    (``_azanide_of_substituent``). FULL-InChIKey RT-gated (0-wrong). Scope: a single
     ACYCLIC primary-amine N (charge -1, exactly one H, exactly one heavy
     neighbour, a carbon) whose parent fragment (N removed) is one connected
     component the pipeline can name. Fail-closed ('') otherwise. Placed AFTER the
@@ -1835,6 +1978,11 @@ def emit_primary_amine_anide(mol, anion_idx: int, style: str) -> str:
         return ''
     if len(Chem.GetMolFrags(frag)) != 1:
         return ''
+    # (the Blue Book): the locant of 'amine' is left out on a parent of one kind
+    # of position ('benzenaminide (PIN)',:41057); any other parent cites it,:2869),
+    # and its own numbering is the one of its substituent group: '(R)azanide'
+    if not one_kind_of_substitutable_position(frag):
+        return _azanide_of_substituent(mol, anion_idx)
     frag_smi = Chem.MolToSmiles(frag)
     if not frag_smi:
         return ''
@@ -2130,24 +2278,31 @@ def _ring_aza_cation_name(neutral_name: str, mol) -> str:
     position 3 fails to parse -> both candidates reject -> '' (the caller abstains;
     NEVER an unverified-stereo ship).
 
-    Returns '' (fall through to the acyclic transform) unless exactly one skeletal
-    ``aza`` locant is present and a candidate round-trips."""
+    Returns '' (fall through to the acyclic transform) unless a skeletal ``aza`` locant is
+    present and a candidate round-trips."""
     import re as _re2
-    # Exactly one skeletal 'aza' replacement (a locant + 'aza' + a ring word);
-    # a di-/tri-aza or 0-aza name is out of scope (the correspondence to the single
-    # cation site would be ambiguous).
-    aza = _re2.findall(r'(?<![0-9a-z])(\d+[a-z]?)-aza(?=[a-z])', neutral_name)
-    if len(aza) != 1:
-        return ''
-    loc = aza[0]
+    # The skeletal 'aza' replacement locants ('8-aza', '1,4-diaza', '1,4,7-triaza'). With
+    # several of them the cationic nitrogen is the one whose '-ium' name the round trip
+    # confirms: the check reads the position of the hydron (``_cation_name_rt_ok``).
+    groups = _re2.findall(
+        r'(?<![0-9a-z])(\d+[a-z]?(?:,\d+[a-z]?)*)-(?:di|tri|tetra|penta|hexa)?aza(?=[a-z])',
+        neutral_name)
+    locs = sorted({loc for group in groups for loc in group.split(',')},
+                  key=lambda loc: (int(_re2.match(r'\d+', loc).group()), loc))
+    if len(locs) > 1 and (
+            'spiro' in neutral_name
+            or not _re2.search(r'aza(?:bi|tri|tetra|penta|hexa)cyclo\[', neutral_name)):
+        return ''   # several aza locants are read only on a von Baeyer parent of one skeleton
     candidates = []
-    # (1) parent-hydride '-ium' at the aza locant: '...octane' -> '...octan-8-ium'.
-    if neutral_name.endswith('e'):
-        candidates.append(f"{neutral_name[:-1]}-{loc}-ium")
-    # (2) 'azonia' skeletal-replacement cation: '{loc}-aza' -> '{loc}-azonia'.
-    candidates.append(
-        _re2.sub(rf'(?<![0-9a-z]){_re2.escape(loc)}-aza(?=[a-z])',
-                 f'{loc}-azonia', neutral_name, count=1))
+    for loc in locs:
+        # (1) parent-hydride '-ium' at the aza locant: '...octane' -> '...octan-8-ium'.
+        if neutral_name.endswith('e'):
+            candidates.append(f"{neutral_name[:-1]}-{loc}-ium")
+    if len(locs) == 1:
+        # (2) 'azonia' skeletal-replacement cation: '{loc}-aza' -> '{loc}-azonia'.
+        candidates.append(
+            _re2.sub(rf'(?<![0-9a-z]){_re2.escape(locs[0])}-aza(?=[a-z])',
+                     f'{locs[0]}-azonia', neutral_name, count=1))
     for cand in candidates:
         if cand and _cation_name_rt_ok(cand, mol):
             return cand
@@ -2366,7 +2521,7 @@ def _route_memo_key(mol, style: str):
     return (smiles, style, getattr(_route_reentry, 'depth', 0),
             general_fallback_ctx.get(), best_effort_ctx.get(),
             allow_aromatic_general_ctx.get(), full_coverage_ctx.get(),
-            nacyl_float_refusing(), _dispatch_table._PEPTIDE_SUBST_ACTIVE,
+            nacyl_float_refusing(), _dispatch_table._PEPTIDE_SUBST_ACTIVE, _dispatch_table._PEPTIDE_NAME_STANDS,
             forced_locant_reason(), _ISOTOPIC_NAMING_SCOPE.get(),
             _ISOTOPE_PARENT_POSITIONAL.get(), _gate_is_reentrant(),
             getattr(_fragment_guard, 'session_depth', 0),
@@ -2404,7 +2559,7 @@ _OXOACID_OH = Chem.MolFromSmarts(
     "[OX2H1]-[$([CX3]=O),$([SX4](=O)=O),$([SX3]=O),$([PX4]=O)]")
 
 
-def _aminium_or_azaniumyl(neutral_name: str, n_cation_sites: int) -> str:
+def _aminium_or_azaniumyl(neutral_name: str, sites, mol) -> str:
     """Protonated-amine cation: '-aminium' suffix vs 'azaniumyl' prefix.
 
     : when the amine IS the principal characteristic group the parent
@@ -2432,6 +2587,11 @@ def _aminium_or_azaniumyl(neutral_name: str, n_cation_sites: int) -> str:
     byte-identical, no regression.
     """
     from .ions import name_aminium_cation
+    n_cation_sites = len(sites['cations'])
+    # (the Blue Book) with (:2869): the hydron of a skeletal atom of a
+    # ring is cited at that atom's locant, which the name of the neutral molecule does not give
+    if any(mol.GetAtomWithIdx(site['atom_idx']).IsInRing() for site in sites['cations']):
+        return ''
     low = neutral_name.strip().lower()
     is_principal = (low == 'ammonia' or low.endswith('amine')
                     or low.endswith('amin') or low.endswith('ane'))
@@ -3080,7 +3240,7 @@ def route_charged(mol, style: str = 'pin') -> str:
                 from .ions import emit_parent_hydride_cumulative_suffix
                 ring_ylium = emit_parent_hydride_cumulative_suffix(
                     mol, cat_idx, 'ylium')
-                if ring_ylium:
+                if ring_ylium or not ring_ylium_may_be_locant_free(mol):
                     return ring_ylium
         cation_class, allowed_suffixes = _CATION_SPEC.get(ccls, (None, None))
         # ylium / acylium are HYDRIDE-LOSS cations /:
@@ -3349,7 +3509,7 @@ def route_charged(mol, style: str = 'pin') -> str:
             return emitted
         # Fallback: the primitive declined or its name did not round-trip ->
         # the textual form, verified the same way.
-        textual = _apply_radical_suffix(neutral_name, radical_suffix)
+        textual = _textual_radical_name(neutral_name, radical_suffix)
         return textual if textual and _full_inchikey_rt_ok(mol, textual) else ''
 
     # (CARBOXYLATE anions are deferred to the proven path earlier; they never
@@ -3376,7 +3536,7 @@ def route_charged(mol, style: str = 'pin') -> str:
         # (a phase): a senior-group protonated amine becomes an 'azaniumyl'
         # substituent prefix /, not 'ium' appended to the parent;
         # a principal amine keeps the proven '-aminium' suffix.
-        naive = _aminium_or_azaniumyl(neutral_name, len(sites['cations'])) or ''
+        naive = _aminium_or_azaniumyl(neutral_name, sites, mol) or ''
         # B2 (aminium-suffix correctness): the naive transform blindly appends
         # 'ium' to whatever neutral name it is handed. When that neutral name is a
         # RETAINED name whose principal suffix is NOT the amine (trometamol is
@@ -3408,8 +3568,8 @@ def route_charged(mol, style: str = 'pin') -> str:
         _naive_is_swap = (bool(naive) and 'azaniumyl' in naive
                           and 'azaniumyl' not in neutral_name
                           and not mol.HasSubstructMatch(_OXOACID_OH))
-        if (len(sites['cations']) == 1 and naive
-                and (_naive_is_swap or not _cation_name_rt_ok(naive, mol))):
+        if (len(sites['cations']) == 1
+                and (not naive or _naive_is_swap or not _cation_name_rt_ok(naive, mol))):
             cat = mol.GetAtomWithIdx(sites['cations'][0]['atom_idx'])
             n_c = sum(1 for nb in cat.GetNeighbors() if nb.GetSymbol() == 'C')
             amine_fg = {1: 'primary_amine', 2: 'secondary_amine',
@@ -3421,8 +3581,7 @@ def route_charged(mol, style: str = 'pin') -> str:
                 except (RecursionError, ValueError, RuntimeError):
                     sys_neutral = ''
                 if sys_neutral and not _is_malformed_parent(sys_neutral):
-                    rederived = _aminium_or_azaniumyl(
-                        sys_neutral, len(sites['cations'])) or ''
+                    rederived = _aminium_or_azaniumyl(sys_neutral, sites, mol) or ''
                     if (rederived and 'azaniumyl' not in rederived
                             and _cation_name_rt_ok(rederived, mol)):
                         return rederived
@@ -3540,6 +3699,22 @@ def _is_simple_terminal_radical(mol, center_idx: int) -> bool:
             return False  # unsaturation -> the centre competes for the locant
     n_carbon_nbrs = sum(1 for nbr in center.GetNeighbors() if nbr.GetSymbol() == 'C')
     return n_carbon_nbrs <= 1
+
+
+def _textual_radical_name(neutral_name: str, radical_suffix: str) -> str:
+    """The radical suffix glued to a neutral name that cites no locant, '' for a name that does.
+
+     Monovalent radicals, (the Blue Book) licenses the contracted form
+    for "a terminal atom of an unbranched acyclic hydrocarbon, or... any position of a
+    monocyclic saturated hydrocarbon ring" and a mononuclear Group 14 hydride;
+    (:40426) adds the suffix to the name of the parent hydride for any other position, and
+     General methodology for naming substituent groups (:15814) cites the position of the
+    free valence ("the locant '1' must be cited"). A neutral name that cites locants numbers the
+    neutral molecule and does not number the free valence, so its ending cannot carry it: the
+    route names nothing and the other producers name the radical."""
+    if any(ch.isdigit() for ch in neutral_name):
+        return ''
+    return _apply_radical_suffix(neutral_name, radical_suffix)
 
 
 def _apply_radical_suffix(neutral_name: str, radical_suffix: str) -> str:

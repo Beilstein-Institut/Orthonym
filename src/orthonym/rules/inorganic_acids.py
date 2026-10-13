@@ -907,7 +907,8 @@ def name_p_oxoacid_halide_amide(mol) -> Optional[str]:
         stem_word = _pnictogen_acid_stem_word(
             symbol, oxo, skeletal, organyl_names, [], {},
             _PNICTOGEN_OXOACID_STEMS, _PNICTOGEN_OUS_STEMS,
-            build_p_frn_acid_stem_word, enclose_if_compound, _build_substituent_string)
+            build_p_frn_acid_stem_word, enclose_if_compound, _build_substituent_string,
+            cite_central_locant=True)
         if stem_word is None:
             return None
         return build_p_frn_amide_name(stem_word, "amide", len(amide_n))
@@ -927,9 +928,13 @@ def amido_n_has_substituent(mol, n_idxs, ctr_idx: int) -> bool:
 def _pnictogen_acid_stem_word(symbol, oxo, skeletal, organyl_names, n_prefixes,
                               infix_counts, oxo_stems, ous_stems,
                               build_stem_word, enclose_if_compound,
-                              build_sub_string) -> Optional[str]:
+                              build_sub_string, cite_central_locant=False) -> Optional[str]:
     """Return the acid name minus ``" acid"`` for a P/As/Sb halide/amide parent,
-    else ``None``. Reused by:func:`name_p_oxoacid_halide_amide`."""
+    else ``None``. Reused by:func:`name_p_oxoacid_halide_amide`.
+
+    ``cite_central_locant``: the organyl groups are cited with the locant of the central
+    atom ('P,P-diphenylphosphinic'): the amide of the acid has a nitrogen that could carry
+    them, the Blue Book)."""
     if infix_counts:
         # class-infix FRN parent (amido) -> -oric/-onic stem, pentavalent only.
         if not oxo:
@@ -952,7 +957,13 @@ def _pnictogen_acid_stem_word(symbol, oxo, skeletal, organyl_names, n_prefixes,
         word = table[symbol][1]
     else:
         return None            # skeletal 0 plain -> phosphoryl/acyl-word exception, defer
-    front = build_sub_string(organyl_names) if organyl_names else ""
+    if organyl_names and cite_central_locant:
+        from .phosphorus import _build_locanted_substituent_string
+        front = _build_locanted_substituent_string(organyl_names, symbol)
+        if front is None:
+            return None
+    else:
+        front = build_sub_string(organyl_names) if organyl_names else ""
     return f"{front}{word}"
 
 

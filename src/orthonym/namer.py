@@ -36,6 +36,8 @@ from .errors import (
     no_verified_pin,
     unsupported_ring_system,
 )
+from .gate_retry import gate_candidate, name_with_forced_locants
+from .validation.opsin_ambiguity import reject_ambiguous, restore_withdrawn, withdrawn_name
 
 logger = logging.getLogger(__name__)
 
@@ -2821,7 +2823,7 @@ def _final_opsin_validity_gate(name: str, smiles: Optional[str],
                 _pv.carveout_outcome("polyacid_prefix_derivative"), name)
             return name
         # _self_consistency_decision records its own outcome (one per verdict).
-        return _self_consistency_decision(name, smiles, opsin_smiles, stats)
+        return reject_ambiguous(name, smiles, _self_consistency_decision(name, smiles, opsin_smiles, stats), stats)
     # opsin_smiles is None -> either OPSIN was UNAVAILABLE (transient: timeout /
     # OSError / JVM crash, the jar being present), OR OPSIN PARSED the name but
     # emitted a SMILES that RDKit cannot canonicalise (an impossible valence — e.g.
@@ -5035,6 +5037,16 @@ class Orthonym:
                 or pre_gate in _DESCRIPTIVE_FALLBACK_NAMES):
             return gated
 
+        from .metrics import provenance as _pv
+        _prov = _pv.get_provenance()
+        if (_pv.resolve_gate_outcome(_prov["gate_outcome"], _prov["gate_outcome_name"], gated)
+                == _pv.GATE_OUTCOME_AMBIGUOUS_SUPPRESSED):
+            # (the Blue Book): the first candidate was withdrawn because OPSIN
+            # reads it as ambiguous; the same classes name the molecule once more with every
+            # locant cited, before another class is tried.
+            forced = name_with_forced_locants(self, smiles)
+            if forced is not None and forced not in _DESCRIPTIVE_FALLBACK_NAMES:
+                return forced
         for _ in range(self._PHASE4_MAX_GATE_RETRIES):
             cls = self._last_dispatch_class
             if cls is None or cls in self._excluded_dispatch_classes:
@@ -5048,31 +5060,9 @@ class Orthonym:
                 break
             if not cand or cand in _DESCRIPTIVE_FALLBACK_NAMES:
                 continue
-            _mol = Chem.MolFromSmiles(smiles)
-            if _mol is None:
+            _gated_cand = gate_candidate(self, smiles, cand)
+            if _gated_cand is None:
                 break
-            from .assembly.coverage_scoring import retrieve_confidence
-            _conf = retrieve_confidence()
-            cand = _final_stereo_check(
-                _mol, cand, handler=_conf.get('handler', 'unknown'),
-                atom_to_locant=_conf.get('atom_to_locant'),
-                is_phenol_benzene=_conf.get('is_phenol_benzene'),
-            )
-            cand = _final_grammar_check(
-                cand, smiles, _conf.get('handler', 'unknown'),
-                self._grammar, self._grammar_stats,
-            )
-            # (a review F1): capture the gate's OUTPUT and return THAT, not the
-            # pre-gate `cand`. The gate can now return a name DIFFERENT from its
-            # input — the stereo-omission reclaim composes the input's dropped
-            # stereo back on — so returning `cand` here would ship the flat,
-            # stereo-INCOMPLETE name at the RT-verified tier (which the BE-STRICT
-            # contract forbids). Before that reclaim the gate only ever returned
-            # `cand` or a fallback, so `return cand` was equivalent; it is not now.
-            _gated_cand = _final_opsin_validity_gate(
-                cand, smiles, self._grammar_stats,
-                besteffort_unverified=self._general_fallback_unverified,
-                general_fallback_tier=self._general_fallback)
             if _gated_cand not in _DESCRIPTIVE_FALLBACK_NAMES:
                 return _gated_cand
         return gated
@@ -7943,9 +7933,9 @@ class Orthonym:
         # D3 (user decision 2026-09-28): the best-effort tier's last resort for a
         # molecule it is about to leave unnamed -- after every other path and the
         # exit check, so it can only turn an abstention into a name, never change
-        # a name that ships. See _maybe_prefix_order_fallback.
+        # a name that ships. See _maybe_prefix_order_fallback; restore_withdrawn then keeps the name withdrawn as OPSIN-ambiguous.
         try:
-            name = self._maybe_prefix_order_fallback(name, smiles)
+            name = restore_withdrawn(self._maybe_prefix_order_fallback(name, smiles), smiles)
         except Exception as _pe:  # pragma: no cover - defensive, keeps the abstention
             logger.info("prefix-order fallback failed (abstention kept): %s", _pe)
         # Review fixes (the paper, L74: "At the best-effort tier, a name that OPSIN
@@ -8773,6 +8763,9 @@ class Orthonym:
           default / valid / complete tiers keep their documented behaviour (no
           check possible, labelled unverified); best-effort fails closed, as the
           gate does there;
+        * a name OPSIN reads as ambiguous (``validation.opsin_ambiguity``) is withdrawn
+          at every tier, for the names of the producers that follow the gate, unless it
+          is the name kept for the molecule as the last resort;
         * a general tier (``general_fallback``): the FULL-key round trip
           (`_shipped_name_round_trip`, memoized, so a string the gate or an offer
           already read costs no new parse) unless a full-key proof is recorded
@@ -8802,6 +8795,8 @@ class Orthonym:
                     return name
                 return self._withdraw_at_exit(
                     name, smiles, "jar_absent_besteffort_unverified")
+            if withdrawn_name(name, smiles):
+                return reject_ambiguous(name, smiles, name)
             if self._general_fallback:
                 if resolved in (_pv.GATE_OUTCOME_STEREO_RECOMPOSED,
                                 _pv.GATE_OUTCOME_FULL_KEY_VERIFIED):

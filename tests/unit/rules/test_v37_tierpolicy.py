@@ -178,6 +178,13 @@ class TestUnverifiedRescueStillAbstains:
         monkeypatch.setattr(
             general_engine, "name_general",
             lambda mol, feats, *a, **k: None)
+        # The decomposition route cites the two N-substituents of an amide with the locant N
+        #, the Blue Book) and names the molecule RT-exact too; it is
+        # switched off for the same reason.
+        import orthonym.decomposition as decomposition
+        monkeypatch.setattr(
+            decomposition, "try_decompose",
+            lambda mol, *a, **k: None)
         name = _complete(_NOSTEREO_T4)
         assert errors.is_failure_name(name), (
             f"COMPLETE tier SHIPPED an RT-failing T4 candidate: {name!r}")

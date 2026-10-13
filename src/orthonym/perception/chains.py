@@ -1577,9 +1577,12 @@ def classify_substituent(mol, sub_atoms: List[int], parent_atoms: Set[int]) -> D
         from ..rules.ring_substituents import name_ring_system_substituent
         ring_name = name_ring_system_substituent(mol, sub_atoms, attach_idx)
         if not ring_name and set(contained_ring) == sub_set:
-            # Last resort: legacy single-ring lookup (locant-less). Only
-            # sound when the fragment IS that single ring.
-            ring_name = get_ring_substituent_name(mol, contained_ring)
+            # Last resort: single-ring lookup at the ring atom bonded to the
+            # parent (2), the Blue Book). Only sound when the
+            # fragment IS that single ring.
+            ring_name = get_ring_substituent_name(
+                mol, contained_ring,
+                attachment_point=attach_idx if attach_idx in set(contained_ring) else None)
 
         return {
             'type': 'ring',

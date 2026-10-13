@@ -124,16 +124,15 @@ def test_v52_carbothioamide_demoted_to_carbamothioyl_prefix():
     assert rt["passed"], f"round-trip failed for {name!r}: {rt}"
 
 
-# --- D3 (a review-fix P3): mononuclear (methane) pseudoketone locant omission ---
-# (a) (the Blue Book) "The locant '1' is omitted: (a) in
-# substituted mononuclear parent hydrides" (cf. CH3Cl -> chloromethane,:2897).
-# A one-carbon acyl-on-ring pseudoketone (H-CO-NR2 / H-CS-NR2) has methane as
-# its parent hydride, so BOTH the ketone locant and the ring-substituent locant
-# drop. Multi-carbon stems (ethane-1-thione,...) keep their '-1-'.
-D3_MONONUCLEAR_PSEUDOKETONE = [
-    ("S=CN1CCCC1", "(pyrrolidin-1-yl)methanethione"),
-    ("S=CN1CCOCC1", "(morpholin-4-yl)methanethione"),
-    ("O=CN1CCCC1", "(pyrrolidin-1-yl)methanone"),
+# --- D3: a one-carbon acyl group on a ring heteroatom (H-CO-NR2, H-CS-NR2) ---
+# (the Blue Book): "The suffix 'carbaldehyde' is used when the -CHO group is
+# attached to a carbon atom of a ring or ring system, or to a heteroatom"; the -CHS group takes
+# 'carbothialdehyde', Table 6.4,:35036). Multi-carbon stems (ethane-1-thione,...) are
+# pseudoketones and keep their '-1-'.
+D3_FORMYL_ON_RING_HETEROATOM = [
+    ("S=CN1CCCC1", "pyrrolidine-1-carbothialdehyde"),
+    ("S=CN1CCOCC1", "morpholine-4-carbothialdehyde"),
+    ("O=CN1CCCC1", "pyrrolidine-1-carbaldehyde"),
 ]
 D3_MULTICARBON_STEM_UNCHANGED = [
     ("CC(=S)N1CCCC1", "1-(pyrrolidin-1-yl)ethane-1-thione"),
@@ -141,9 +140,9 @@ D3_MULTICARBON_STEM_UNCHANGED = [
 
 
 @pytest.mark.roundtrip
-@pytest.mark.parametrize("smi,expected", D3_MONONUCLEAR_PSEUDOKETONE)
-def test_v52_d3_mononuclear_pseudoketone_no_locant(smi, expected):
-    """C1 (methane) pseudoketone omits the '1' locants (a))."""
+@pytest.mark.parametrize("smi,expected", D3_FORMYL_ON_RING_HETEROATOM)
+def test_v52_d3_formyl_on_ring_heteroatom_is_a_carbaldehyde(smi, expected):
+    """A -CHO or -CHS group on a ring heteroatom is named with the suffix of the ring parent."""
     from orthonym.validation import opsin_roundtrip_check
 
     name = name_compound(smi)

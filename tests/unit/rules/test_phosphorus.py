@@ -440,7 +440,10 @@ class TestArylDetection:
         assert result == ("alkyl", "ethyl")
 
     def test_naphthyl_detected(self):
-        """Naphthalene system attached to P should be detected as naphthyl."""
+        """Naphthalene system attached to P is detected with the locant of its free
+        valence. General methodology for naming substituent groups, method (2)
+        (the Blue Book): "...the locant '1' must be cited."; 'naphthalen-2-yl
+        (preferred prefix)' (:2865)."""
         mol = Chem.MolFromSmiles("c1ccc2ccccc2c1P")
         # Find P index
         p_idx = None
@@ -451,7 +454,7 @@ class TestArylDetection:
         p_atom = mol.GetAtomWithIdx(p_idx)
         c_neighbor = [n for n in p_atom.GetNeighbors() if n.GetSymbol() == 'C'][0]
         result = _characterize_substituent(mol, c_neighbor.GetIdx(), {p_idx})
-        assert result == ("aryl", "naphthyl")
+        assert result == ("aryl", "naphthalen-1-yl")
 
     def test_hexyl_not_confused_with_phenyl(self):
         """6 linear carbons should be hexyl, not phenyl."""

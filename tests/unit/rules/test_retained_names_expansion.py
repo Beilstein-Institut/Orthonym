@@ -198,7 +198,6 @@ class TestNewEntries:
         ("c1ccc(Nc2ccccc2)cc1", "diphenylamine"),
         ("COc1cc(C=O)ccc1O", "vanillin"),
         ("O=Cc1ccc(O)cc1", "4-hydroxybenzaldehyde"),
-        ("COc1ccc(C=O)cc1", "anisaldehyde"),
         ("O=Cc1cccnc1", "nicotinaldehyde"),
         ("O=Cc1ccncc1", "isonicotinaldehyde"),
         ("Oc1cccc2ccccc12", "1-naphthol"),

@@ -409,16 +409,11 @@ def test_rescue_memo_hit_keeps_the_producer_label():
 
 
 # --------------------------------------------------------------------------
-# found in a performance pass (end-check renames): two spellings that are no PIN are
-# labelled below it; the names stay (each read back exact)
+# found in a performance pass (end-check renames): a spelling that is no PIN is labelled below it;
+# the name stays (each read back exact)
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("smiles,expected", [
-    # the legacy locant-free ring prefix: 'aziridin-1-yl' is the preferred prefix
-    # (2), the Blue Book; 'naphthalen-2-yl (preferred prefix)
-    # 2-naphthyl (contracted name)',:2865)
-    ("O=C1C=C(N2CC2)C(=O)C(N2CC2)=C1N1CC1",
-     "2,3,5-tris(aziridinyl)cyclohexa-2,5-diene-1,4-dione"),
     # the descriptor in front of the D/L affix: 'L-(4-13C,35S)methionine'
     #,:44120-44128), which OPSIN 2.9.0 does not read
     ("[13CH3][C@H](N)C(=O)O", "(3-13C)L-alanine"),

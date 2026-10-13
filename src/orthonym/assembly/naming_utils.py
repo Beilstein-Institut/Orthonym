@@ -897,7 +897,10 @@ def should_omit_locant_one(
     # (the Blue Book; gold 'ClCCCCC' -> '1-chloropentane'). Previously this
     # used `chain_length > 1`, which wrongly elided the locant for all chains.
     if context == "prefix" and not is_ring and is_monosubstituted and chain_length == 2:
-        return True
+        # (the Blue Book): all locants are cited while an isotopic modification forces one
+        from .locant_omission import locants_are_forced  # local: avoid import cycle
+        if not locants_are_forced():
+            return True
 
     # Rule 6: Mono-cycloalkene bond locant
     # Single double bond in a ring: locant omitted (cyclohexene, not cyclohex-1-ene)
@@ -1268,7 +1271,18 @@ def needs_brackets(name: str) -> bool:
             if _rem in _ACYL_SUFFIX_FAMILY:
                 return True
 
-    return False
+    return _concatenated_prefix_needs_marks(name)
+
+
+def _concatenated_prefix_needs_marks(name: str) -> bool:
+    """A compound prefix without a locant -- a substituent prefix in front of its parent prefix,
+    as ``is_substituted_substituent`` reads it ('silylamino', 'cyanoamino', 'chlorophenyl',
+    'methylcarbamoyl', 'nitrosooxy', 'iodoethynyl') -- takes enclosing marks:
+    (the Blue Book) "Parentheses are used around compound... and complex... prefixes",
+    '(silylamino)silyl' (:26322), '4-(disilylamino)cyclohexane-1-carbonitrile (PIN)' (:38198).
+    The contracted amide prefixes ('acetamido', 'benzamido') are cited bare ('2-acetamido...',
+    '4-benzamido...' in the Blue Book) although they take 'bis'."""
+    return not name.lower().endswith('amido') and is_substituted_substituent(name)
 
 
 # ============================================================================
@@ -2039,10 +2053,20 @@ _RETAINED_CONTRACTED_ALKOXY: frozenset = frozenset({
 _RETAINED_HYDROCARBYL: frozenset = frozenset({
     'phenyl', 'benzyl', 'benzylidene', 'benzylidyne', 'trityl',
     'tolyl', 'xylyl', 'naphthyl', 'mesityl', 'styryl', 'cinnamyl',
-    'vinyl', 'allyl', 'phenylene', 'methylene', 'ethylene', 'propylene',
+    'vinyl', 'allyl', 'ethenyl', 'ethynyl', 'phenylene', 'methylene', 'ethylene', 'propylene',
     'methylidene', 'ethylidene', 'methylidyne', 'ethylidyne',
     'carbonyl', 'oxalyl', 'malonyl', 'succinyl', 'glutaryl', 'adipoyl',
     'phthaloyl', 'isophthaloyl', 'terephthaloyl',
+})
+
+# The acyl groups of the standard alpha-amino acids, formed by changing 'ine' (or 'an' in
+# tryptophan) to 'yl' Acyl groups, the Blue Book: "alanyl, valyl, tryptophyl";
+# 'cysteinyl' instead of 'cysteyl'). Each is one simple unit; 'alanylglutamyl' is two (a
+# compound substituent group,,:15762) and so takes enclosing marks,:7232).
+_AMINO_ACID_ACYLS: frozenset = frozenset({
+    'glycyl', 'alanyl', 'valyl', 'leucyl', 'isoleucyl', 'seryl', 'threonyl', 'cysteinyl',
+    'methionyl', 'aspartyl', 'glutamyl', 'asparaginyl', 'glutaminyl', 'lysyl', 'arginyl',
+    'histidyl', 'phenylalanyl', 'tyrosyl', 'tryptophyl', 'prolyl',
 })
 
 # --- vocabulary 4: mononuclear hydride -yl / -ylidene carriers ------------
@@ -2077,6 +2101,7 @@ _SIMPLE_PREFIX_VOCABULARY: frozenset = (
     | _FG_PREFIX_SPELLINGS
     | _RETAINED_CONTRACTED_ALKOXY
     | _RETAINED_HYDROCARBYL
+    | _AMINO_ACID_ACYLS
     | _HYDRIDE_YL_CARRIERS
     | _BRIDGE_PREFIXES
 )
@@ -2601,6 +2626,9 @@ def is_substituted_substituent(
     #
     # NO multiplier syllable is peeled here -- that is what keeps `disulfanyl`
     # (-S-SH, a single preselected prefix) from splitting into `di` + `sulfanyl`.
+    # A retained amino-acid acyl is one unit although its spelling splits ('phenylalanyl').
+    if lowered in _AMINO_ACID_ACYLS:
+        return False
     if _splits_at_a_unit_boundary(lowered, allow_multiplier=False):
         return True
 

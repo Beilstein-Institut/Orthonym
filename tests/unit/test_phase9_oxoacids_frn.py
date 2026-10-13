@@ -285,8 +285,12 @@ def test_asb_class_infix_frn_and_guard_p67_1_2_4_2(namer, smiles, expected):
     ("ClP(c1ccccc1)c1ccccc1", "diphenylphosphinous chloride"),  # (C6H5)2P-Cl BB L35712
     ("CN(C)P(=O)(Cl)Cl", "N,N-dimethylphosphoramidic dichloride"),  # amido-FRN halide
     ("ClP(=O)(Cl)c1ccccc1", "phenylphosphonic dichloride"),     # C6H5-P(O)Cl2 BB L35726
-    ("NP(=O)(N)c1ccccc1", "phenylphosphonic diamide"),          # amide
-    ("NP(N)c1ccccc1", "phenylphosphonous diamide"),             # trivalent -ous amide
+    # amide; the phenyl could stand on a nitrogen of the diamide, so it is cited with
+    # the locant P, the Blue Book; '*N*,*N*′-dimethyl-*P*-phenylphosphonic diamide
+    # (PIN)',:35789). OPSIN reads 'phenylphosphonic diamide' as ambiguous ('Connection of phenyl to
+    # phosphon') and 'P-phenylphosphonic diamide' once, with the same structure.
+    ("NP(=O)(N)c1ccccc1", "P-phenylphosphonic diamide"),
+    ("NP(N)c1ccccc1", "P-phenylphosphonous diamide"),           # trivalent -ous amide
 ])
 def test_acid_halide_amide_producers_p67_1_2_5_6(namer, smiles, expected):
     assert namer.name(smiles) == expected

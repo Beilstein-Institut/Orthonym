@@ -635,7 +635,9 @@ CANARY_KNOWN_DEFECTS = {
         "DK-PEP", (524,),
     ),
     "NCC(=O)N[C@@H](CCC(=O)O)C(=O)NCC(=O)O": (
-        "N-glycylglutamylglycine",
+        # (the Blue Book) encloses the compound acyl group; (:54480);
+        # OPSIN 2.9.0 full-InChIKey exact
+        "N-(glycylglutamyl)glycine",
         "DK-PEP", (538,),
     ),
     "CC1=CC2/C=C(\\C)CCC3OC3/C=C/C(=O)C23C(=O)NC(CC(C)C)C3C1C": (

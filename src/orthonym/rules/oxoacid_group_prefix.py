@@ -21,6 +21,13 @@ Acyl groups built (central atom X, ligands L):
     P(=O)(OH)2 phosphono P(=O)(O-)2 phosphonato
     P(=O)(L)(L') L(L')phosphoryl P(=S)(L)(L') L(L')phosphorothioyl
 
+The nitrogen of a sulfamoyl group carries its substituents "in the normal way",
+the Blue Book;,:32928, for carbamoyl): carbon groups,
+a hydroxy or alkoxy group ('methoxy(methyl)sulfamoyl') or one ylidene group
+('[(dimethylamino)methylidene]sulfamoyl'). A nitrogen that carries a second nitrogen is the
+hydrazide group, 'hydrazinesulfonyl' and 'hydrazinesulfinyl',:33980), with the
+locants of its substituents ('2,2-dimethylhydrazine-1-sulfonyl').
+
 The attachment may be the central atom (the acyl prefix itself) or an O or NH that links it
 to the parent ('sulfooxy', 'phosphonooxy', '[(methoxysulfonyl)oxy]', 'sulfoamino'). A ligand
 that is an -O-P or -O-S group is cited as that group's acyl prefix plus 'oxy'
@@ -30,7 +37,7 @@ from __future__ import annotations
 
 import contextvars
 import re
-from typing import Callable, List, NamedTuple, Optional, Set
+from typing import Callable, List, NamedTuple, Optional, Set, Tuple
 
 from rdkit import Chem
 
@@ -84,8 +91,8 @@ def _centre_candidate(mol, j: int) -> bool:
     return oxo >= 1 and hetero_lig >= 1
 
 
-def _dummy_name_r(atoms, root):
-    return "methyl"
+def _dummy_name_r(atoms, root, order=1):
+    return "methylidene" if order == 2 else "methyl"
 
 
 def group_shape_ok(mol, j: int) -> bool:
@@ -110,6 +117,7 @@ def group_shape_ok(mol, j: int) -> bool:
             if mol.GetBondBetweenAtoms(j, nb.GetIdx()).GetBondType() != Chem.BondType.SINGLE:
                 continue
             ctx = _Ctx(mol, everything, _dummy_name_r)
+            ctx.shape_only = True
             if _acyl(ctx, j, nb.GetIdx(), 0) is not None:
                 ok = True
                 break
@@ -173,10 +181,14 @@ def _alkoxy(yl: Optional[str]) -> Optional[str]:
 class _Lig(NamedTuple):
     """One ligand prefix: its ``token``, whether it is a compound prefix (enclosed and
     multiplied with bis/tris,, the Blue Book;,:7232) and, for an
-    N-substituted amino ligand, the ``nsub`` string that goes in front of 'sulfamoyl'."""
+    N-substituted amino ligand, the ``nsub`` string that goes in front of 'sulfamoyl'. A
+    hydrazine ligand carries ``hydrazine``, the hydrazine with its substituents and locants
+    ('hydrazine', '2,2-dimethylhydrazine'), the head of the acyl name 'hydrazinesulfonyl'."""
     token: str
     compound: bool
     nsub: Optional[str] = None
+    hydrazine: Optional[str] = None
+    carbon: Optional[int] = None    # the carbon atom of an R ligand (the acid stem is built on it)
 
 
 def _simple_word(tok: str) -> bool:
@@ -185,25 +197,170 @@ def _simple_word(tok: str) -> bool:
 
 def _lig_of(tok: str) -> _Lig:
     """A ligand token with its compound flag: the fixed one-word ligands are simple, any
-    other token is compound when the shared predicate says so."""
-    from ..assembly.naming_utils import is_complex_substituent
-    return _Lig(tok, False if _simple_word(tok) else bool(is_complex_substituent(tok)))
+    other token is compound when the shared predicate says it takes enclosing marks
+    ('ethoxycarbonyl', '(dimethylamino)methylidene';, the Blue Book)."""
+    from ..assembly.naming_utils import enclose_if_compound
+    if _simple_word(tok):
+        return _Lig(tok, False)
+    return _Lig(tok, enclose_if_compound(tok) != tok)
 
 
 class _Ctx:
-    def __init__(self, mol, frag, name_r):
+    def __init__(self, mol, frag, name_r, stereo_centre_ok: bool = False):
         self.mol, self.frag, self.name_r = mol, frag, name_r
+        #: True for a host that cites the descriptor of a stereogenic centre of the group
+        #: itself (the S of a sulfinamide or sulfinate); every other host declines the group
+        self.stereo_centre_ok = stereo_centre_ok
+        #: True while the shape predicate probes the group: the acid-stem spelling (a naming call
+        #: of its own) is not built, the shape does not depend on it
+        self.shape_only = False
+        #: True once a stereogenic centre of the group was accepted (``stereo_centre_ok``)
+        self.chiral_centre = False
         self.used: Set[int] = set()
         #: False once the prefix uses a spelling that is not the preferred one (see
         #: ``oxoacid_group_prefix_ex``)
         self.preferred = True
 
 
-def _yl(ctx: _Ctx, atoms: Set[int], root: int) -> Optional[str]:
-    yl = ctx.name_r(sorted(atoms), root)
+def _yl(ctx: _Ctx, atoms: Set[int], root: int, order: int = 1) -> Optional[str]:
+    """The '-yl' prefix of the R subtree ``atoms`` joined at ``root`` (``order`` 2: the
+    '-ylidene' prefix of a subtree joined by a double bond)."""
+    yl = ctx.name_r(sorted(atoms), root) if order == 1 else ctx.name_r(sorted(atoms), root, order)
     if not yl or yl == "substituent" or yl.endswith("ylyl"):
         return None
     return yl
+
+
+def _ylidene_prefix(ctx: _Ctx, n_idx: int, c_idx: int, atoms: Set[int]) -> Optional[str]:
+    """The ylidene prefix of the group ``atoms`` joined at ``c_idx`` to the nitrogen ``n_idx``
+    by a double bond, with the geometry of that bond at its front when it is defined
+    ('(E)-(dimethylamino)methylidene': "When they relate to substituent groups, they are cited
+    at the front of the corresponding prefix",, the Blue Book). A one-carbon
+    group has no locant to cite; the geometry of any other ylidene group is not built."""
+    yl = _yl(ctx, atoms, c_idx, 2)
+    if yl is None:
+        return None
+    bond = ctx.mol.GetBondBetweenAtoms(n_idx, c_idx)
+    if bond.GetStereo() == Chem.BondStereo.STEREONONE:
+        return yl
+    from ..perception.stereo import assign_stereochemistry
+    assign_stereochemistry(ctx.mol)
+    ez = bond.GetProp("_CIPCode") if bond.HasProp("_CIPCode") else None
+    if ez not in ("E", "Z") or not yl.endswith(("methylidene", "benzylidene")):
+        return None
+    return f"({ez})-{yl}"
+
+
+def _n_substituent(ctx: _Ctx, n_idx: int, k: int, order: int, depth: int
+                   ) -> Optional[Tuple[_Lig, Set[int]]]:
+    """The prefix of the group on atom ``k`` of the nitrogen ``n_idx`` and the atoms it
+    consumes, or ``None``: a carbon group joined by a single bond ('methyl') or by a double
+    bond (an ylidene group), a hydroxy group, an alkoxy group ('methoxy') or the acyl group
+    of a second P or S centre ('methylsulfonyl'; ``_acyl`` records its atoms itself)."""
+    mol = ctx.mol
+    atom = mol.GetAtomWithIdx(k)
+    if k not in ctx.frag or atom.GetIsotope() or atom.GetNumRadicalElectrons():
+        return None
+    if atom.GetSymbol() == "C":
+        if order == 2 and any(b.GetBondType() != Chem.BondType.SINGLE for b in atom.GetBonds()
+                              if b.GetOtherAtomIdx(k) != n_idx):
+            return None     # an isocyanate or ketenimine carbon is not an ylidene group
+        sub = _subtree(mol, k, n_idx, ctx.frag)
+        if sub is None:
+            return None
+        yl = _yl(ctx, sub, k) if order == 1 else _ylidene_prefix(ctx, n_idx, k, sub)
+        return None if yl is None else (_lig_of(yl), sub)
+    if atom.GetSymbol() == "O" and order == 1 and atom.GetFormalCharge() == 0 \
+            and not atom.IsInRing():
+        heavy = [n.GetIdx() for n in atom.GetNeighbors() if n.GetIdx() != n_idx]
+        if not heavy:
+            return (_lig_of("hydroxy"), {k}) if atom.GetTotalNumHs() == 1 else None
+        if len(heavy) != 1 or atom.GetTotalNumHs() or mol.GetAtomWithIdx(
+                heavy[0]).GetSymbol() != "C":
+            return None
+        sub = _subtree(mol, heavy[0], k, ctx.frag)
+        if sub is None:
+            return None
+        alk = _alkoxy(_yl(ctx, sub, heavy[0]))
+        return None if alk is None else (_lig_of(alk), sub | {k})
+    if atom.GetSymbol() in ("P", "S") and order == 1 and depth < _MAX_DEPTH:
+        acyl = _acyl(ctx, k, n_idx, depth + 1)
+        return None if acyl is None else (_lig_of(acyl), set())
+    return None
+
+
+def _amino_ligand(ctx: _Ctx, x_idx: int, lig_idx: int, on_p: bool, depth: int
+                  ) -> Optional[_Lig]:
+    """The nitrogen ligand ``lig_idx`` of the centre ``x_idx``: 'amino', or an N-substituted
+    amino ligand whose substituents are cited in alphanumerical order ('methylamino',
+    'methoxy(methyl)amino', '[(dimethylamino)methylidene]amino'); a nitrogen that carries a
+    second nitrogen is the hydrazine ligand of a sulfonyl or sulfinyl group
+    (``_hydrazine_ligand``)."""
+    mol = ctx.mol
+    a = mol.GetAtomWithIdx(lig_idx)
+    order_of = {Chem.BondType.SINGLE: 1, Chem.BondType.DOUBLE: 2}
+    bonds = [(n.GetIdx(), order_of.get(mol.GetBondBetweenAtoms(lig_idx, n.GetIdx()).GetBondType(), 9))
+             for n in a.GetNeighbors() if n.GetIdx() != x_idx]
+    if (len(bonds) > 2 or any(order == 9 for _k, order in bonds)
+            or a.GetTotalNumHs() != 2 - sum(order for _k, order in bonds)):
+        return None
+    if not bonds:
+        ctx.used.add(lig_idx)
+        return _lig_of("amino")
+    if any(mol.GetAtomWithIdx(k).GetSymbol() == "N" for k, _o in bonds):
+        return None if on_p else _hydrazine_ligand(ctx, lig_idx, [k for k, _o in bonds], depth)
+    if len(bonds) == 2 and any(order != 1 for _k, order in bonds):
+        return None
+    subs: List[_Lig] = []
+    used = {lig_idx}
+    for k, order in bonds:
+        got = _n_substituent(ctx, lig_idx, k, order, depth)
+        if got is None or got[1] & used:
+            return None
+        subs.append(got[0])
+        used |= got[1]
+    joined = _join_ligands(subs)
+    if joined is None:
+        return None
+    ctx.used |= used
+    return _Lig(joined + "amino", True, joined)
+
+
+def _hydrazine_ligand(ctx: _Ctx, n1: int, bonds: List[int], depth: int) -> Optional[_Lig]:
+    """The hydrazine ligand N1-N2 of a sulfonyl or sulfinyl group, N1 being the atom bonded
+    to the centre: ``hydrazine`` and the substituents of its two nitrogen atoms with their
+    locants ('2,2-dimethylhydrazine';, the Blue Book). Only single-bonded
+    carbon, hydroxy and alkoxy substituents are built."""
+    mol = ctx.mol
+    n2s = [k for k in bonds if mol.GetAtomWithIdx(k).GetSymbol() == "N"]
+    if len(n2s) != 1 or mol.GetBondBetweenAtoms(n1, n2s[0]).GetBondType() != Chem.BondType.SINGLE:
+        return None
+    n2 = n2s[0]
+    a2 = mol.GetAtomWithIdx(n2)
+    if (n2 not in ctx.frag or a2.GetFormalCharge() or a2.IsInRing() or a2.GetIsotope()
+            or a2.GetNumRadicalElectrons()):
+        return None
+    on1 = [k for k in bonds if k != n2]
+    on2 = [n.GetIdx() for n in a2.GetNeighbors() if n.GetIdx() != n1]
+    if len(on2) > 2 or any(mol.GetBondBetweenAtoms(n2, k).GetBondType() != Chem.BondType.SINGLE
+                           for k in on2):
+        return None
+    if (mol.GetAtomWithIdx(n1).GetTotalNumHs() != 1 - len(on1)
+            or a2.GetTotalNumHs() != 2 - len(on2)):
+        return None
+    cited: List[Tuple[int, str]] = []
+    used = {n1, n2}
+    for locant, host, ks in ((1, n1, on1), (2, n2, on2)):
+        for k in ks:
+            got = _n_substituent(ctx, host, k, 1, depth)
+            if got is None or got[1] & used:
+                return None
+            cited.append((locant, got[0].token))
+            used |= got[1]
+    from ..assembly.hetero_group_prefixes import hydrazine_substituents
+    head = hydrazine_substituents(cited) + "hydrazine"
+    ctx.used |= used
+    return _Lig(head, True, hydrazine=head)
 
 
 def _ligand(ctx: _Ctx, x_idx: int, lig_idx: int, depth: int) -> Optional[_Lig]:
@@ -231,6 +388,11 @@ def _ligand(ctx: _Ctx, x_idx: int, lig_idx: int, depth: int) -> Optional[_Lig]:
         if a.GetFormalCharge() or a.GetTotalNumHs() or len(heavy) != 1:
             return None
         nxt = mol.GetAtomWithIdx(heavy[0])
+        if (nxt.GetSymbol() == "N" and heavy[0] in ctx.frag and nxt.GetDegree() == 1
+                and nxt.GetTotalNumHs() == 2 and not nxt.GetFormalCharge()
+                and not nxt.GetIsotope() and not nxt.IsInRing()):
+            ctx.used.update((lig_idx, heavy[0]))        # H2N-O-: 'aminooxy'
+            return _lig_of("aminooxy")
         if nxt.GetSymbol() in ("P", "S") and heavy[0] in ctx.frag:
             if depth >= _MAX_DEPTH:
                 return None
@@ -255,30 +417,7 @@ def _ligand(ctx: _Ctx, x_idx: int, lig_idx: int, depth: int) -> Optional[_Lig]:
         if a.GetFormalCharge() != 0 or a.IsInRing():
             return None
         ctx.preferred = ctx.preferred and not on_p      # phosphoramidoyl forms,:36178
-        if a.GetDegree() == 1 and a.GetTotalNumHs() == 2:
-            ctx.used.add(lig_idx)
-            return _lig_of("amino")
-        # an N-substituted amino ligand: 'methylamino', 'dimethylamino'
-        heavy = [n.GetIdx() for n in a.GetNeighbors() if n.GetIdx() != x_idx]
-        if (not heavy or len(heavy) > 2 or a.GetTotalNumHs() != 2 - len(heavy)
-                or any(mol.GetAtomWithIdx(k).GetSymbol() != "C" for k in heavy)):
-            return None
-        subs = []
-        used = {lig_idx}
-        for k in heavy:
-            sub = _subtree(mol, k, lig_idx, ctx.frag)
-            if sub is None or sub & used:
-                return None
-            yl = _yl(ctx, sub, k)
-            if yl is None:
-                return None
-            subs.append(_lig_of(yl))
-            used |= sub
-        joined = _join_ligands(subs)
-        if joined is None:
-            return None
-        ctx.used |= used
-        return _Lig(joined + "amino", True, joined)
+        return _amino_ligand(ctx, x_idx, lig_idx, on_p, depth)
     if (a.GetSymbol() == "S" and a.GetDegree() == 2 and a.GetFormalCharge() == 0
             and a.GetTotalNumHs() == 0 and mol.GetAtomWithIdx(x_idx).GetSymbol() == "P"):
         heavy = [n.GetIdx() for n in a.GetNeighbors() if n.GetIdx() != x_idx]
@@ -310,7 +449,12 @@ def _ligand(ctx: _Ctx, x_idx: int, lig_idx: int, depth: int) -> Optional[_Lig]:
         ctx.used |= sub
         if mol.GetAtomWithIdx(x_idx).GetSymbol() == "P":
             ctx.preferred = False
-        return _lig_of(yl)
+        stereo_free = not any(
+            mol.GetAtomWithIdx(i).GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED
+            or any(b.GetStereo() != Chem.BondStereo.STEREONONE
+                   for b in mol.GetAtomWithIdx(i).GetBonds())
+            for i in sub)
+        return _lig_of(yl)._replace(carbon=lig_idx if stereo_free else None)
     return None
 
 
@@ -328,12 +472,18 @@ def _join_ligands(ligs: List[_Lig]) -> Optional[str]:
     first is enclosed too ('hydroxy(sulfanyl)phosphorothioyl',:36337). ``None`` when a
     multiplicity has no multiplier."""
     from ..assembly.naming_utils import alpha_sort_key
+    # A ligand is identified by what its prefix says, not by the atom it was read from: two
+    # methyl groups on one phosphorus are the same ligand and are multiplied.
     counts: dict = {}
+    first: dict = {}
     for l in ligs:
-        counts[l] = counts.get(l, 0) + 1
+        key = (l.token, l.compound, l.nsub, l.hydrazine)
+        counts[key] = counts.get(key, 0) + 1
+        first.setdefault(key, l)
     parts = []
-    for l in sorted(counts, key=lambda x: alpha_sort_key(x.token)):
-        n = counts[l]
+    for key in sorted(counts, key=lambda k: alpha_sort_key(k[0])):
+        l = first[key]
+        n = counts[key]
         if n == 1:
             parts.append((l.token, l.compound))
         elif l.compound:
@@ -358,7 +508,9 @@ def _acyl(ctx: _Ctx, x_idx: int, from_idx: Optional[int], depth: int) -> Optiona
         return None
     x = mol.GetAtomWithIdx(x_idx)
     if x.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED:
-        return None
+        if not ctx.stereo_centre_ok:
+            return None
+        ctx.chiral_centre = True
     ctx.used.add(x_idx)
     oxo: List[int] = []
     ligs: List[int] = []
@@ -389,6 +541,28 @@ def _acyl(ctx: _Ctx, x_idx: int, from_idx: Optional[int], depth: int) -> Optiona
         lig = _ligand(ctx, x_idx, ligs[0], depth)
         if lig is None:
             return None
+        if lig.hydrazine is not None:
+            # method (1), the Blue Book: 'hydrazinesulfonyl', 'hydrazinesulfinyl';
+            # a substituted hydrazine cites the locant of its free valence
+            acid = "sulfonyl" if len(oxo) == 2 else "sulfinyl"
+            return lig.hydrazine + (acid if lig.hydrazine == "hydrazine" else "-1-" + acid)
+        if lig.carbon is not None and not ctx.shape_only:
+            # (the Blue Book): the preferred acyl prefix of a sulfonic or
+            # sulfinic acid is formed from the name of the acid ('benzenesulfonyl',
+            # 'methanesulfonyl'), not by concatenation ('phenylsulfonyl'): the acid-stem builder
+            # of the sulfur prefixes, which declines a group it cannot name
+            acid = "sulfonyl" if len(oxo) == 2 else "sulfinyl"
+            from ..assembly.substituent_prefix_forms import _acid_stem_oxide_prefix
+            try:
+                stem = _acid_stem_oxide_prefix(mol, lig.carbon, x_idx, acid)
+            except Exception:                                  # noqa: BLE001
+                stem = None
+            if stem and stem.endswith(acid):
+                from ..assembly.naming_utils import is_substituted_substituent
+                from ..assembly.prefix_derivation import built
+                # a stem whose R group is substituted ('4-methylbenzene-1-sulfonyl') is a
+                # substituted prefix: 'bis' (c), the Blue Book)
+                return built(stem, substituted=is_substituted_substituent(lig.token))
         if len(oxo) == 2:
             if lig.nsub is not None:
                 return lig.nsub + "sulfamoyl"
@@ -435,7 +609,7 @@ def oxoacid_group_prefix(mol, frag_atoms, attach_idx: int,
 
 
 def oxoacid_group_prefix_ex(mol, frag_atoms, attach_idx: int,
-                            name_r: Optional[Callable] = None):
+                            name_r: Optional[Callable] = None, stereo_ok: bool = False):
     """``(prefix, preferred)``: the prefix of the P/S oxoacid group, or ``(None, True)``.
 
     A compound prefix that carries no enclosing mark of its own ('methoxysulfonyl',
@@ -449,15 +623,25 @@ def oxoacid_group_prefix_ex(mol, frag_atoms, attach_idx: int,
     prefixes, -.5,:36166,:36178,:36244), a thio-ester ligand, '-P(S)(OH)2'
     (thiophosphono), method (1) of where method (2) applies (:36949), and an
     acid function left on the centre of a compound prefix (whether such a group may be a
-    prefix depends on the parent's principal group,,:36327)."""
-    tok, preferred = _group_prefix(mol, frag_atoms, attach_idx, name_r)
+    prefix depends on the parent's principal group,,:36327).
+
+    ``stereo_ok``: the caller cites the descriptor of a stereogenic centre of the group (the S
+    of a sulfinamide) at the front of the prefix, so a group with such a centre is built, and
+    its prefix is returned without enclosing marks (the caller puts them round the descriptor
+    and the prefix). Without it a group with a stereogenic centre is declined."""
+    tok, preferred, chiral = _group_prefix(mol, frag_atoms, attach_idx, name_r, stereo_ok)
     if tok is None:
         return None, True
+    if chiral:
+        # the caller cites the descriptor of the centre at the front of the prefix
+        #, the Blue Book: '[(S)-aminosulfinyl]'); the enclosing marks go around both
+        return tok, preferred
     if tok in _CONTRACTED or (tok[0] in "([{" and _fully_enclosed(tok)):
         return tok, preferred
     if any(m in tok for m in "([{"):
         return tok, preferred
-    return _enclose(tok), preferred
+    from ..assembly.prefix_derivation import carried
+    return carried(_enclose(tok), like=tok), preferred
 
 
 def _fully_enclosed(tok: str) -> bool:
@@ -479,31 +663,34 @@ def _has_anhydride_ligand(mol, centre: int, from_idx: int) -> bool:
 
 
 def _group_prefix(mol, frag_atoms, attach_idx: int,
-                  name_r: Optional[Callable] = None):
-    """The prefix of the P/S oxoacid group ``frag_atoms`` attached at ``attach_idx``, or
-    ``None``. ``name_r(atoms, attach)`` names an R subtree as a '-yl' prefix."""
+                  name_r: Optional[Callable] = None, stereo_ok: bool = False):
+    """``(prefix, preferred, chiral)``: the prefix of the P/S oxoacid group ``frag_atoms``
+    attached at ``attach_idx`` or ``None``, whether its spelling is the preferred one and whether
+    the group holds a stereogenic centre (``stereo_ok``). ``name_r(atoms, attach)`` names
+    an R subtree as a '-yl' prefix."""
     frag = set(frag_atoms)
     if attach_idx is None or attach_idx not in frag:
-        return None, True
+        return None, True, False
     if name_r is None:
-        def name_r(atoms, att):                                  # noqa: E306
+        def name_r(atoms, att, order=1):                         # noqa: E306,ARG001
             from ..assembly.substituent_enumerator import name_substituent
             return name_substituent(mol, set(atoms), att, True)
-    ctx = _Ctx(mol, frag, name_r)
+    ctx = _Ctx(mol, frag, name_r, stereo_ok)
     a = mol.GetAtomWithIdx(attach_idx)
     outside = [n.GetIdx() for n in a.GetNeighbors() if n.GetIdx() not in frag]
     if len(outside) != 1:
-        return None, True
+        return None, True, False
     try:
-        if is_oxoacid_centre(mol, attach_idx):
+        if is_oxoacid_centre(mol, attach_idx) or (
+                stereo_ok and _centre_candidate(mol, attach_idx)):
             bond = mol.GetBondBetweenAtoms(attach_idx, outside[0])
             if bond.GetBondType() != Chem.BondType.SINGLE:
-                return None, True
+                return None, True, False
             tok = _acyl(ctx, attach_idx, outside[0], 0)
         elif is_oxoacid_linker(mol, attach_idx):
             inner = [n.GetIdx() for n in a.GetNeighbors() if n.GetIdx() in frag]
             if len(inner) != 1:
-                return None, True
+                return None, True, False
             if a.GetSymbol() == "O" and _has_anhydride_ligand(mol, inner[0], attach_idx):
                 # (the Blue Book): method (2), the diphosphoxane parent, is
                 # the PIN (:36949 '3-[(1,3,3-trihydroxy-1,3-dioxo-1lambda5,3lambda5-
@@ -512,23 +699,23 @@ def _group_prefix(mol, frag_atoms, attach_idx: int,
                 from .phosphorus import name_phosphoxane_oxy_substituent
                 pin = name_phosphoxane_oxy_substituent(mol, attach_idx, outside[0])
                 if pin is not None:
-                    return pin, True
+                    return pin, True, False
             ctx.used.add(attach_idx)
             acyl = _acyl(ctx, inner[0], attach_idx, 0)
             if acyl is None:
-                return None, True
+                return None, True, False
             if a.GetSymbol() == "O":
                 tok = _oxy(acyl)
             else:
                 end = "amino" if a.GetSymbol() == "N" else "sulfanyl"
                 tok = (acyl + end if acyl in _CONTRACTED else _enclose(acyl) + end)
         else:
-            return None, True
+            return None, True, False
     except RecursionError:
-        return None, True
+        return None, True, False
     if tok is None or ctx.used != frag:
-        return None, True
-    return tok, ctx.preferred
+        return None, True, False
+    return tok, ctx.preferred, ctx.chiral_centre
 
 
 def note_ps_form(token: str, preferred: bool) -> None:

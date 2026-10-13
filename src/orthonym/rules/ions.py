@@ -33,6 +33,7 @@ from ..errors import is_failure_name
 from ..perception.ions import get_ion_sites
 from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..perception.molcache import inchikey_of
+from .ion_locants import cites_a_locant, name_neutral_ring_for_ion
 
 # F- (DD3,: skeletal heteroatom-hydride anions named with the
 # -anide ending on the parent hydride. element -> the neutral parent-hydride
@@ -1879,6 +1880,42 @@ _CLASS_KEYED_CATION_TRANSFORMS = {
 }
 
 
+def specific_method_cation_name(mol) -> Optional[str]:
+    """The name Specific method gives to ``mol``, or None when the method does not
+    apply to it.
+
+     (the Blue Book): "Cations formed formally by the removal of a hydride
+    ion, H-, from a terminal atom of a saturated unbranched acyclic hydrocarbon... are named
+    by replacing the 'ane' ending in the name of the parent hydride by the suffix 'ylium'";
+    'propylium (PIN)', 'methylium (PIN)' (:41557). The class is read from the structure: one
+    carbon chain of single bonds, no branch, no ring, one carbon with the charge +1 and two
+    hydrogens at the end of the chain (three on a lone carbon). The method names the terminal
+    atom by definition, so the name cites no locant and has one reading; OPSIN reads
+    'propylium' and 'butylium' as ambiguous ('Addition of charge suffix to: prop') and gives
+    the right structure."""
+    if mol is None or len(Chem.GetMolFrags(mol)) != 1:
+        return None
+    atoms = list(atoms_of(mol))
+    if any(a.GetAtomicNum() != 6 or a.GetIsAromatic() or a.IsInRing()
+           or a.GetNumRadicalElectrons() for a in atoms):
+        return None
+    charged = [a for a in atoms if a.GetFormalCharge()]
+    if len(charged) != 1 or charged[0].GetFormalCharge() != 1:
+        return None
+    if any(b.GetBondType() != Chem.BondType.SINGLE for b in mol.GetBonds()):
+        return None
+    if any(a.GetDegree() > 2 for a in atoms):
+        return None
+    n = len(atoms)
+    centre = charged[0]
+    if centre.GetDegree() != (1 if n > 1 else 0) or centre.GetTotalNumHs() != (2 if n > 1 else 3):
+        return None
+    try:
+        return get_alkyl_name(n) + 'ium'
+    except (ValueError, KeyError):
+        return None
+
+
 def apply_ion_suffix_to_name(name: str, total_charge: int,
                              allowed_suffixes: Optional[frozenset] = None,
                              cation_class: Optional[str] = None) -> str:
@@ -1901,6 +1938,8 @@ def apply_ion_suffix_to_name(name: str, total_charge: int,
          - acylium: on the ACID name, ``oic acid``->``oylium`` /
            ``carboxylic acid``->``carbonylium``.
          - diazonium: append ``diazonium`` to the hydride name.
+       ``ylium`` and ``diazonium`` are cited at the position of their centre, which the
+       numbering of a neutral name that cites locants does not give: such a name returns ''.
 
     2. Otherwise the generic map-driven path (anion/protonated-amine etc.):
        longest trailing neutral suffix in the relevant SUFFIX_MAP wins.
@@ -1937,6 +1976,11 @@ def _apply_ion_suffix_to_name_form(name: str, total_charge: int,
 
     # --- Path 1: class-keyed cation transforms (NOT plain suffix swaps) -------
     if total_charge > 0 and cation_class in _CLASS_KEYED_CATION_TRANSFORMS:
+        # (the Blue Book) and (:41609): the suffix of 'ylium' and
+        # 'diazonium' is cited at the position of its centre, which the numbering of a neutral
+        # name that cites locants does not give (an acylium is at C-1 by definition)
+        if cation_class != 'acylium' and cites_a_locant(name):
+            return ''
         for neutral_suffix, ionic_suffix in _CLASS_KEYED_CATION_TRANSFORMS[cation_class]:
             if neutral_suffix == '':
                 # Append-only row (e.g. diazonium): no stem removal, no elision.
@@ -4271,11 +4315,23 @@ def _emit_ring_cumulative_suffix(mol, center_idx: int, suffix: str,
         # territory -> legacy (on HEAD they are 'unknown' too, so no regression).
         if _ring_bears_principal_group(ring_mol, set(ring_system)):
             return ''
+        # RC-D (, (c) the Blue Book 'monosubstituted homogeneous
+        # monocyclic rings' / the Blue Book): the locant is OMITTED on a
+        # monosubstituted HOMOGENEOUS (all-carbon) SYMMETRICAL ring where the single
+        # -ide/-ium is the only feature and every substitutable position is
+        # equivalent -> 'cyclohexanide' / 'benzenide' (the Blue Book), not
+        # 'cyclohexan-1-ide' / 'benzen-1-ide'. A heterocycle (pyrrol-1-ide) or an
+        # asymmetric / further-substituted ring KEEPS its locant. Decided by the
+        # licence checker (should_omit_locant_one Rule 4) over the NEUTRAL
+        # ring's topological symmetry, never a blind locant strip.
+        from ..assembly.naming_utils import (
+            is_only_one_substitutable_position, should_omit_locant_one)
+        _is_het = any(mol.GetAtomWithIdx(i).GetSymbol() != 'C' for i in ring_system)
+        omit_centre_locant = should_omit_locant_one(
+            context="prefix", is_ring=True, is_heterocyclic=_is_het,
+            is_monosubstituted=is_only_one_substitutable_position(ring_mol))
         try:
-            from ..namer import Orthonym
-            parent = Orthonym(
-                style='pin', _disable_opsin_validity_gate=True
-            ).name(Chem.MolToSmiles(ring_mol))
+            parent = name_neutral_ring_for_ion(ring_mol, ring_system, not omit_centre_locant)
         except (RecursionError, ValueError, RuntimeError):
             return ''
         if not parent or 'unknown' in parent.lower():
@@ -4358,21 +4414,7 @@ def _emit_ring_cumulative_suffix(mol, center_idx: int, suffix: str,
                 mol, ring_system, center_idx, parent):
             return ''
         prefix = _indicated_hydrogen_prefix(indicated_h, parent, ring_system, mol)
-        # RC-D (, (c) the Blue Book 'monosubstituted homogeneous
-        # monocyclic rings' / the Blue Book): the locant is OMITTED on a
-        # monosubstituted HOMOGENEOUS (all-carbon) SYMMETRICAL ring where the single
-        # -ide/-ium is the only feature and every substitutable position is
-        # equivalent -> 'cyclohexanide' / 'benzenide' (the Blue Book), not
-        # 'cyclohexan-1-ide' / 'benzen-1-ide'. A heterocycle (pyrrol-1-ide) or an
-        # asymmetric / further-substituted ring KEEPS its locant. Decided by the
-        # licence checker (should_omit_locant_one Rule 4) over the NEUTRAL
-        # ring's topological symmetry, never a blind locant strip.
-        from ..assembly.naming_utils import (
-            is_only_one_substitutable_position, should_omit_locant_one)
-        _is_het = any(mol.GetAtomWithIdx(i).GetSymbol() != 'C' for i in ring_system)
-        if should_omit_locant_one(
-                context="prefix", is_ring=True, is_heterocyclic=_is_het,
-                is_monosubstituted=is_only_one_substitutable_position(ring_mol)):
+        if omit_centre_locant:
             return f"{prefix}{_elide_terminal_e(parent)}{suffix}"
         return f"{prefix}{_elide_terminal_e(parent)}-{center_locant}-{suffix}"
 
@@ -6784,6 +6826,11 @@ def _name_aminium_systematic(mol, cation_site: Dict) -> str:
     if len(carbon_neighbors) == 0:
         # NH4+ -> ammonium
         return 'ammonium'
+
+    # (the Blue Book) with (:2869): the hydron of a ring atom is cited
+    # at the locant of that atom, which the name of the neutral molecule does not give
+    if atom.IsInRing():
+        return ''
 
     # Strategy: neutralize N+ to N, name the neutral amine, then convert
     # amine -> aminium (IUPAC

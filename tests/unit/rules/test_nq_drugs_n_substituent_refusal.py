@@ -113,7 +113,7 @@ def test_a_refused_n_substituent_still_abstains_at_the_pin_tier(smiles):
     # the free-valence guard: a doubly bonded silicon attachment named with a '-yl' token
     ("C=[Si](C)C", "P-29.2 guard"),
     # the B2 stereo guard: a defined C=C whose token carries no E/Z descriptor
-    ("N/C=C/OC", "B2 stereo-completeness"),
+    ("N/C=C/c1ccccc1", "B2 stereo-completeness"),
 ])
 def test_name_substituents_own_refusals_are_typed(smiles, guard, caplog):
     import logging

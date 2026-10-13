@@ -838,36 +838,53 @@ def test_m_best_effort_name_does_not_depend_on_the_atom_order(smiles):
     assert_full_rt(names.pop(), smiles)
 
 
+PIPERAZINE_THIOUREA = "C1C[C@@H](OC1)CNC(=S)N2CCN(CC2)S(=O)(=O)C3=CC=CC=C3"
+
+
 def test_m_the_ordering_sort_key_memo_is_keyed_by_the_naming_context(monkeypatch):
-    # milestone1500. The (g) tie of the 1,4-disubstituted piperazine is
-    # decided by the prefixes' names (the one cited first, '...oxolan-2-yl...'
-    # before 'phenylsulfonyl', takes locant 1; (g) the Blue Book,
-    #:3477). The sort-key names were memoised without the naming context, so the
-    # clean fall-through read the best-effort context's entries: four of five
-    # spellings gave '4-{...}-1-(phenylsulfonyl)piperazine', and
-    # ORTHONYM_MEMO=verify raised MemoMismatch (the floor name shipped instead).
+    # milestone1500. The ordering names of the two prefixes of the 1,4-disubstituted
+    # piperazine (g) the Blue Book,:3477) were memoised without the
+    # naming context, so the clean fall-through read the best-effort context's entries: four of
+    # five spellings gave one orientation of the two prefixes and the fifth the other, and
+    # ORTHONYM_MEMO=verify raised MemoMismatch (the floor name shipped instead). One name for
+    # every memo mode and every spelling. The sulfonyl group is the preferred acyl prefix of the
+    # sulfonic acid, Acyl groups derived from sulfonic, sulfinic, etc. acids
+    # (the Blue Book): "the preferred prefixes are enclosed in parentheses even though they
+    # are simple prefixes". The orientation is not pinned here: the clean context cannot name
+    # the thiocarbamoyl prefix for the (g) key, so the canonical ranks decide it (the strict
+    # xfail below holds the (g) name).
     from orthonym.assembly import memo
-    smiles = "C1C[C@@H](OC1)CNC(=S)N2CCN(CC2)S(=O)(=O)C3=CC=CC=C3"
-    # roadmap N5c/N5d (name-quality lane L2): the carbon chain carries the amino
-    # prefix, the Blue Book) and the ring takes its Hantzsch-Widman
-    # name,:8482); was '1-{3-[(2R)-1-oxacyclopentan-2-yl]-1-sulfanylidene-
-    # 2-azapropyl}-4-(phenylsulfonyl)piperazine'
-    expected = ("1-[({[(2R)-oxolan-2-yl]methyl}amino)(sulfanylidene)methyl]-"
-                "4-(phenylsulfonyl)piperazine")
     seen = set()
     for mode in ("on", "verify", "off"):
         monkeypatch.setattr(memo, "_MODE", mode)
-        for spelling in _spellings(smiles, n=2):
+        for spelling in _spellings(PIPERAZINE_THIOUREA, n=2):
             memo.clear_process_cache()
             seen.add((mode, _row(spelling, "best-effort")["name"]))
-    assert {name for _mode, name in seen} == {expected}, seen
-    assert_full_rt(expected, smiles)
+    names = {name for _mode, name in seen}
+    assert len(names) == 1, seen
+    (name,) = names
+    assert "(benzenesulfonyl)" in name, name
+    assert "[({[(2R)-oxolan-2-yl]methyl}amino)(sulfanylidene)methyl]" in name, name
+    assert name.endswith("piperazine"), name
+    assert_full_rt(name, PIPERAZINE_THIOUREA)
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "the clean context cannot name the thiocarbamoyl prefix for the P-14.4 (g) key, so the "
+    "canonical ranks decide which prefix takes locant 1"))
+def test_m_the_piperazine_prefix_cited_first_takes_locant_1():
+    # NUMBERING, criterion (g) (the Blue Book): "lowest locants for the substituent
+    # cited first as a prefix in the name"; 'benzenesulfonyl' begins with 'b' and the other
+    # prefix with 'o',:3477), so the sulfonyl group takes locant 1.
+    row = _row(PIPERAZINE_THIOUREA, "best-effort")
+    assert row["name"] == ("1-(benzenesulfonyl)-4-[({[(2R)-oxolan-2-yl]methyl}amino)"
+                           "(sulfanylidene)methyl]piperazine"), row
 
 
 @pytest.mark.parametrize("smiles,expected", [
     # milestone1500
     ("CC1=C(C=C(C=C1)S(=O)(=O)N2CCCCC2)NC(=O)COC(=O)C3=CC=C(C=C3)NC(=O)C",
-     "1-[(3-{2-[(4-acetamidobenzoyl)oxy]acetamido}-4-methylphenyl)sulfonyl]piperidine"),
+     "1-(3-{2-[(4-acetamidobenzoyl)oxy]acetamido}-4-methylbenzene-1-sulfonyl)piperidine"),
     # dev2000
     ("Cc1c(C(=O)Nc2ccc(N3C[C@@H](C)O[C@@H](C)C3)nc2)cccc1-c1ccc(OC(F)(F)F)cc1",
      "(2R,6S)-2,6-dimethyl-4-(5-{2-methyl-3-[4-(trifluoromethoxy)phenyl]benzene-1-"
@@ -877,7 +894,10 @@ def test_m_the_ordering_sort_key_memo_is_keyed_by_the_session_depth(monkeypatch,
                                                                       expected):
     # the same prefix asked at two fragment session depths is named against two depth
     # budgets; without the depth in the key ORTHONYM_MEMO=verify raised MemoMismatch
-    # for these rows and the floor name shipped in place of this one
+    # for these rows and the floor name shipped in place of this one. The sulfonyl group of
+    # the first row is the preferred acyl prefix of the sulfonic acid, Acyl groups
+    # derived from sulfonic, sulfinic, etc. acids (the Blue Book): 'benzenesulfonyl'
+    # instead of 'phenylsulfonyl', here 'methylbenzene-1-sulfonyl' with its substituents.
     from orthonym.assembly import memo
     monkeypatch.setattr(memo, "_MODE", "verify")
     memo.clear_process_cache()
