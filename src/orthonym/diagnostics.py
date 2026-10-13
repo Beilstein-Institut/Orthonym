@@ -11,7 +11,11 @@ call site are recoverable from the log.
 Interaction with the in-process JVM: HotSpot installs its own SIGSEGV handler
 when ``jvm_bridge`` starts it and chains to the handler that was installed
 before, so call this BEFORE the first naming call (the JVM starts lazily on the
-first OPSIN round-trip). Reproducing a crash with ``ORTHONYM_DISABLE_JPYPE=1``
+first OPSIN round-trip). Once the JVM is running the call does nothing: the JVM
+raises SIGSEGV itself during normal operation (implicit null checks, safepoint
+polls) and relies on its own handler, so installing faulthandler's over it kills
+the process at the next such fault, with no traceback (audit 2026-10-13).
+Reproducing a crash with ``ORTHONYM_DISABLE_JPYPE=1``
 removes the JVM from the picture entirely and gives the cleanest traceback.
 """
 from __future__ import annotations
@@ -26,8 +30,14 @@ def enable_crash_traceback() -> None:
     Writes to ``sys.stderr``. If stderr is unavailable (embedded interpreters,
     closed streams) the call is a no-op rather than an error: diagnostics must
     never change whether a name is produced.
+
+    Does nothing once the in-process JVM has started (see the module docstring).
     """
     if faulthandler.is_enabled():
+        return
+    # jpype is only in sys.modules if something imported it; no import means no JVM here.
+    jpype = sys.modules.get("jpype")
+    if jpype is not None and jpype.isJVMStarted():
         return
     try:
         faulthandler.enable(file=sys.stderr, all_threads=True)
