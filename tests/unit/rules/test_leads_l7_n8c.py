@@ -23,7 +23,8 @@ SMILES convention for sandwich complexes.
 import pytest
 from rdkit import Chem
 
-from orthonym.namer import Orthonym
+from orthonym.cli import _emit_tier_flags
+from orthonym.namer import Orthonym, _validity_gate_name_to_smiles
 from orthonym.errors import is_failure_name
 from orthonym.rules.organometallics import (
     organometallic_charge_conserved,
@@ -146,3 +147,105 @@ class TestSystematicStyle:
                 == "tricarbonyl(η⁵-cyclopentadienyl)manganese(I)")
         assert is_failure_name(Orthonym(style="pin").name(anion))
         assert is_failure_name(Orthonym(style="systematic").name(anion))
+
+
+# ---------------------------------------------------------------------------
+# The net charge a name states is the formal charge of the structure OPSIN reads
+# from it, so a charge stated by a suffix ('-ate') or a prefix ('sulfonato') counts
+# as much as a closing Ewens-Bassett number. The first version of the check read only
+# the closing number and declined correct names whose charge sits in a ligand:
+# 'O=S(=O)([O-])c1cc[c]([Hg][Cl])cc1' lost '(4-sulfonatophenyl)mercury chloride'
+# (ChEBI, best-effort tier; it round-trips exactly). A name OPSIN cannot read (the eta
+# and additive names the pin tier ships past OPSIN) still falls back to the closing
+# number, which the tests above hold.
+# Governing rule: 'Anions derived from acids' (the Blue Book,
+# 'benzoate', 'sulfonate') and 'Cationic centers on characteristic groups'
+# (:41413) state a charge in the name; core principle 2 (never emit a wrong structure)
+# is the reason the check exists.
+# ---------------------------------------------------------------------------
+
+HG_SULFONATE = "O=S(=O)([O-])c1cc[c]([Hg][Cl])cc1"
+HG_SULFONATE_NAME = "(4-sulfonatophenyl)mercury chloride"
+
+
+def _best_effort(smiles):
+    return Orthonym(style="pin", **_emit_tier_flags("best-effort")).name_tiered(smiles)
+
+
+def _round_trips_exactly(smiles, name):
+    """OPSIN's reading of ``name`` is the input: the same canonical SMILES and the same
+    full InChIKey (independent of the code under test)."""
+    parsed = _validity_gate_name_to_smiles(name)
+    assert parsed, f"OPSIN cannot read {name!r}"
+    want, got = Chem.MolFromSmiles(smiles), Chem.MolFromSmiles(parsed)
+    assert Chem.MolToSmiles(got) == Chem.MolToSmiles(want), (name, parsed)
+    assert Chem.MolToInchiKey(got) == Chem.MolToInchiKey(want), (name, parsed)
+
+
+@pytest.mark.unit
+class TestChargeStatedByTheNameIsReadByOpsin:
+    def test_sulfonato_mercury_row_keeps_its_best_effort_name(self):
+        assert Chem.GetFormalCharge(Chem.MolFromSmiles(HG_SULFONATE)) == -1
+        r = _best_effort(HG_SULFONATE)
+        assert r["name"] == HG_SULFONATE_NAME, r
+        assert r["tier"] != "abstain"
+        _round_trips_exactly(HG_SULFONATE, r["name"])
+
+    @pytest.mark.parametrize(
+        "name,smiles,conserved",
+        [
+            # the charge is stated by a prefix
+            ("(4-sulfonatophenyl)mercury chloride", HG_SULFONATE, True),
+            ("(2-sulfonatoethyl)mercury chloride", "[O-]S(=O)(=O)CC[Hg]Cl", True),
+            ("(carboxylatomethyl)(methyl)mercury", "C[Hg]CC(=O)[O-]", True),
+            # the charge is stated by a suffix
+            ("4-(chloromercurio)benzoate", "[O-]C(=O)c1ccc([Hg]Cl)cc1", True),
+            # a name that states a neutral acid does not state the anion's charge
+            ("(4-sulfophenyl)mercury chloride", HG_SULFONATE, False),
+            ("(carboxymethyl)(methyl)mercury", "C[Hg]CC(=O)[O-]", False),
+            ("4-(chloromercurio)benzoic acid", "[O-]C(=O)c1ccc([Hg]Cl)cc1", False),
+            # a name that states an anion does not describe the neutral acid
+            ("(4-sulfonatophenyl)mercury chloride",
+             "O=S(=O)(O)c1ccc([Hg]Cl)cc1", False),
+            ("4-(chloromercurio)benzoate", "OC(=O)c1ccc([Hg]Cl)cc1", False),
+        ],
+    )
+    def test_charge_of_the_name_equals_charge_of_the_input(self, name, smiles, conserved):
+        assert organometallic_charge_conserved(name, Chem.MolFromSmiles(smiles)) is conserved
+
+    def test_a_name_opsin_cannot_read_states_its_charge_by_its_closing_number(self, monkeypatch):
+        # the eta / additive names OPSIN cannot read: the Ewens-Bassett number decides
+        from orthonym.rules import organometallics as om
+        monkeypatch.setattr(om, "_opsin_read_net_charge", lambda name: None)
+        anion = Chem.MolFromSmiles(HG_SULFONATE)
+        neutral = Chem.MolFromSmiles("O=S(=O)(O)c1ccc([Hg]Cl)cc1")
+        assert organometallic_charge_conserved("(4-sulfophenyl)mercury chloride", neutral)
+        assert not organometallic_charge_conserved(HG_SULFONATE_NAME, anion)
+        chromium = Chem.MolFromSmiles("[Cr]" + ".[C-]#[O+]" * 6)
+        assert organometallic_charge_conserved("hexacarbonylchromium(0)", chromium)
+
+
+@pytest.mark.unit
+class TestArsenicRowIsNotACauseOfThisCheck:
+    """The second ChEBI row of the N8c report, 'O=[N+]([O-])c1cc([As](O)O)ccc1[O-]'
+    ('4-(dihydroxyarsanyl)-2-nitrophenolate', pin_verified before), is NOT declined by the
+    charge check: the organometallic handler is never reached for it (the arsenic is an
+    As-C acid, named by the pnictogen-oxoacid handler) and bisecting that row alone gives
+    2053a316d (item 42, 'an oxoacid with a substitutable hydrogen is a functional parent'),
+    whose nitro exemption in rules.phosphorus._organyl_or_junior_prefix lets the charged
+    router name the neutralised skeleton '(4-hydroxy-3-nitrophenyl)arsonous acid', a name
+    from which it cannot rebuild the phenolate. The class is wider than the row: every
+    anion whose neutral skeleton has an acid senior to the ionised group abstains at the
+    default tier ('4-carboxyphenolate' too). Held here until the router names the ion as
+    the principal group: anions are senior to acids)."""
+
+    @pytest.mark.xfail(strict=True, reason=(
+        "charged_router re-enters the neutralised skeleton, whose principal group is the "
+        "arsonous acid, and cannot rebuild the phenolate (first bad commit 2053a316d; "
+        "not the N8c charge check)"))
+    def test_nitrophenolate_with_arsonous_acid_prefix_is_named(self):
+        smiles = "O=[N+]([O-])c1cc([As](O)O)ccc1[O-]"
+        name = "4-(dihydroxyarsanyl)-2-nitrophenolate"
+        r = _best_effort(smiles)
+        assert r["name"] == name, r
+        _round_trips_exactly(smiles, name)
