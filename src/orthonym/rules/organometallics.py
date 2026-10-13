@@ -512,23 +512,51 @@ def stated_charge(full_name: str) -> Tuple[str, int]:
     return "net", 0
 
 
+def _opsin_read_net_charge(full_name: str) -> Optional[int]:
+    """The net formal charge of the structure OPSIN reads from ``full_name``, or None
+    when OPSIN cannot read the name (a rejected name, or no jar).
+
+    A name states its charge wherever the name puts it: a closing Ewens-Bassett number
+    ('(1-)'), a suffix ('benzoate'), a prefix ('sulfonato'). The structure OPSIN builds
+    from the name carries all of them, so its formal charge is what the name states. The
+    name goes through the shared in-process OPSIN of the validity gate, which reads
+    radicals as the naming path does (``-r``) and caches the parse. OPSIN reads none of the
+    eta / additive names ('bis(eta5-cyclopentadienyl)iron'); for those the closing number
+    is the only statement of the charge (``stated_charge``)."""
+    from rdkit import Chem
+
+    from ..namer import _validity_gate_name_to_smiles
+    smiles = _validity_gate_name_to_smiles(full_name)
+    if not smiles:
+        return None
+    parsed = Chem.MolFromSmiles(smiles)
+    return None if parsed is None else Chem.GetFormalCharge(parsed)
+
+
 def organometallic_charge_conserved(full_name: str, mol: Any) -> bool:
     """0-wrong charge-conservation veto for an assembled organometallic name.
 
-    True iff what the name states about charge (``stated_charge``) holds for the WHOLE
-    input: a stated net charge equals the formal charge of the input; a Stock number
-    equals the formal charge of the metal (the complex's charge is then that number
-    plus the charges of the ligands as drawn, so it follows); a name with neither
-    describes a neutral compound and the input must be neutral. The formula veto
-    ``_organometallic_conserves`` proves the pi-ligand atoms; it cannot see charge. A
-    dot-separated input such as ``[Fe].c1cc[cH-]c1.c1cc[cH-]c1`` (net -2) or
+    True iff what the name states about charge holds for the WHOLE input. A name that
+    OPSIN reads states the formal charge of the structure OPSIN builds from it
+    (``_opsin_read_net_charge``), whether the charge sits in a closing number, a suffix
+    ('-ate') or a prefix ('sulfonato'): it must equal the formal charge of the input.
+    A name OPSIN cannot read (the eta / additive names) states its charge by its closing
+    word (``stated_charge``): a stated net charge equals the formal charge of the input;
+    a Stock number equals the formal charge of the metal (the complex's charge is then
+    that number plus the charges of the ligands as drawn, so it follows); a name with
+    neither describes a neutral compound and the input must be neutral. A Stock number is
+    a statement about the metal alone, so it is always checked against the metal. The
+    formula veto ``_organometallic_conserves`` proves the pi-ligand atoms; it cannot see
+    charge. A dot-separated input such as ``[Fe].c1cc[cH-]c1.c1cc[cH-]c1`` (net -2) or
     ``[Cr+].c1ccccc1.c1ccccc1`` (net +1) has the same ligand atoms as the neutral
     complex, so the additive names 'bis(eta5-cyclopentadienyl)iron' /
     'bis(eta6-benzene)chromium' passed every other check and described a different
     species (and the systematic style's default Stock number 'iron(II)' states a metal
     charge the input does not have). The pin tier ships these names past OPSIN
     (namer._ORGANOMETALLIC_ADDITIVE_PIN_RE), so this predicate is the only certificate
-    of the charge.
+    of the charge. The first version read only the closing number and so declined a
+    correct name whose ligand states the charge, '(4-sulfonatophenyl)mercury chloride'
+    for the sulfonate anion.
 
     The test is on the charge, NOT on whether the metal-ligand bonds are drawn:
     dot-separated pi-ligands are the SMILES convention for sandwich complexes and the
@@ -541,16 +569,22 @@ def organometallic_charge_conserved(full_name: str, mol: Any) -> bool:
     charged complex with a charge number: 'Compounds with at least one
     metal-carbon single bond' (the Blue Book), example 'pentaammine(ethanido)
     osmium(1+) chloride'; (:39799), example 'tricarbonyl(eta7-
-    cycloheptatrienylium)molybdenum(1+)'."""
+    cycloheptatrienylium)molybdenum(1+)'. An anion or a cation of an organic ligand
+    states its charge with a suffix: 'Anions derived from acids'
+    (the Blue Book, 'benzoate', 'sulfonate') and 'Cationic centers on
+    characteristic groups' (:41413); an OPSIN reading counts it."""
     from rdkit import Chem
 
     from ..perception.metals import is_metal_element
     kind, n = stated_charge(full_name)
-    if kind == "net":
-        return n == Chem.GetFormalCharge(mol)
-    metal_charge = sum(a.GetFormalCharge() for a in mol.GetAtoms()
-                       if is_metal_element(a.GetSymbol()))
-    return n == metal_charge
+    if kind == "oxidation":
+        metal_charge = sum(a.GetFormalCharge() for a in mol.GetAtoms()
+                           if is_metal_element(a.GetSymbol()))
+        return n == metal_charge
+    read = _opsin_read_net_charge(full_name)
+    if read is not None:
+        return read == Chem.GetFormalCharge(mol)
+    return n == Chem.GetFormalCharge(mol)
 
 
 def _sigma_additive_ligands_certified(metal_complex: Any, mol: Any,
