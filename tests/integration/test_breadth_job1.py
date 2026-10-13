@@ -205,9 +205,11 @@ M03 = [
      "N-[5-phenyl-4-(2-phenylethynyl)-1H-pyrazol-3-yl]acetamide"),
     # (d) (:2891), '2-chloroethen-1-yl (preferred prefix)' (:3003)
     ("O=C(O)/C=C/c1ccc(C(=O)O)o1", "5-[(1E)-2-carboxyethen-1-yl]furan-2-carboxylic acid"),
-    # (f) (:3301): the gem-dimethyl carrier counts twice -> {2,2,4,6}
+    # (f) (:3301): the gem-dimethyl carrier counts twice -> {2,2,4,6}; (:7446) the
+    # marks of the group that holds a '[...]' are braces, the parentheses of the descriptor being
+    # the first level,:7488)
     ("C=C1C[C@@H](O)CC(C)(C)[C@@H]1/C=C/C1=CC(=O)OC1",
-     "4-[(1E)-2-[(1S,4S)-4-hydroxy-2,2-dimethyl-6-methylidenecyclohexyl]ethen-1-yl]"
+     "4-{(1E)-2-[(1S,4S)-4-hydroxy-2,2-dimethyl-6-methylidenecyclohexyl]ethen-1-yl}"
      "furan-2(5H)-one"),
     # (e) (:3288-3290): 'ene' before the prefixes
     ("CC1=CCC(CC1)C(=C)CCO", "3-(4-methylcyclohex-3-en-1-yl)but-3-en-1-ol"),

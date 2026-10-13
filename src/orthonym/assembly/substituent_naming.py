@@ -2334,9 +2334,9 @@ def _name_polyfunctional_acyclic_substituent_impl(
                     mol, sorted(branch), r_idx, [c_idx])
                 if not rname or rname == 'substituent':
                     return None
-                from .naming_utils import needs_brackets
+                from .naming_utils import apply_enclosing_marks, needs_brackets
                 if needs_brackets(rname):
-                    rname = f"({rname})"
+                    rname = apply_enclosing_marks(rname, -1)  # (the Blue Book): '[(1S)-...]'
                 claimed |= branch
                 consumed |= branch
                 ring_branch_hosts.setdefault(c_idx, []).append(rname)
@@ -3483,9 +3483,9 @@ def _name_polyfunctional_acyclic_substituent_impl(
 
     # tail #22 /: a MONONUCLEAR substituent core
     # (single backbone carbon, locants elided) bearing >=2 simple detachable
-    # prefixes must cite the FIRST bare and enclose EACH of the rest. The bare
-    # concatenation is ambiguous -- '-CH(NH2)(COOH)' spelled 'aminocarboxymethyl'
-    # RT-parses as amino + carboxymethyl (a different molecule), while
+    # prefixes must cite the FIRST as it is (bare, or with its own marks,:44964) and enclose
+    # EACH of the rest. The bare concatenation is ambiguous -- '-CH(NH2)(COOH)' spelled
+    # 'aminocarboxymethyl' RT-parses as amino + carboxymethyl (a different molecule), while
     # 'amino(carboxy)methyl' round-trips. BB witnesses: '[amino(imino)methyl]',
     # '[hydroxy(imino)methyl]' (:34268,:33425). Scoped to single_position: a
     # multi-carbon backbone carries locants that already disambiguate

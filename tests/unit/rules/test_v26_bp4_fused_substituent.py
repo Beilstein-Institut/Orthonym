@@ -263,7 +263,7 @@ class TestBP3ClusterRDecoratedRingSubstituent:
         # 2026-09-25 (pre-existing-failures plan, Task 5) change-asserted-value:
         # cites indicated hydrogen for the mancude parent whatever sits on the pyrrole-type atom; a substituent group keeps it: "(1H-indol-1-yl)acetic acid (PIN)" (the Blue Book). OPSIN RT exact.
         ("O=C(c1ccccc1)c1cc(C)n(C)n1",
-         "(1,5-dimethyl-1H-pyrazol-3-yl)phenylmethanone"),
+         "(1,5-dimethyl-1H-pyrazol-3-yl)(phenyl)methanone"),
         # (item 2): — a one-carbon `methanone` has a single
         # position, so the `-1-` locant is omitted (matches the sibling rows
         # above; RT-verified 2026-09-04, ITEM2-VERIFICATION.md).

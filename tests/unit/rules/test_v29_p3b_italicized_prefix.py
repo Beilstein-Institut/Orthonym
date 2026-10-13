@@ -199,9 +199,18 @@ def test_apply_mononuclear_enclosing_is_the_one_implementation():
         "tert-butyl", "(methyl)", "(chloro)"]
     assert encl(["sec-butyl", "methyl"], True) == ["sec-butyl", "(methyl)"]
     #... and the carve-out stays narrow: a COMPOUND remainder is still compound,
-    # so the transform correctly does not fire for it
-    assert encl(["tert-butylsulfanyl", "methyl"], True) == [
-        "tert-butylsulfanyl", "methyl"]
+    # so it is left as it is (the caller encloses a compound prefix,
+    assert encl(["methyl", "tert-butylsulfanyl"], True) == [
+        "methyl", "tert-butylsulfanyl"]
+    # (the Blue Book): "the first cited substituent never has enclosing marks
+    # unless it includes a locant. The second and further substituents are each enclosed with
+    # parentheses even for simple substituents": a first prefix with marks of its own stays as it
+    # is and each simple one after it is enclosed ('(4-chlorophenyl)(phenyl)methanone oxime',:47666)
+    assert encl(["(4-chlorophenyl)", "phenyl"], True) == ["(4-chlorophenyl)", "(phenyl)"]
+    assert encl(["(oxolan-2-yl)", "hydroxy", "(phenyl)"], True) == [
+        "(oxolan-2-yl)", "(hydroxy)", "(phenyl)"]
+    # a multiplied prefix keeps the all-bare carve-out
+    assert encl(["(4-chlorophenyl)", "dimethyl"], True) == ["(4-chlorophenyl)", "dimethyl"]
     # unchanged for prefixes that never had a hyphen
     assert encl(["bromo", "chloro", "fluoro"], True) == [
         "bromo", "(chloro)", "(fluoro)"]

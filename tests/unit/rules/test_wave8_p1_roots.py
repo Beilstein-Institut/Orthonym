@@ -79,7 +79,9 @@ def test_r6_substituted_diaryl_ketone_unregressed():
     """The systematic diaryl-ketone builder must stay correct for non-retained
     cases (regression guard for the benzophenone demotion)."""
     from orthonym.namer import name_compound
-    assert name_compound("O=C(c1ccccc1)c1ccc(C)cc1", style="pin") == "(4-methylphenyl)phenylmethanone"
+    # (the Blue Book): "The second and further substituents are each enclosed with
+    # parentheses even for simple substituents"; '(4-chlorophenyl)(phenyl)methanone oxime' (:47666)
+    assert name_compound("O=C(c1ccccc1)c1ccc(C)cc1", style="pin") == "(4-methylphenyl)(phenyl)methanone"
 
 
 def test_r12_fusion_diol_no_java_no_atom_drop():

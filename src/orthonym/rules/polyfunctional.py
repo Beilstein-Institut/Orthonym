@@ -1780,7 +1780,7 @@ def _mononuclear_prefix_texts(prefixes: List[str], chain_length: int) -> List[st
     if chain_length != 1 or any(starts_with_locant(p) for p in prefixes):
         return prefixes
     from ..assembly.composition_primitives import apply_mononuclear_enclosing
-    return apply_mononuclear_enclosing(prefixes, True, enclose_after_marked_first=True)
+    return apply_mononuclear_enclosing(prefixes, True)
 
 
 def name_polyfunctional(features: Any) -> Optional[str]:

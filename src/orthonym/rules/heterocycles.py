@@ -5720,7 +5720,7 @@ def _format_n_substituent(name: str, count: int, locants=None) -> str:
             # '(S)-sec-butyl' under a numeric locant needs
             # brackets: '1-[(S)-sec-butyl]...' (the naive startswith('(')
             # check skipped enclosure and emitted '1-(S)-sec-butyl...').
-            display = f'[{name}]'
+            display = apply_enclosing_marks(name, -1)  # next mark of (:7446), as below
         elif not _fully_enclosed(name) and (
                 is_complex_substituent(name) or needs_brackets(name)
                 or any(mark in name for mark in '([{')):
@@ -5792,9 +5792,9 @@ def _format_c_substituent(name: str, locants: List[int], count: int,
     # _fully_enclosed is defined at module level (shared with _format_n_substituent)
 
     if _has_stereo_prefix(name):
-        # Name has CIP stereo prefix like "(R)-sec-butyl":
-        # use square brackets per IUPAC
-        display_name = f'[{name}]'
+        # Name has CIP stereo prefix like "(R)-sec-butyl": the descriptor's parentheses count
+        #,:7488), so '[(R)-...]', and '{...}' once the name holds a '[...]' (:7446)
+        display_name = apply_enclosing_marks(name, -1)
     elif not _fully_enclosed(name) and (
             is_complex_substituent(name) or needs_brackets(name)
             or any(mark in name for mark in '([{')):
