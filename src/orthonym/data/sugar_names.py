@@ -3913,6 +3913,14 @@ def _escalate_enclosing_marks(name: str, token: str, replacement: str) -> Option
     close_i = enclosing_closer(name, i + len(token), '(')
     if close_i is None:
         return None
+    # A group that holds NOTHING but the token is a prefix of the parent in its own right
+    # ('(4-hydroxyphenyl)(methoxy)acetonitrile': the second prefix of a one-position parent is
+    # enclosed,, the Blue Book), not a methoxy inside a compound prefix. The
+    # splice would double-enclose it ('[(glycosyloxy)]') and leave the glycosyloxy where
+    # 'methoxy' sorted, not where its own name does,:3446): decline, so the structural
+    # route cites the prefixes in order ('(β-D-glucopyranosyloxy)(4-hydroxyphenyl)acetonitrile').
+    if name[open_i + 1:close_i] == token:
+        return None
     inner = pat.sub(replacement, name[open_i + 1:close_i])
     # The spliced group now carries the replacement's marks, so it and every
     # group enclosing it move up the order (the Blue Book); a

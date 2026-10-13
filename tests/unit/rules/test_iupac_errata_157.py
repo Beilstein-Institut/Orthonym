@@ -551,6 +551,10 @@ _DEHYDRO_SITES = {
     "rules/heterocycles.py",
     "rules/partial_saturation.py",
     "decomposition/fragment_assembly.py",
+    # docstrings that quote (e)(i) "low locants are given to hydro/dehydro prefixes": they
+    # rank the locants of names already built, they build no dehydro prefix
+    "assembly/form_choice.py",
+    "rules/ring_cation_hydro.py",
 }
 
 

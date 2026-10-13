@@ -479,6 +479,17 @@ def retained_acetic_systematic(retained: str) -> Optional[str]:
     return _RETAINED_ACETIC_SYSTEMATIC.get(retained)
 
 
+# (the Blue Book 'CH3-COOH acetic acid (PIN) ethanoic acid') and
+# (:34754 'CH3-CN acetonitrile (PIN) ethanenitrile', "with unlimited substitution"): the two-
+# carbon chain parents whose PIN is a retained name, keyed by the suffix the systematic chain
+# name would carry. Each has ONE substitutable position (the alpha carbon: the acid O-H sits on
+# a chalcogen and the nitrile carbon has no hydrogen,:3007), so omits
+# every substituent locant. The producers gate their retained arm on this table and pass the
+# value as ``parent=`` below: one home for which suffixes are retained. (Acetamide keeps its
+# locants -- N and C-2 are both substitutable -- and acetaldehyde has its own, narrower arm.)
+RETAINED_C2_PARENT_BY_SUFFIX = {"oic acid": "acetic acid", "nitrile": "acetonitrile"}
+
+
 def retained_acetic_from_prefixes(
     prefix_texts: List[str],
     stereo: str = "",
@@ -486,13 +497,13 @@ def retained_acetic_from_prefixes(
     enclose_subsequent: bool = False,
 ) -> str:
     """Assemble a SUBSTITUTED retained-functional-parent PIN from already-formatted
-    substituent prefix strings / retained functional parent
-    + locant omission).
+    substituent prefix strings / / retained
+    functional parent + locant omission).
 
-    The retained parent (``acetic acid``; or ``acetaldehyde`` via ``parent=``, per
-     has a single substitutable position (the alpha carbon), so ALL
-    substituent locants are omitted while multipliers and any INTERNAL locants of
-    a complex substituent are preserved::
+    The retained parent (``acetic acid``; ``acetonitrile`` or ``acetaldehyde`` via
+    ``parent=``, per and has a single substitutable position
+    (the alpha carbon), so ALL substituent locants are omitted while multipliers and any
+    INTERNAL locants of a complex substituent are preserved::
 
         ['2-chloro'] -> 'chloroacetic acid'
         ['2,2-difluoro'] -> 'difluoroacetic acid' (BB 3037)
@@ -500,6 +511,8 @@ def retained_acetic_from_prefixes(
         ['2-(4-chlorophenoxy)'] -> '(4-chlorophenoxy)acetic acid'
         ['2-phenoxy'], parent='acetaldehyde'
                                   -> 'phenoxyacetaldehyde' (BB 35076)
+        ['2-(3-bromophenyl)'], parent='acetonitrile'
+                                  -> '(3-bromophenyl)acetonitrile' (BB 34827)
 
     ``enclose_subsequent`` worked examples ``cyclopropyl(hydroxy)-
     acetaldehyde`` BB 45259, ``cyclobutyl(cyclopropyl)methanol`` BB 45247):

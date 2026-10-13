@@ -80,6 +80,7 @@ from ...data.chain_names import get_chain_prefix
 from ...data.multipliers import multiplier_table
 from ...rules.locants import get_bond_locants, get_functional_group_locants
 from ...rules.seniority import get_prefix, get_suffix
+from ..composition_primitives import RETAINED_C2_PARENT_BY_SUFFIX
 from ..naming_utils import (
     BRANCH_HANDLED_FGS,
     SIMPLE_MULTIPLIERS,
@@ -2449,11 +2450,12 @@ def _l6_prefix_locants_omitted(features: Any, fragments: List["NameFragment"]) -
             return False
     if suffixes and any(str(l).isdigit() for l in (suffixes[0].locants or [])):
         return False
-    # The substituted acetic acid has its own arm in `_assemble_fragments` (the
-    # retained parent, the same omission, and the located spelling it records for
-    # the amido converter), which needs the fragments' locants.
+    # The substituted acetic acid and acetonitrile (``RETAINED_C2_PARENT_BY_SUFFIX``) have
+    # their own arm in `_assemble_fragments` (the retained parent, the same omission, and for
+    # the acid the located spelling it records for the amido converter), which needs the
+    # fragments' locants: a multiplier is read off them.
     if (parents[0].text == "eth" and suffixes
-            and suffixes[0].text == "oic acid"):
+            and suffixes[0].text in RETAINED_C2_PARENT_BY_SUFFIX):
         return False
     groups = set()
     for match in (getattr(features, "principal_group_atoms", None) or ()):
@@ -3108,26 +3110,24 @@ def _assemble_fragments(
     # because its ONLY substitutable position is the alpha-carbon, ALL
     # substituent locants are OMITTED — 'chloroacetic acid', 'difluoroacetic
     # acid' (BB 3037: "not 2,2-difluoroacetic acid"), 'phenylacetic acid' (BB
-    # 6694), 'cyanoacetic acid' (BB 30999), '(4-chlorophenoxy)acetic acid'.
-    # Substitution is limited to prefixes of LOWER seniority than the acid
-    # — satisfied by construction here: the acid is the PCG
-    # (suffix) and everything else is a prefix; a second acid would form a longer
-    # diacid parent and never reach this 2-carbon monoacid branch. Bare CH3-COOH
-    # is caught upstream by the exact-SMILES retained-name lookup. A stereo
+    # 6694), 'cyanoacetic acid' (BB 30999), '(4-chlorophenoxy)acetic acid'. The
+    # 2-carbon nitrile is the same case:34750 "with unlimited
+    # substitution"; '(3-bromophenyl)acetonitrile (PIN)':34827, 'cyclopropyl
+    # (fluoro)acetonitrile (PIN)':7314): RETAINED_C2_PARENT_BY_SUFFIX names both.
+    # Prefixes of LOWER seniority than the suffix only — true by
+    # construction: a second acid/nitrile would make a longer chain parent. Bare
+    # CH3-COOH is caught upstream by the exact-SMILES retained-name lookup. A stereo
     # descriptor on the 2-carbon parent can only be the alpha carbon's '(2R)-',
     # cited bare on the locant-free parent, the Blue Book; '(R)-
-    # {...}acetic acid (PIN)':45731; TRIAGE j12 findings 2/4/7 -- it used to keep
-    # the systematic '(2R)-2-bromo-2-chloroethanoic acid' at pin_verified); any
-    # other stereo string keeps the systematic form. (:7304): the
-    # second and later simple substituents of the single-substitutable parent are
-    # enclosed, 'bromo(chloro)acetic acid (PIN)' (:7312; this path spelled it
-    # 'bromochloroacetic acid'), with a multiplier left outside the marks,
-    # 'hydroxydi(phenyl)acetic acid (PIN)' (:29852) -- the same assembly as the
-    # polyfunctional arm.
+    # {...}acetic acid (PIN)':45731); any other stereo string keeps the
+    # systematic form. (:7304): the second and later simple
+    # substituents of the single-substitutable parent are enclosed, 'bromo(chloro)
+    # acetic acid (PIN)' (:7312), with a multiplier left outside the marks,
+    # 'hydroxydi(phenyl)acetic acid (PIN)' (:29852) -- as in the polyfunctional arm.
     _acetic_stereo = re.fullmatch(r"\(2([RSrs])\)-", stereo) if stereo else None
-    _is_substituted_acetic = (
+    _is_substituted_retained_c2 = (
         stem == "eth" and prefix_str
-        and suffix_frag and suffix_frag.text == "oic acid"
+        and suffix_frag and suffix_frag.text in RETAINED_C2_PARENT_BY_SUFFIX
         and not double_locants and not triple_locants
         and max(len(list(suffix_frag.locants) if suffix_frag.locants else []),
                 getattr(suffix_frag, 'count', 1)) == 1
@@ -3217,15 +3217,16 @@ def _assemble_fragments(
     if stereo:
         name = f"{stereo}{name}"
 
-    if _is_substituted_acetic:
+    if _is_substituted_retained_c2:
         from ..composition_primitives import (
             record_retained_acetic_systematic,
             retained_acetic_from_prefixes,
         )
         _bare = f"({_acetic_stereo.group(1)})-" if _acetic_stereo else ""
         retained = retained_acetic_from_prefixes(
-            prefix_texts, _bare, enclose_subsequent=len(prefix_texts) > 1)
-        # the systematic spelling assembled above, for the amido converter
+            prefix_texts, _bare, RETAINED_C2_PARENT_BY_SUFFIX[suffix_frag.text],
+            enclose_subsequent=len(prefix_texts) > 1)
+        # the systematic spelling assembled above, for the amido converter (acid only)
         record_retained_acetic_systematic(retained, name)
         return retained
 

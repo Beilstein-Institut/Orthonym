@@ -84,11 +84,12 @@ CASES = [
     ("CC(C)N(C)CC(=O)O", "[methyl(propan-2-yl)amino]acetic acid"),
     ("CC(C)NCC(=O)O", "[(propan-2-yl)amino]acetic acid"),
     ("CC(C)(C)NCC(=O)O", "(tert-butylamino)acetic acid"),
-    # --- esters and nitriles ---
+    # --- esters and nitriles (acetonitrile is the retained parent with unlimited
+    # substitution,, the Blue Book, and takes the acid's spelling) ---
     ("CCN(C)CC(=O)OC", "methyl [ethyl(methyl)amino]acetate"),
     ("CC(C)NCC(=O)OC", "methyl [(propan-2-yl)amino]acetate"),
-    ("CCN(C)CC#N", "2-[ethyl(methyl)amino]ethanenitrile"),
-    ("CC(C)NCC#N", "2-[(propan-2-yl)amino]ethanenitrile"),
+    ("CCN(C)CC#N", "[ethyl(methyl)amino]acetonitrile"),
+    ("CC(C)NCC#N", "[(propan-2-yl)amino]acetonitrile"),
     # --- cyclic amine on the amide: a separate producer, anchored here ---
     ("C1CCN(CC1)CC(=O)N", "2-(piperidin-1-yl)acetamide"),
     ("CN(c1ccccc1)CC(=O)N", "2-(N-methylanilino)acetamide"),

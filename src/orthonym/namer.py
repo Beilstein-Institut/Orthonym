@@ -4125,6 +4125,8 @@ from .perception.charge_shift import (
     MOBILE_N_CATION as _CHARGE_MOBILE_N,
     accepted_charge_forms as _accepted_charge_forms,
     charge_drawings,
+    charge_places as _charge_places,
+    kept_stereo as _kept_stereo,
 )
 from .perception.molcache import atoms_of, bonds_of, inchikey_of
 from .perception.smarts_cache import compiled as _compiled_smarts
@@ -4145,10 +4147,12 @@ _FORM_RUN_OWNED = contextvars.ContextVar("orthonym_form_run_owned", default=Fals
 _FORMS_MAX_HEAVY = 70
 _FORMS_MAX_STRUCTURES = 64
 _FORMS_MAX = 8
-#: the work of the choice, heavy atoms x forms, decided before any form is named: each form is a
-#: whole naming run, and a run of a peptide with an arginine takes seconds (measured at the
-#: best-effort tier: 39 heavy atoms x 4 forms 6 s; 51 x 4 15 s; 62 x 5 19 s, the cost of one form
-#: rising steeply with the size). The bound is the same for every drawing of a species and
+#: the work of the choice, heavy atoms x places of the +1 (``charge_shift.charge_places``: the
+#: Kekule structures of one placement, which RDKit's enumeration did not give, count once), decided
+#: before any form is named: each form is a whole naming run, and a run of a peptide with an
+#: arginine takes seconds (measured at the best-effort tier: 39 heavy atoms x 4 forms 6 s; 51 x 4
+#: 15 s; 62 x 5 19 s, the cost of one form rising steeply with the size). The bound is the same
+#: for every drawing of a species and
 #: does not depend on the speed of the machine, so the form chosen, and with it the name, cannot
 #: (a wall-clock cutoff made the set of forms named depend on the load). A count of pi atoms
 #: (``charge_shift.RDKIT_RESONANCE_MAX_CONJUGATED``) is taken before the forms exist and only chooses
@@ -4227,77 +4231,14 @@ def _charge_forms(smiles: str) -> Optional[Tuple[Tuple[str, Optional[Tuple[int, 
             return None
         found = _accepted_charge_forms(mol, smiles, drawings)
         if (not 2 <= len(found) <= _FORMS_MAX
-                or mol.GetNumHeavyAtoms() * len(found) > _FORMS_MAX_WORK):
+                or mol.GetNumHeavyAtoms() * _charge_places(found.values()) > _FORMS_MAX_WORK):
             return None
         return tuple(found[canonical] for canonical in sorted(found))
     except Exception:
         return None
 
 
-_LOCANT_TOKEN = re.compile(r"(?<![A-Za-z\d\[\]^.])(\d+[a-z]?|[NOPS]'*)(?![A-Za-z\d])")
-
-
-def _locant_sort_item(token: str):
-    """A locant as a sortable item: an italic letter ('N', 'N'') before the numbers, unprimed
-    before primed 'lowest locants')."""
-    if token[0].isdigit():
-        digits = re.match(r"\d+", token).group(0)
-        return (1, int(digits), token[len(digits):])
-    return (0, len(token) - 1, token[0])
-
-
-_INDICATED_H = re.compile(r"(?<![A-Za-z\d])(\d+[a-z]?(?:,\d+[a-z]?)*)H-")
-
-
-#: the locants of the hydro prefixes ('2,3-dihydro-') and of the 'de'-hydro prefixes of: (e)(i)
-_HYDRO_LOCANTS = re.compile(
-    r"(?<![A-Za-z\d\[\]^.])((?:\d+[a-z]?|[NOPS]'*)(?:,(?:\d+[a-z]?|[NOPS]'*))*)-"
-    r"(?:di|tri|tetra|penta|hexa|hepta|octa|nona|deca)?(?:de)?hydro(?![a-z])")
-
-
-def _locant_roles(name: str):
-    """(the name with its locants taken out, then the roles 'NUMBERING' (the Blue Book)
-    ranks in turn: (b) indicated hydrogen, (c) the principal characteristic group or ionic
-    suffix, (e) the hydro prefixes, (f) the detachable alphabetized prefixes 'all considered
-    together in a series of increasing numerical order' (:3301, the sorted set of their
-    locants), then (g) 'lowest locants for the substituent cited first as a prefix in the
-    name' (:3307, their locants in the order the name cites them))."""
-    indicated = tuple(_locant_sort_item(t) for m in _INDICATED_H.finditer(name)
-                      for t in m.group(1).split(','))
-    rest = _INDICATED_H.sub('H-', name)
-    ending = re.search(r"-((?:\d+[a-z]?|[NOPS]'*)(?:,(?:\d+[a-z]?|[NOPS]'*))*)-(?:ium|ide|uide|ylium|"
-                       r"ylidene|ylidyne|aminium|aminide|iminium)(?:\b|$)", rest)
-    hydro_spans = [(m.start(1), m.end(1)) for m in _HYDRO_LOCANTS.finditer(rest)]
-    suffix, hydro, cited = [], [], []
-    for m in _LOCANT_TOKEN.finditer(rest):
-        item = _locant_sort_item(m.group(1))
-        if ending is not None and ending.start(1) <= m.start(1) < ending.end(1):
-            suffix.append(item)
-        elif any(lo <= m.start(1) < hi for lo, hi in hydro_spans):
-            hydro.append(item)
-        else:
-            cited.append(item)
-    return (_LOCANT_TOKEN.sub('', rest), indicated, tuple(sorted(suffix)), tuple(sorted(hydro)),
-            tuple(sorted(cited)), tuple(cited))
-
-
-def _lower_locants(a: str, b: str) -> int:
-    """-1 if the name ``a`` has the lower locants by (b), (c), (e), (f), then (g) than
-    ``b``, 1 if ``b`` does, 0 if they tie or the two names are not the same skeleton with other
-    locants (the comparison is then left to the order of the forms).
-
-    The roles are compared in the order of the rule, each as a whole before the next: the set
-    of all the prefix locants (f) is compared before the locants of the first-cited prefix (g)
-    ('6-bromo-4-chloro-1H-1,3-benzimidazol-3-ium', the set 4,6, over '5-bromo-7-chloro-', 5,7,
-    although the first cited, bromo, has the higher locant in the first)."""
-    skeleton_a, *roles_a = _locant_roles(a)
-    skeleton_b, *roles_b = _locant_roles(b)
-    if skeleton_a != skeleton_b:
-        return 0
-    for ra, rb in zip(roles_a, roles_b):
-        if ra != rb:
-            return -1 if ra < rb else 1
-    return 0
+from .assembly.form_choice import beats as _form_name_beats
 
 
 def _form_choice_scope(fn):
@@ -8415,15 +8356,16 @@ class Orthonym:
         ``name`` call of its own; the call returns the best result, with the provenance and
         records of the run that gave it (the winner is run again last when it was not).
 
-        Best is the highest label (``_LABEL_RANK``; a failure label or a limit error is 0),
-        then the lower locants by (:func:`_lower_locants`: indicated hydrogen, suffix,
-        hydro prefixes, the set of the prefix locants, the first-cited prefix, for names that
-        differ only in their locants), then the form that comes first by canonical SMILES. The form the caller drew is one of them, so the result is never
-        lower than the one the drawing gave, and every drawing of one species gets one name:
-         'NUMBERING' (the Blue Book), 'low locants are assigned to them in the
-        following decreasing order of seniority'; the PIN of 'Cc1c[nH+]c[nH]1' is
-        '4-methyl-1H-imidazol-3-ium', as it is of 'Cc1c[nH]c[nH+]1' example
-        '1H-imidazol-3-ium (PIN)',:41396)."""
+        Best is the highest label (``_LABEL_RANK``; a failure label or a limit error is 0), then
+        the name that ``assembly.form_choice.beats`` ranks first (the form that keeps more of the
+        configured stereo elements of the input,; the fewer parts recorded as not PIN;
+        (a), the parent that holds the cation; the lower locants of and, then the
+        stereodescriptors by (j), for names that differ only in their locants), then the form that comes first by canonical SMILES.
+        The form the caller drew is one of them, so the result is never lower than the one
+        the drawing gave, and every drawing of one species gets one name: 'NUMBERING'
+        (the Blue Book), 'low locants are assigned to them in the following decreasing order
+        of seniority'; the PIN of 'Cc1c[nH+]c[nH]1' is '4-methyl-1H-imidazol-3-ium', as it is of
+        'Cc1c[nH]c[nH+]1' example '1H-imidazol-3-ium (PIN)',:41396)."""
         from .assembly.memo import (
             pop_sandbox as _memo_pop_sandbox, push_sandbox as _memo_push_sandbox)
         from .metrics import provenance as _pv
@@ -8482,6 +8424,11 @@ class Orthonym:
                 return (1, 0)
 
         from .assembly.fragment_naming import hang_budget_trips
+        try:
+            kept = _kept_stereo(Chem.MolFromSmiles(given), forms)
+        except Exception:                          # the forms are then not compared by it
+            kept = None
+        kept = kept or (None,) * len(forms)
         owned = _FORM_RUN_OWNED.set(True)
         try:
             # the form the caller drew is named first: where a hang guard fires on it, the result
@@ -8489,35 +8436,41 @@ class Orthonym:
             # forms named before it fires are the same on every run of the same string)
             drawn = next((k for k, form in enumerate(forms) if form[1] is None), 0)
             sequence = [drawn] + [k for k in range(len(forms)) if k != drawn]
-            results = {}
+            results, provenance = {}, {}
             trips = hang_budget_trips()
             for k in sequence:
                 results[k] = run(forms[k])
+                provenance[k] = _pv.get_provenance()
                 results[k] = (results[k], rank(forms[k], results[k]))
                 if hang_budget_trips() != trips:
                     break
-            # the best of the forms run, by canonical order: the highest label, then the
-            # lower locants, then the form that comes first
+            # the best of the forms run, by canonical order: the highest label, then the name
+            # that assembly.form_choice.beats ranks first (more of the input's configured stereo
+            # kept, fewer non-PIN constructs, parent that holds the cation, lower locants, fewer
+            # label-only non-PIN parts), then the form that comes first
             best = None
             for k in sorted(results):
                 result, label = results[k]
                 if best is None or label > best[2] or (
                         label == best[2] and isinstance(result, str)
                         and isinstance(best[1], str) and not is_failure_name(result)
-                        and _lower_locants(result, best[1]) < 0):
+                        and _form_name_beats(result, best[1], provenance[k], provenance[best[0]],
+                                             kept[k], kept[best[0]])):
                     best = (k, result, label)
             k = best[0]
-            # A tie that no rule decides, between a name the drawing gave and another, both
-            # labelled pin_verified (names that are not the same skeleton with other locants):
-            # at most one of them is the PIN, and which is not known here, so the drawing's name
-            # is not moved (the canonical order decides ties of the labels below the PIN only)
+            # A tie that no rule of ``form_choice.beats`` decides, between a name the drawing gave
+            # and another, both labelled pin_verified (names that are not the same skeleton with
+            # other locants): at most one of them is the PIN, and which is not known here, so the
+            # drawing's name is not moved (the canonical order decides ties of the labels below
+            # the PIN only)
             drawn_result = results.get(drawn)
             if (drawn_result is not None and k != drawn and drawn_result[1] == best[2]
                     and best[2][0] >= _LABEL_RANK.get("pin_verified", 99)
                     and isinstance(drawn_result[0], str) and isinstance(best[1], str)
                     and not is_failure_name(drawn_result[0])
                     and drawn_result[0] != best[1]
-                    and _lower_locants(best[1], drawn_result[0]) >= 0):
+                    and not _form_name_beats(best[1], drawn_result[0], provenance[best[0]],
+                                             provenance[drawn], kept[best[0]], kept[drawn])):
                 k = drawn
                 best = (k, drawn_result[0], drawn_result[1])
             # the winner is run again unless the last form named gave the same result (the
