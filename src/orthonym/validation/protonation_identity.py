@@ -41,7 +41,12 @@ Two rules, applied in order:
    records where each hydron sits, and InChI keeps charge-delocalised forms
    equal (the two resonance drawings of an amidinium or a 4-aminopyridinium give
    one fixed-H InChI), so a correct name is never rejected for drawing the
-   charge on the other resonance atom.
+   charge on the other resonance atom. A parse that puts the hydron on the other
+   nitrogen of ONE amidine group instead (an amidinium read as
+   ``CC(=N)[NH3+]`` for ``CC(N)=[NH2+]``) has another fixed-H InChI; when the name
+   cites the cationic suffix of the amidine group, 'imidamidium' or
+   'carboximidamidium', it places no hydron, and that parse is the same species
+   (``_amidinium_site_left_open``).
 
 2. Otherwise, when both structures carry a charged atom, the input carries no
    bare proton ([H+], whose site the input leaves open) and the standard InChIs
@@ -457,6 +462,59 @@ def protonation_site_verdict(input_smiles: str, parsed_smiles: str,
         lambda: _protonation_site_verdict_impl(input_smiles, parsed_smiles, name))
 
 
+#: The cationic suffix of an amidine group (1), Table 7.4): 'imidamide' / 'carboximidamide'
+#: with 'ium' added, as in '5lambda5-quinolizin-5-ylium-2-carboximidamidium (PIN)'.
+_AMIDINIUM_SUFFIX_RE = re.compile(r"imidamidium(?![a-z])")
+
+
+def _protonated_amidine_nitrogens(mol):
+    """The positively charged nitrogens of ``mol`` that bear hydrogen and stand on the carbon of an
+    amidine group: C(-N)=N+ / C(=N)-N+ with a second nitrogen on the same carbon."""
+    out = []
+    for n in mol.GetAtoms():
+        if n.GetAtomicNum() != 7 or n.GetFormalCharge() != 1 or n.GetTotalNumHs() == 0:
+            continue
+        for c in n.GetNeighbors():
+            if c.GetAtomicNum() == 6 and any(
+                    x.GetAtomicNum() == 7 and x.GetIdx() != n.GetIdx() for x in c.GetNeighbors()):
+                out.append(n.GetIdx())
+                break
+    return out
+
+
+def _amidinium_site_left_open(mi, mo, name) -> bool:
+    """True iff the name cites the cationic amidine suffix ('...imidamidium') and the parse ``mo`` is
+    the input ``mi`` with the hydron on the other nitrogen of the one amidine group.
+
+     (the Blue Book) "Cationic suffixes derived from names of... amides, imides,
+    nitriles, amines, and imines are formed by adding the suffix 'ium' to the basic suffix": the
+    amidine group is expressed by 'imidamide', so its cation by 'imidamidium', a suffix
+    that does not say which of the two nitrogens holds the hydron; the Blue Book draws the charge
+    delocalised over both ('5lambda5-quinolizin-5-ylium-2-carboximidamidium (PIN)',:42217, a
+    carbon bearing =NH2(+) and -NH2). OPSIN reads the suffix with the hydron on the amide
+    nitrogen (CC(=N)[NH3+]), which the fixed-H InChI tells from the delocalised amidinium
+    (CC(N)=[NH2+]). The two are the same species when removing one hydron from the amidine
+    nitrogen of each leaves the same structure with the hydrons on the same atoms (a counter-ion
+    included), and no other atom is a protonated onium centre. A structure with a second onium
+    centre, or a name that multiplies the suffix, is not covered."""
+    if not name or len(_AMIDINIUM_SUFFIX_RE.findall(name)) != 1:
+        return False
+    # One protonated heavy atom on each side, the amidine nitrogen: no second onium centre whose
+    # hydron could have moved; anions are compared below with everything else.
+    for m in (mi, mo):
+        if sum(1 for a in m.GetAtoms()
+               if a.GetAtomicNum() > 1 and a.GetFormalCharge() > 0 and a.GetTotalNumHs() > 0) != 1:
+            return False
+    ni, no = _protonated_amidine_nitrogens(mi), _protonated_amidine_nitrogens(mo)
+    if len(ni) != 1 or len(no) != 1:
+        return False
+    ri, ro = _neutralised(mi, ni), _neutralised(mo, no)
+    if ri is None or ro is None:
+        return False
+    fi, fo = _fixed_h_inchi(ri), _fixed_h_inchi(ro)
+    return bool(fi) and fi == fo
+
+
 def _protonation_site_verdict_impl(input_smiles: str, parsed_smiles: str,
                                    name: str = None) -> str:
     """``"n/a"``, ``"ok"`` or ``"mismatch"``.
@@ -480,7 +538,9 @@ def _protonation_site_verdict_impl(input_smiles: str, parsed_smiles: str,
         fi, fo = _fixed_h_inchi(mi), _fixed_h_inchi(mo)
         if not fi or not fo:
             return "n/a"
-        return "ok" if fi == fo else "mismatch"
+        if fi == fo:
+            return "ok"
+        return "ok" if _amidinium_site_left_open(mi, mo, name) else "mismatch"
     if not (_has_charged_atom(mi) and _has_charged_atom(mo)) or _has_bare_proton(mi):
         return "n/a"
     if _standard_inchi(mi) != _standard_inchi(mo):

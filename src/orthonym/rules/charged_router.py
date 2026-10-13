@@ -2559,6 +2559,19 @@ _OXOACID_OH = Chem.MolFromSmarts(
     "[OX2H1]-[$([CX3]=O),$([SX4](=O)=O),$([SX3]=O),$([PX4]=O)]")
 
 
+def _is_amidine_nitrogen(atom) -> bool:
+    """True if ``atom`` is a nitrogen of an amidine group, C(-N)=N: a carbon with exactly two
+    nitrogens and no chalcogen (a guanidine has three nitrogens, an isourea an oxygen)."""
+    for c in atom.GetNeighbors():
+        if c.GetAtomicNum() != 6:
+            continue
+        nbrs = [x for x in c.GetNeighbors()]
+        if (sum(1 for x in nbrs if x.GetAtomicNum() == 7) == 2
+                and not any(x.GetAtomicNum() in (8, 16, 34) for x in nbrs)):
+            return True
+    return False
+
+
 def _aminium_or_azaniumyl(neutral_name: str, sites, mol) -> str:
     """Protonated-amine cation: '-aminium' suffix vs 'azaniumyl' prefix.
 
@@ -2593,6 +2606,14 @@ def _aminium_or_azaniumyl(neutral_name: str, sites, mol) -> str:
     if any(mol.GetAtomWithIdx(site['atom_idx']).IsInRing() for site in sites['cations']):
         return ''
     low = neutral_name.strip().lower()
+    # (1) (the Blue Book): the hydron of an amidine group is expressed by the
+    # cationic suffix 'imidamidium' (Table 7.4,:41417: 'amide' -> 'amidium'), the neutral name's
+    # 'imidamide' with 'ium' added. The nitrogen is that of the principal group, not an 'amino'
+    # prefix: swapping a free amino group of the neutral name to 'azaniumyl' would put the charge
+    # on another atom.
+    if (n_cation_sites == 1 and low.endswith('imidamide')
+            and _is_amidine_nitrogen(mol.GetAtomWithIdx(sites['cations'][0]['atom_idx']))):
+        return name_aminium_cation(neutral_name)
     is_principal = (low == 'ammonia' or low.endswith('amine')
                     or low.endswith('amin') or low.endswith('ane'))
     if (not is_principal) and n_cation_sites == 1 and low.count('amino') == 1:

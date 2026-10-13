@@ -26,6 +26,8 @@ import re
 from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
+from .pyrrole_type import is_pyrrole_type
+
 logger = logging.getLogger(__name__)
 
 from rdkit import Chem
@@ -1134,7 +1136,7 @@ def _mancude_monocycle_parent(mol, ring_atoms):
     # — an explicit ring-H at that atom completes the mancude 6-pi aromatic count.
     ring_xh = [i for i in sorted(ring)
                if mol.GetAtomWithIdx(i).GetSymbol() in ('N', 'P')]
-    mol_nh = frozenset(i for i in ring_xh if mol.GetAtomWithIdx(i).GetTotalNumHs() >= 1)
+    mol_nh = frozenset(i for i in ring_xh if is_pyrrole_type(mol.GetAtomWithIdx(i)))
     nh_options = [mol_nh, frozenset()]
     for r in range(1, len(ring_xh) + 1):
         nh_options.extend(frozenset(c) for c in combinations(ring_xh, r))
