@@ -4121,6 +4121,11 @@ def validate_binding_proof(value: str) -> str:
 
 
 import functools as _functools
+from .perception.charge_shift import (
+    MOBILE_N_CATION as _CHARGE_MOBILE_N,
+    accepted_charge_forms as _accepted_charge_forms,
+    charge_drawings,
+)
 from .perception.molcache import atoms_of, bonds_of, inchikey_of
 from .perception.smarts_cache import compiled as _compiled_smarts
 
@@ -4136,10 +4141,6 @@ def _caller_input() -> Optional[str]:
 #: Set while ``Orthonym._name_with_form_choice`` runs one charge form of an input.
 _FORM_RUN_OWNED = contextvars.ContextVar("orthonym_form_run_owned", default=False)
 
-#: A cationic nitrogen that can hand its charge on: an N+ with a double or aromatic bond that is
-#: no nitro group or N-oxide (the charge of those sits on the oxygen).
-_CHARGE_MOBILE_N = Chem.MolFromSmarts(
-    '[#7+;!$([#7+]~[#8-]);!$([#7+]=[#8]);$([#7+]=*),$([#7+]:*)]')
 #: bounds of the form enumeration: a larger or more delocalised input is named as drawn
 _FORMS_MAX_HEAVY = 70
 _FORMS_MAX_STRUCTURES = 64
@@ -4149,15 +4150,24 @@ _FORMS_MAX = 8
 #: best-effort tier: 39 heavy atoms x 4 forms 6 s; 51 x 4 15 s; 62 x 5 19 s, the cost of one form
 #: rising steeply with the size). The bound is the same for every drawing of a species and
 #: does not depend on the speed of the machine, so the form chosen, and with it the name, cannot
-#: (a wall-clock cutoff made the set of forms named depend on the load)
+#: (a wall-clock cutoff made the set of forms named depend on the load). A count of pi atoms
+#: (``charge_shift.RDKIT_RESONANCE_MAX_CONJUGATED``) is taken before the forms exist and only chooses
+#: who draws them, RDKit at or below it and a matching of the pi bonds above it; the forms that
+#: result meet the bounds above either way
 _FORMS_MAX_WORK = 160
 
 
-def _exocyclic_double_bonds_to_aromatic(mol) -> int:
-    """The number of double bonds between an aromatic atom and an atom that is not."""
-    return sum(1 for bond in mol.GetBonds()
-               if bond.GetBondType() == Chem.BondType.DOUBLE
-               and bond.GetBeginAtom().GetIsAromatic() != bond.GetEndAtom().GetIsAromatic())
+def _rdkit_charge_candidates(mol) -> List[Optional[Chem.Mol]]:
+    """Every resonance drawing of ``mol`` that RDKit enumerates, in RDKit's order (``None`` where
+    RDKit gives none): ``UNCONSTRAINED_CATIONS`` structures, at most ``_FORMS_MAX_STRUCTURES`` of
+    them. This is the one place the form enumeration of:func:`_charge_forms` asks RDKit, and only
+    for a pi system that:func:`charge_drawings` finds small;:func:`_accepted_charge_forms`
+    decides which of the drawings are forms of the species."""
+    from rdkit.Chem import rdchem
+    supplier = rdchem.ResonanceMolSupplier(
+        mol, rdchem.ResonanceFlags.UNCONSTRAINED_CATIONS, _FORMS_MAX_STRUCTURES)
+    supplier.SetNumThreads(1)
+    return [supplier[i] for i in range(len(supplier))]
 
 
 @_functools.lru_cache(maxsize=512)
@@ -4194,14 +4204,16 @@ def _charge_forms(smiles: str) -> Optional[Tuple[Tuple[str, Optional[Tuple[int, 
 
     Bounded (a 215-atom mixture blew up the enumeration): at most ``_FORMS_MAX_HEAVY`` heavy
     atoms, ``_FORMS_MAX_STRUCTURES`` resonance structures, ``_FORMS_MAX`` forms, and
-    ``_FORMS_MAX_WORK`` heavy atoms x forms. None for an
-    input with a lone-pair stereocentre, whose standard reading depends on where it is written
-    (:func:`_lone_pair_standard_spelling`), and for a CXSMILES string (its stereo groups are
-    read first,:func:`_enhanced_stereo_cleared_spelling`)."""
+    ``_FORMS_MAX_WORK`` heavy atoms x forms. RDKit enumerates the structures only when the largest
+    pi system has at most ``RDKIT_RESONANCE_MAX_CONJUGATED`` atoms (it builds every bond-order
+    arrangement of a conjugated group and cannot be interrupted); the forms of a larger system come
+    from a matching of its pi bonds (:func:`charge_drawings`), and where that cannot decide the
+    input is named as drawn. None for an input with a lone-pair stereocentre, whose standard reading
+    depends on where it is written (:func:`_lone_pair_standard_spelling`), and for a CXSMILES string
+    (its stereo groups are read first,:func:`_enhanced_stereo_cleared_spelling`)."""
     if not smiles or '|' in smiles or '+' not in smiles:
         return None
     try:
-        from rdkit.Chem import rdchem
         mol = Chem.MolFromSmiles(smiles)
         if (mol is None or mol.GetNumHeavyAtoms() > _FORMS_MAX_HEAVY
                 or not mol.HasSubstructMatch(_CHARGE_MOBILE_N)
@@ -4210,48 +4222,10 @@ def _charge_forms(smiles: str) -> Optional[Tuple[Tuple[str, Optional[Tuple[int, 
         key = Chem.MolToInchiKey(mol)
         if not key:
             return None
-        supplier = rdchem.ResonanceMolSupplier(
-            mol, rdchem.ResonanceFlags.UNCONSTRAINED_CATIONS, _FORMS_MAX_STRUCTURES)
-        supplier.SetNumThreads(1)
-        base_h = [a.GetTotalNumHs() for a in mol.GetAtoms()]
-        base_charge = [a.GetFormalCharge() for a in mol.GetAtoms()]
-        is_n = [a.GetSymbol() == 'N' for a in mol.GetAtoms()]
-        n_charges = sorted(c for k, c in enumerate(base_charge) if is_n[k])
-        drawn = Chem.MolToSmiles(mol)
-        exocyclic = _exocyclic_double_bonds_to_aromatic(mol)
-        found: Dict[str, Tuple[str, Optional[Tuple[int, ...]]]] = {drawn: (smiles, None)}
-        for i in range(len(supplier)):
-            form = supplier[i]
-            if form is None:
-                continue
-            try:
-                form = Chem.Mol(form)
-                Chem.SanitizeMol(form)
-            except Exception:
-                continue
-            charge = [a.GetFormalCharge() for a in form.GetAtoms()]
-            lost = {k for k in range(len(charge)) if base_charge[k] == 1 and charge[k] == 0}
-            gained = {k for k in range(len(charge)) if base_charge[k] == 0 and charge[k] == 1}
-            if ([a.GetTotalNumHs() for a in form.GetAtoms()] != base_h
-                    or any(a.GetNumRadicalElectrons() for a in form.GetAtoms())
-                    or any(not is_n[k] and charge[k] != base_charge[k]
-                           for k in range(len(charge)))
-                    or sorted(c for k, c in enumerate(charge) if is_n[k]) != n_charges
-                    # the +1 only changes places, and it goes onto a neutral nitrogen with three
-                    # connections (a lone pair to give: amidinium, guanidinium, azolium)
-                    or len(lost) != len(gained)
-                    or any(charge[k] != base_charge[k] and k not in lost and k not in gained
-                           for k in range(len(charge)))
-                    or any(mol.GetAtomWithIdx(k).GetTotalDegree() != 3 for k in gained)
-                    or _exocyclic_double_bonds_to_aromatic(form) != exocyclic):
-                continue
-            written = Chem.MolToSmiles(form, canonical=False)
-            order = _smiles_output_order_of(form)
-            back = Chem.MolFromSmiles(written)
-            if (back is None or order is None or back.GetNumAtoms() != mol.GetNumAtoms()
-                    or len(order) != mol.GetNumAtoms() or Chem.MolToInchiKey(back) != key):
-                continue
-            found.setdefault(Chem.MolToSmiles(back), (written, tuple(order)))
+        drawings = charge_drawings(mol, _rdkit_charge_candidates)
+        if drawings is None:
+            return None
+        found = _accepted_charge_forms(mol, smiles, drawings)
         if (not 2 <= len(found) <= _FORMS_MAX
                 or mol.GetNumHeavyAtoms() * len(found) > _FORMS_MAX_WORK):
             return None

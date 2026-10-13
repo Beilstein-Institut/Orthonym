@@ -30,6 +30,7 @@ from ..data.ion_retained_names import (
 from ..data.multipliers import multiplier_table
 from ..errors import UnnameableSubstituentError  # a voided candidate (Task 3)
 from ..errors import is_failure_name
+from ..perception import charge_shift
 from ..perception.ions import get_ion_sites
 from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..perception.molcache import inchikey_of
@@ -4580,13 +4581,58 @@ def _ring_cation_hydron_site(mol, ring_system, center_idx):
     drawn centre neutral (``C[N+]1=CNc2ccccc21``: the charge of N-1 sits on the NH of
     N-3 in the other drawing, so the cation is 1-methylbenzimidazole plus a hydron
     at N-3). Returns ``(resonance_mol, atom_idx)`` -- the lowest canonical rank
-    first, so the choice does not depend on the input's atom order -- or None."""
-    try:
-        sup = Chem.ResonanceMolSupplier(mol, 0, 64)
-        structs = [sup[i] for i in range(len(sup))]
-    except Exception:
+    first, so the choice does not depend on the input's atom order -- or None.
+    None is returned without enumerating when no other ring heteroatom carries a
+    hydrogen (``_other_ring_heteroatom_with_hydrogen``), and when the structures
+    cannot be had (``_hydron_site_candidates``). The structures are RDKit's when
+    ``charge_shift.pi_work(mol)`` (W0) is at most ``RDKIT_RESONANCE0_MAX_WORK`` and
+    those of a matching of the pi bonds above it: RDKit's cost without a flag
+    follows the charge-dense acyclic groups and no call is made above that count."""
+    if not _other_ring_heteroatom_with_hydrogen(mol, ring_system, center_idx):
+        return None
+    found = _hydron_site_candidates(mol, ring_system, center_idx)
+    if not found:
         return None
     rank = list(Chem.CanonicalRankAtoms(mol, breakTies=True))
+    site = min(found, key=lambda i: rank[i])
+    res = Chem.Mol(found[site])
+    try:
+        Chem.SanitizeMol(res)
+    except Exception:
+        return None
+    return res, site
+
+
+def _hydron_site_candidates(mol, ring_system, center_idx) -> Dict[int, Any]:
+    """{ring atom: a resonance structure of ``mol`` with the drawn centre neutral and +1 on that atom}.
+
+    RDKit builds every bond-order arrangement of each group that carries charge or
+    N=X bonds and its C++ call cannot be interrupted, so it is asked only when
+    ``charge_shift.rdkit_flags0_affordable(mol)``; above that count the structures
+    come from the matching of the pi bonds (``charge_shift.hydron_sites``). An
+    undecided matching, and an error in either route, give {}: the molecule has no
+    site here and RDKit is never asked in the matching's place."""
+    if charge_shift.rdkit_flags0_affordable(mol):
+        structs = _rdkit_flags0_structures(mol)
+        return {} if structs is None else _hydron_sites_in(structs, ring_system, center_idx)
+    try:
+        return charge_shift.hydron_sites(mol, center_idx, ring_system) or {}
+    except Exception:
+        return {}
+
+
+def _rdkit_flags0_structures(mol):
+    """The resonance structures RDKit builds for ``mol`` without a flag (at most 64), or None when it fails."""
+    try:
+        sup = Chem.ResonanceMolSupplier(mol, 0, 64)
+        return [sup[i] for i in range(len(sup))]
+    except Exception:
+        return None
+
+
+def _hydron_sites_in(structs, ring_system, center_idx) -> Dict[int, Any]:
+    """{ring atom: the first structure of ``structs`` in which the centre is neutral and that atom, neither H nor C,
+    bears +1 and a hydrogen}."""
     found = {}
     for r in structs:
         if r is None or r.GetAtomWithIdx(center_idx).GetFormalCharge() != 0:
@@ -4596,15 +4642,27 @@ def _ring_cation_hydron_site(mol, ring_system, center_idx):
             if (idx != center_idx and a.GetAtomicNum() not in (1, 6)
                     and a.GetFormalCharge() == 1 and a.GetTotalNumHs() >= 1):
                 found.setdefault(idx, r)
-    if not found:
-        return None
-    site = min(found, key=lambda i: rank[i])
-    res = Chem.Mol(found[site])
-    try:
-        Chem.SanitizeMol(res)
-    except Exception:
-        return None
-    return res, site
+    return found
+
+
+def _other_ring_heteroatom_with_hydrogen(mol, ring_system, center_idx) -> bool:
+    """True when a ring atom other than the centre, neither H nor C, carries a
+    hydrogen in the drawing.
+
+    A resonance structure at flags 0 moves bond orders and charges and keeps the
+    hydrogen count of every atom (RDKit ``Resonance.cpp``, ``fixExplicitImplicitHs``:
+    only an incomplete octet, which flags 0 excludes, derives other implicit
+    hydrogens). The hydron of "General rule for systematically naming
+    cationic centers in parent hydrides" (the Blue Book),:41368: "A cation
+    derived formally by adding one or more hydrons to any position of a neutral
+    parent hydride..." can therefore sit only on a ring heteroatom that has a
+    hydrogen in the drawing; without one no structure has a hydron-carrying
+    heteroatom and the enumeration cannot find a site."""
+    for idx in ring_system:
+        atom = mol.GetAtomWithIdx(idx)
+        if idx != center_idx and atom.GetAtomicNum() not in (1, 6) and atom.GetTotalNumHs() >= 1:
+            return True
+    return False
 
 
 def _neutral_parent_ium_names(res, x: int, ring_system) -> List[str]:

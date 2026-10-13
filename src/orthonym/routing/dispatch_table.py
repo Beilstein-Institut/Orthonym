@@ -614,10 +614,18 @@ def _handle_lipid(mol, smiles, canonical_smiles, features=None, *,
     return name_lipid(mol, style=style)
 
 
+def _natural_product_name(mol) -> Optional[str]:
+    """The name this route gives: the natural-product catalogue entry, else a substituted free-base
+    porphyrin. ``porphyrin`` is a semisystematic parent (Table 10.1 (d)); the bare parent is a
+    catalogue entry and runs first, a substituted one is built on it (``rules/porphyrin.py``). Pure."""
+    from orthonym.rules.natural_products import name_natural_product
+    from orthonym.rules.porphyrin import name_substituted_porphyrin
+    return name_natural_product(mol) or name_substituted_porphyrin(mol)
+
+
 def _is_natural_product(mol, smiles, canonical_smiles, features=None, **kwargs) -> bool:
     """Tier-2; predicate IS handler (audit § 1 row 11; § 2.11 purity proof)."""
-    from orthonym.rules.natural_products import name_natural_product
-    return name_natural_product(mol) is not None
+    return _natural_product_name(mol) is not None
 
 
 def _is_peptide(mol, smiles, canonical_smiles, features=None, **kwargs) -> bool:
@@ -1448,11 +1456,10 @@ def _handle_natural_product(mol, smiles, canonical_smiles, features=None, *,
     carve-out, the paper's deliberate exception for list names (``namer._default_tier_emits``),
     not a Blue Book reading names no PIN for it). Every other natural-product name is
     returned as before."""
-    from orthonym.rules.natural_products import name_natural_product
     systematic = _systematic_pin_before_natural_product(mol)
     if systematic is not None:
         return systematic
-    name = name_natural_product(mol)
+    name = _natural_product_name(mol)
     if name:
         from orthonym.data.natural_products import NAME_EXACT_NP_PARENTS
         from orthonym.rules.bridged_fused_pin import has_bridged_fused_reading
