@@ -3071,7 +3071,11 @@ def _try_name_guanidine(features: Any) -> Optional[str]:
 
 
     mol = features.mol
-    matches = features.functional_groups.get('guanidine', [])
+    # A guanidine whose carbon is a ring atom is part of a heterocycle, not the parent
+    # 'guanidine', the Blue Book; ``guanidine_parent_matches``): the ring
+    # system is named by the ring producers, so the handler has nothing to name.
+    from ..rules.seniority import guanidine_parent_matches
+    matches = guanidine_parent_matches(mol, features.functional_groups.get('guanidine', []))
     if not matches:
         return None
 

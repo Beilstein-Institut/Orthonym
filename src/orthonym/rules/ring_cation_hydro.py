@@ -34,7 +34,8 @@ for positions of attachment of characteristic groups denoted by ionic suffixes";
 are suffixes of one name, so (c) numbers them together, the 'ium' first, before the hydro
 prefixes (e). A ring nitrogen that holds no hydron to remove (``N+(CH3)=C``) is the parent's atom plus a
 hydron, then substituted above, example '1-methylpyridin-1-ium (PIN)',:41394): its
-substituent is a prefix at the locant of the 'ium' (``hydron_site_parent``).
+substituent is a prefix at the locant of the 'ium' (``hydron_site_parent``). The descriptors of a ring name
+that carries its own numbering are cited by the ring's producer (``ring_stereo_prefix``).
 """
 import re
 
@@ -81,6 +82,52 @@ def hydro_ring_zwitterion_name(mol, ring_system, cation_idx: int, anion_idx: int
                                        (anion_idx, carboxyl_c, ring_attach), substituents)
     except (RuntimeError, ValueError, KeyError, IndexError, TypeError, RecursionError):
         return ''
+
+
+def ring_stereo_prefix(mol, locants):
+    """The front block of descriptors of the ring atoms in ``locants`` (atom index -> locant of the name's
+    numbering): '(2S,4R)-', or '' for a ring that has none. "NAMING OF STEREOISOMERS"
+    (the Blue Book),:44643: "They are placed at the front of the complete name when related to the
+    parent structure". A quaternary ring nitrogen ('[N@+]', no hydrogen) is a stereocentre of the name and is
+    cited: '(1R,2S)-1-ethyl-1-methylpyrrolidin-1-ium-2-carboxylate' is read back to the input by OPSIN. None
+    where the stereogenic ring nitrogen carries a hydrogen (a specified '[N@H+]'): OPSIN reads no descriptor
+    there ('(1R,2R)-1-methylazetidin-1-ium-2-carboxylate' does not parse), so the stereo-aware read-back that
+    every name faces could not confirm it, and the caller declines."""
+    from .stereochemistry import collect_stereodescriptors, format_stereodescriptor_string
+    descriptors = collect_stereodescriptors(mol, locants)
+    for i in locants:
+        a = mol.GetAtomWithIdx(i)
+        if a.GetAtomicNum() == 7 and a.HasProp('_CIPCode') and a.GetTotalNumHs(includeNeighbors=True):
+            return None
+    return format_stereodescriptor_string(descriptors)
+
+
+def ring_numbering_tie_key(mol, tokens_at):
+    """The key that orders two numberings of one ring name that tie on every earlier tier of the numbering
+    cascade (heteroatoms, the 'ium', the suffix, the set of substituent locants), as ``key(locants)``.
+     "NUMBERING" (the Blue Book): (g) "lowest locants for the substituent cited first as a prefix
+    in the name" (:3307; '1-methyl-4-nitronaphthalene (PIN)'), then (j) "When there is a choice for lower
+    locants related to the presence of stereogenic centers or stereoisomers, the lower locant is assigned to
+    CIP stereodescriptors Z, R, M, and r... that are preferred to E, S, P, and s" (:3346; '(2R,4S)-2,4-
+    difluoropentane (PIN)',:3383): the descriptors of the ring, then those inside the prefixes at the locant
+    of their attachment. ``tokens_at`` returns ``{prefix token: [ring atom,...]}`` (None: a prefix cannot
+    be named, the key is then empty and the caller declines). Two numberings equal under this key give the
+    same string, so the canonical-rank tie-break after it decides no name."""
+    from ..assembly.naming_utils import alpha_sort_key, cip_descriptor_rank_key, cip_locant_rank_key
+    from .stereochemistry import collect_stereodescriptors
+    cache = []
+
+    def key(locants):
+        if not cache:
+            cache.append(tokens_at())
+        tokens = cache[0]
+        if tokens is None:
+            return ()
+        placed = [(token, locants[a]) for token, atoms in tokens.items() for a in atoms]
+        return (sorted((alpha_sort_key(token), loc) for token, loc in placed),
+                cip_locant_rank_key(collect_stereodescriptors(mol, locants)),
+                sorted((loc, cip_descriptor_rank_key(token)) for token, loc in placed))
+    return key
 
 
 def neutralized_cation(mol, cation_idx: int):

@@ -1264,6 +1264,68 @@ def without_ring_skeleton_amidine(
     return {k: v for k, v in functional_groups.items() if k != 'amidine'}
 
 
+def guanidine_parent_matches(mol, matches) -> List[tuple]:
+    """The guanidine matches (N, C, =N, N) of ``matches`` whose carbon is not a ring atom: the
+    ones the retained parent 'guanidine' can name.
+
+     "Guanidine and its derivatives" (the Blue Book): "The preferred IUPAC
+    name for the 'amidine' related to carbonic acid, H2N-C(=NH)-NH2, is the retained name
+    'guanidine'", an acyclic parent hydride with the locants N, N' and N''. The carbon of a
+    guanidine has three nitrogen neighbours and no other, so a ring that runs through it holds two
+    of those nitrogens as skeletal atoms: the unit is part of a heterocycle (the ring system of
+    1,3,4,6,7,8-hexahydro-2H-pyrimido[1,2-a]pyrimidine, the 4,5-dihydro-1H-imidazole of 2-amino-
+    imidazoline), the ring system is the parent "Systems composed of rings and chains",
+    the Blue Book,:19340 "Within the same class, a ring or ring system has seniority over a
+    chain"), and no guanidine stands on it."""
+    return [m for m in matches if not mol.GetAtomWithIdx(m[1]).IsInRing()]
+
+
+def ring_skeleton_units_resolved(
+    mol,
+    functional_groups: Dict[str, List[tuple]],
+    ring_atoms,
+) -> Dict[str, List[tuple]]:
+    """``functional_groups`` as seen from the ring system ``ring_atoms``: an amidine or a guanidine
+    whose carbon is one of its skeletal atoms is a feature of the ring, not a group of its own.
+
+    A unit with all of its nitrogens among ``ring_atoms`` is the heterocycle itself and is set aside
+    (``without_ring_skeleton_amidine``, ``guanidine_parent_matches``). A unit whose one exocyclic
+    nitrogen is a terminal single-bonded -NH2 has its other nitrogens in the ring and that -NH2
+    is the amino group of an amine: "Primary amines, R-NH2, are systematically named in
+    the following ways" (the Blue Book), substitutive '-amine' (1-benzofuran-2-amine (PIN),
+    :26193; quinolin-4-amine (PIN),:26199), so the unit is replaced by a 'primary_amine' match
+    (N, C) and ranks as one. A unit with any other exocyclic part (a substituted amino, the =NH of an
+    imine, an acylated nitrogen) is kept unchanged: it is not the plain amine this function can
+    name. Groups of other kinds are untouched."""
+    groups = without_ring_skeleton_amidine(functional_groups, ring_atoms)
+    ring_atoms = set(ring_atoms)
+    drop = set()                    # (class, match) set aside
+    amines = []                     # (N, C) of the -NH2 that becomes an amine
+    for cls, c_pos, n_pos in (("amidine", 0, (1, 2)), ("guanidine", 1, (0, 2, 3))):
+        for match in groups.get(cls) or ():
+            c_idx = match[c_pos]
+            if c_idx not in ring_atoms:
+                continue
+            exo = [match[i] for i in n_pos if match[i] not in ring_atoms]
+            if not exo:
+                drop.add((cls, match))
+                continue
+            if len(exo) != 1:
+                continue
+            n = mol.GetAtomWithIdx(exo[0])
+            bond = mol.GetBondBetweenAtoms(exo[0], c_idx)
+            if (n.GetDegree() == 1 and n.GetTotalNumHs() == 2 and n.GetFormalCharge() == 0
+                    and bond is not None and bond.GetBondTypeAsDouble() == 1.0):
+                drop.add((cls, match))
+                amines.append((exo[0], c_idx))
+    if not drop:
+        return groups
+    out = {k: [m for m in v if (k, m) not in drop] for k, v in groups.items()}
+    if amines:
+        out["primary_amine"] = list(out.get("primary_amine") or []) + amines
+    return out
+
+
 def get_suffix(fg_name: str, is_ring: bool = False) -> Optional[str]:
     """
     Get the suffix form for a functional group.
