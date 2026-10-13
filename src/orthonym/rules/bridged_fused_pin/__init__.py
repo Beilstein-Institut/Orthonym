@@ -164,10 +164,14 @@ def principal_suffix(mol, system: Set[int]):
     ring system, or when one substituent carries more of it than the ring system
     : the parent has the maximum number of principal characteristic groups;
     : a ring is senior to a chain on a tie). A cyclic anhydride, ester, amide or
-    imide of the ring system is a pseudoketone (``_pseudoketone_principal``): suffix 'one'."""
+    imide of the ring system is a pseudoketone (``_pseudoketone_principal``): suffix 'one'. An
+    amidine whose carbon and both nitrogens are skeletal atoms of the ring system is the ring
+    itself, not a group (``seniority.without_ring_skeleton_amidine``)."""
     from ...perception.functional_groups import detect_functional_groups
-    from ..seniority import get_principal_group
-    groups = detect_functional_groups(mol)
+    from ..seniority import get_principal_group, without_ring_skeleton_amidine
+    # an amidine whose carbon and both nitrogens are skeletal atoms of the ring system is the ring
+    # itself, not a '-imidamide' group:34173,:34200): the DBU / DBN skeleton
+    groups = without_ring_skeleton_amidine(detect_functional_groups(mol), system)
     pg, _ = get_principal_group(mol, groups)
     outside = _unranked_groups_outside(mol, groups, system)
     if outside:

@@ -344,8 +344,33 @@ def pytest_collection_finish(session):
         "monkeypatch.setenv in the test, or pass env= to the child."))
 
 
+def _keep_hotspots_sigsegv_handler(config) -> None:
+    """Take pytest's faulthandler plugin out of the session once it has configured itself.
+
+    The plugin calls ``faulthandler.enable`` at configure, before the first test starts the
+    in-process JVM (HotSpot then chains to faulthandler's handler), and ``faulthandler.disable``
+    at unconfigure, while the JVM still runs. ``disable`` restores the disposition saved at
+    ``enable``, SIG_DFL, over HotSpot's SIGSEGV handler. The JVM raises SIGSEGV in normal
+    operation (implicit null checks, safepoint polls), so a fault during worker teardown killed
+    the worker with signal 11, unseen by xdist because no test was running (audit 2026-10-13,
+    internal notes section 1; pinned by
+    tests/unit/diagnostics/test_pytest_faulthandler_jvm.py).
+
+    Unregistering the plugin here, from the conftest every public runner loads (CI passes
+    ``-o addopts=""``, which drops anything set in pyproject.toml), removes its unconfigure half
+    and keeps the rest: faulthandler stays on for the whole session, so a native crash still
+    leaves a Python traceback. The plugin's ``faulthandler_timeout`` option stops working with it;
+    the suite's time limit is pytest-timeout's thread method. ``-p no:faulthandler`` leaves
+    nothing to unregister.
+    """
+    config.pluginmanager.unregister(name="faulthandler")
+
+
+# trylast: after the faulthandler plugin's own pytest_configure, which this undoes in part.
+@pytest.hookimpl(trylast=True)
 def pytest_configure(config):
     """Configure custom markers; snapshot the ORTHONYM_* environment; record reloads."""
+    _keep_hotspots_sigsegv_handler(config)
     _ORTHONYM_ENV_BEFORE_COLLECTION.clear()
     _ORTHONYM_ENV_BEFORE_COLLECTION.update(_orthonym_env())
     _install_reload_recorder()

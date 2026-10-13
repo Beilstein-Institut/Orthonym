@@ -21,8 +21,24 @@ hydro/dehydro prefixes" (:3288-:3289) and (f) "detachable alphabetized prefixes,
 together" (:3301). A hydro prefix is detachable but not alphabetized and stands directly before
 the parent hydride (e),:3288): '2,2-dimethyl-1,3-dioxo-2,3-dihydro-1H-isoindol-2-ium (PIN)'
 ,:41447).
+
+A zwitterion whose cationic ring atom and carboxylate share that ring (ectoine) is named by the
+same numbering with the anionic suffix added, ``hydro_ring_zwitterion_name``.
+"Zwitterionic compounds with at least one ionic center on a characteristic group"
+(the Blue Book),:42447: "Zwitterionic compounds with at least one ionic center on a
+characteristic group may be named by adding the appropriate ionic suffix to the name of the ionic
+parent hydride. In names, cationic suffixes are cited before anionic suffixes. For assignment of
+lower locants, ionic centers on skeletal atoms of the parent hydride are preferred to the locants
+for positions of attachment of characteristic groups denoted by ionic suffixes"; the example is
+'1-methyl-4,6-diphenylpyridin-1-ium-2-carboxylate (PIN)' (:42456). The 'ium' and the 'carboxylate'
+are suffixes of one name, so (c) numbers them together, the 'ium' first, before the hydro
+prefixes (e). A ring nitrogen that holds no hydron to remove (``N+(CH3)=C``) is the parent's atom plus a
+hydron, then substituted above, example '1-methylpyridin-1-ium (PIN)',:41394): its
+substituent is a prefix at the locant of the 'ium' (``hydron_site_parent``).
 """
 import re
+
+from rdkit import Chem
 
 
 def hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx: int) -> str:
@@ -43,7 +59,92 @@ def hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx: int) -> str:
         return ''
 
 
-def _hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx: int) -> str:
+def hydro_ring_zwitterion_name(mol, ring_system, cation_idx: int, anion_idx: int, anchor) -> str:
+    """The name of the zwitterion ``mol`` whose ring cation (``cation_idx``) and carboxylate
+    (``anion_idx``, its carboxyl carbon on a ring atom, ``anchor`` = (carboxyl carbon, ring atom
+    it hangs on): ``rules.ions._carboxyl_ring_anchor``) share one partially saturated mancude
+    heteromonocycle, in one numbering: '-<locant>-ium-<locant>-carboxylate' after the hydro
+    prefixes ('2-methyl-3,4,5,6-tetrahydropyrimidin-1-ium-4-carboxylate'). A cation that holds no
+    hydron (a quaternary ring nitrogen, ``N+(CH3)=C``) is the neutral parent plus a hydron, then
+    substituted (``hydron_site_parent``): '1,2-dimethyl-3,4,5,6-tetrahydropyrimidin-1-ium-4-
+    carboxylate'. '' where:func:`hydro_ring_cation_name` declines; the caller's producer then
+    stands."""
+    try:
+        ring_mol = neutralized_cation(mol, cation_idx)
+        substituents = None
+        if ring_mol is None:
+            ring_mol, substituents = hydron_site_parent(mol, ring_system, cation_idx), mol
+            if ring_mol is None:
+                return ''
+        carboxyl_c, ring_attach = anchor
+        return _hydro_ring_cation_name(mol, ring_mol, ring_system, cation_idx,
+                                       (anion_idx, carboxyl_c, ring_attach), substituents)
+    except (RuntimeError, ValueError, KeyError, IndexError, TypeError, RecursionError):
+        return ''
+
+
+def neutralized_cation(mol, cation_idx: int):
+    """``mol`` with the cation at ``cation_idx`` neutral, index-preserving: the neutral ring that
+    the '-ium' is added to: the cation is the neutral parent plus a hydron). None for
+    a cation with no hydrogen to remove (a quaternary ring nitrogen) or one that does not
+    sanitize. The hydron is not an indicated hydrogen of the parent: a numbering that reads the
+    protonated ring atom as the 'pyrrole-type' NH of the parent cites '1H-imidazol-1-ium'."""
+    from .ions import _CUMULATIVE_SUFFIX_H_DELTA
+    work = Chem.RWMol(mol)
+    a = work.GetAtomWithIdx(cation_idx)
+    target_h = a.GetTotalNumHs() + _CUMULATIVE_SUFFIX_H_DELTA['ium']
+    if target_h < 0:
+        return None
+    a.SetFormalCharge(0)
+    a.SetNumRadicalElectrons(0)
+    a.SetNoImplicit(True)
+    a.SetNumExplicitHs(target_h)
+    ring_mol = work.GetMol()
+    try:
+        Chem.SanitizeMol(ring_mol)
+    except (RuntimeError, ValueError):
+        return None
+    return ring_mol
+
+
+def hydron_site_parent(mol, ring_system, cation_idx: int):
+    """The neutral parent of a ring cation that holds no hydron to remove, index-preserving: the
+    parent hydride plus a hydron, which a substituent then replaces, the Blue Book:
+    "a cation derived formally by adding one or more hydrons to any position of a neutral parent
+    hydride"; '1-methylpyridin-1-ium (PIN)',:41394: the quaternary ring nitrogen is the parent's atom
+    plus a hydron, then substituted). For ``CC1=[N+](C)CCC(C(=O)[O-])N1`` the parent is the ring with the
+    ring nitrogen ``N=C`` and no substituent, 3,4,5,6-tetrahydropyrimidine, and the methyl on the
+    '-ium' atom is a prefix at the locant of the '-ium'. Only the cation with one exocyclic single
+    bond and no hydrogen is read so (a ring nitrogen ``N+(R)=C``); the substituent is cut from the
+    parent, not deleted, so the atom indices stay those of ``mol``, and it is cited from ``mol``.
+    None for any other cation, or one whose parent does not sanitize."""
+    ring = set(ring_system)
+    a = mol.GetAtomWithIdx(cation_idx)
+    exo = [b for b in a.GetBonds() if b.GetOtherAtomIdx(cation_idx) not in ring]
+    if a.GetTotalNumHs() or len(exo) != 1 or exo[0].GetBondType() != Chem.BondType.SINGLE:
+        return None
+    work = Chem.RWMol(mol)
+    work.RemoveBond(cation_idx, exo[0].GetOtherAtomIdx(cation_idx))
+    parent_atom = work.GetAtomWithIdx(cation_idx)
+    parent_atom.SetFormalCharge(0)
+    parent_atom.SetNoImplicit(True)
+    parent_atom.SetNumExplicitHs(0)
+    parent = work.GetMol()
+    try:
+        Chem.SanitizeMol(parent)
+    except (RuntimeError, ValueError):
+        return None
+    return parent
+
+
+def _hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx: int, anionic=None,
+                            substituents=None) -> str:
+    """The body of both entry points. ``anionic`` is None for a cation, or ``(anion_idx,
+    carboxyl_c, ring_attach)`` for a zwitterion whose carboxylate hangs on ``ring_attach``: the
+    carboxylate carbon is then a second suffix atom of the numbering, the carboxyl group is not a
+    prefix, and the name ends '-<locant>-ium-<locant>-carboxylate'. ``substituents`` is the molecule
+    the prefixes are read from where ``ring_mol`` lacks one (the substituent cut from a quaternary
+    '-ium' atom, ``hydron_site_parent``); ``ring_mol`` itself when None."""
     from .heterocycles import _mancude_hydro_select, name_partially_saturated_monocyclic_heterocycle
     from .ions import _elide_terminal_e, _join_prefix_stem, _p74_ring_substituent_prefix
     from .stereochemistry import collect_stereodescriptors, format_stereodescriptor_string
@@ -53,7 +154,14 @@ def _hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx: int) -> str:
         return ''                       # fused, bridged or spiro: the fusion numbering is fixed
     if ring_mol.GetAtomWithIdx(center_idx).GetAtomicNum() == 6:
         return ''
-    if any(a.GetFormalCharge() for a in ring_mol.GetAtoms()):
+    suffix_atoms, skip, anion_atoms = {center_idx}, set(), set()
+    if anionic is not None:
+        anion_idx, carboxyl_c, ring_attach = anionic
+        suffix_atoms.add(carboxyl_c)
+        anion_atoms = {anion_idx}
+        skip = {carboxyl_c} | {n.GetIdx() for n in ring_mol.GetAtomWithIdx(carboxyl_c).GetNeighbors()
+                               if n.GetAtomicNum() == 8}
+    if any(a.GetFormalCharge() for a in ring_mol.GetAtoms() if a.GetIdx() not in anion_atoms):
         return ''
     # A ring carbon with three nitrogen neighbours is a guanidine group. Whether its exocyclic
     # nitrogen is an 'amino' prefix of the cation or the guanidine is a parent of its own is not
@@ -64,24 +172,45 @@ def _hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx: int) -> str:
             1 for n in ring_mol.GetAtomWithIdx(i).GetNeighbors() if n.GetAtomicNum() == 7) == 3
             for i in ring_set):
         return ''
-    sel = _mancude_hydro_select(ring_mol, ring_set, {center_idx})
+    sel = _mancude_hydro_select(ring_mol, ring_set, suffix_atoms)
     if sel is None:
         return ''
     ordered, loc, ih = sel['ordered'], sel['loc'], sel['ih']
     if center_idx not in ordered or any(ordered[p] == center_idx for p in ih):
         return ''
     a2l = {ordered[p]: loc[p] for p in range(sel['n'])}
-    stem = name_partially_saturated_monocyclic_heterocycle(ring_mol, ring_system, {center_idx})
+    if anionic is not None and not _cation_locant_is_lowest(ring_mol, ring_set, center_idx, a2l):
+        return ''
+    stem = name_partially_saturated_monocyclic_heterocycle(ring_mol, ring_system, suffix_atoms)
     if not stem or 'unknown' in stem.lower() or not _stem_is_in_numbering(stem, sel):
         return ''
-    prefix = _p74_ring_substituent_prefix(ring_mol, ring_system, a2l, set())
+    prefix = _p74_ring_substituent_prefix(ring_mol if substituents is None else substituents,
+                                          ring_system, a2l, skip)
     if prefix is None:
         return ''
     # "NAMING OF STEREOISOMERS" (the Blue Book),:44643: "They are placed at the front
     # of the complete name when related to the parent structure": the ring's descriptors, in the
     # locants of the numbering this name carries.
     stereo = format_stereodescriptor_string(collect_stereodescriptors(mol, a2l))
-    return f"{stereo}{_join_prefix_stem(prefix, _elide_terminal_e(stem))}-{a2l[center_idx]}-ium"
+    name = f"{stereo}{_join_prefix_stem(prefix, _elide_terminal_e(stem))}-{a2l[center_idx]}-ium"
+    if anionic is not None:
+        name += f"-{a2l[ring_attach]}-carboxylate"
+    return name
+
+
+def _cation_locant_is_lowest(ring_mol, ring_set, center_idx: int, a2l) -> bool:
+    """ (:42447): "For assignment of lower locants, ionic centers on skeletal atoms of the
+    parent hydride are preferred to the locants for positions of attachment of characteristic
+    groups denoted by ionic suffixes." The numbering of a zwitterion is selected with both suffix
+    atoms as one set (``_mancude_hydro_select``), which ranks the set; the 'ium' comes first, so
+    the numbering stands only where it gives the cation the locant it has when the cation is the
+    only suffix."""
+    from .heterocycles import _mancude_hydro_select
+    alone = _mancude_hydro_select(ring_mol, ring_set, {center_idx})
+    if alone is None:
+        return False
+    first = {alone['ordered'][p]: alone['loc'][p] for p in range(alone['n'])}
+    return first.get(center_idx) == a2l.get(center_idx)
 
 
 def _stem_is_in_numbering(stem: str, sel) -> bool:

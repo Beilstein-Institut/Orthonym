@@ -31,6 +31,11 @@ python -m pytest tests/unit/rules/test_d1_coordination_v36.py -q
 Markers (`unit`, `integration`, `roundtrip`, `slow`, `benchmark`) are defined in
 `pyproject.toml`.
 
+The tests share one in-process JVM per pytest process. `tests/conftest.py` keeps pytest's
+`faulthandler` plugin from removing the JVM's SIGSEGV handler at the end of the session, so
+no command-line flag is needed for this. A test that must enable or disable `faulthandler`
+does it in a child process, as `tests/unit/diagnostics/test_crash_traceback.py` does.
+
 The test suite turns the OPSIN validity gate **off** by default, and with it the default
 tier's rule that only a verified preferred name is returned. A plain `name_compound` call in a
 test therefore shows what the strict path builds, which is not always what a user gets. A test
