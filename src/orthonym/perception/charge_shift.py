@@ -218,6 +218,81 @@ def accepted_charge_forms(mol, smiles: str, candidates) -> Dict[str, Tuple[str, 
     return found
 
 
+def charge_places(forms) -> int:
+    """How many different places the +1 takes among ``forms`` (the values of:func:`accepted_charge_forms`):
+    the set of atoms of the input that carry a +1 in the form, read from its string through its atom order. Two
+    forms with the +1 on the same atoms are Kekule structures of one placement, so a count of forms exceeds the
+    count of placements wherever a conjugated system that RDKit does not aromatise has more than one."""
+    places = set()
+    for string, order in forms:
+        form = Chem.MolFromSmiles(string)
+        if form is None:
+            places.add(string)
+            continue
+        places.add(frozenset(order[a.GetIdx()] if order else a.GetIdx()
+                             for a in form.GetAtoms() if a.GetFormalCharge() > 0))
+    return len(places)
+
+
+_CONFIGURED_BOND = frozenset({Chem.BondStereo.STEREOE, Chem.BondStereo.STEREOZ,
+                              Chem.BondStereo.STEREOCIS, Chem.BondStereo.STEREOTRANS})
+_CIS_BOND = frozenset({Chem.BondStereo.STEREOZ, Chem.BondStereo.STEREOCIS})
+_CONFIGURED_ATOM = frozenset({Chem.ChiralType.CHI_TETRAHEDRAL_CW, Chem.ChiralType.CHI_TETRAHEDRAL_CCW})
+
+
+def stereo_elements(mol, order: Optional[Tuple[int, ...]] = None) -> Dict[tuple, bool]:
+    """The configured stereo elements of ``mol``: each double bond that carries an E/Z (cis/trans) configuration
+    and each atom that carries a tetrahedral chiral tag, keyed by its atoms in the numbering of the INPUT
+    (``order[k]`` is the input's atom of atom k of ``mol``, as in:func:`accepted_charge_forms`; None is the
+    identity), and valued by the configuration itself in a way that does not depend on how ``mol`` numbers or
+    writes its atoms. A double bond: ``('=', {begin, end})`` is True when the lowest-numbered neighbours at the two
+    ends lie on the same side (RDKit's reference atoms of the bond, re-expressed on those neighbours). A chiral atom:
+    ``('@', atom)`` is the sense of its tag taken over its neighbours in the order of their numbers in the input.
+    Two molecules of one graph (the forms of one species share their atoms and their connections and differ in bond
+    orders and charges) can then be compared element by element."""
+    to_input = (lambda k: order[k]) if order else (lambda k: k)
+    found: Dict[tuple, bool] = {}
+    for bond in mol.GetBonds():
+        if bond.GetStereo() not in _CONFIGURED_BOND:
+            continue
+        ends = (bond.GetBeginAtom(), bond.GetEndAtom())
+        reference = list(bond.GetStereoAtoms())
+        if len(reference) != 2:
+            continue
+        same_side = bond.GetStereo() in _CIS_BOND
+        for atom, other in (ends, ends[::-1]):
+            neighbours = [to_input(n.GetIdx()) for n in atom.GetNeighbors() if n.GetIdx() != other.GetIdx()]
+            drawn = next((to_input(k) for k in reference if mol.GetBondBetweenAtoms(atom.GetIdx(), k)), None)
+            if drawn is not None and neighbours and drawn != min(neighbours):
+                same_side = not same_side
+        found[('=', frozenset(to_input(a.GetIdx()) for a in ends))] = same_side
+    for atom in mol.GetAtoms():
+        if atom.GetChiralTag() not in _CONFIGURED_ATOM:
+            continue
+        around = [to_input(b.GetOtherAtomIdx(atom.GetIdx())) for b in atom.GetBonds()]
+        swaps = sum(1 for i in range(len(around)) for j in range(i + 1, len(around)) if around[i] > around[j])
+        found[('@', to_input(atom.GetIdx()))] = (atom.GetChiralTag() == Chem.ChiralType.CHI_TETRAHEDRAL_CCW) != bool(swaps % 2)
+    return found
+
+
+def kept_stereo(mol, forms) -> Optional[Tuple[int, ...]]:
+    """For each form of ``forms`` (the values of:func:`accepted_charge_forms` for ``mol``, in that order), how many of
+    the configured stereo elements of ``mol`` (:func:`stereo_elements`) the form's own string carries with the same
+    configuration. A form is written from a Kekule structure whose double bonds are not the drawing's, and a bond that
+    is single in it carries no E/Z: the standard InChIKey that admits a form (:func:`accepted_charge_forms`) does not
+    see the bonds of a delocalised polymethine, so the key cannot say that a form has lost them. None where a form's
+    string cannot be read (the caller then does not compare the forms by this count)."""
+    wanted = stereo_elements(mol)
+    counts = []
+    for string, order in forms:
+        form = Chem.MolFromSmiles(string)
+        if form is None:
+            return None
+        mine = stereo_elements(form, order)
+        counts.append(sum(1 for key, value in wanted.items() if key in mine and mine[key] == value))
+    return tuple(counts)
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Edmonds' blossom algorithm
 # ---------------------------------------------------------------------------------------------------------------------

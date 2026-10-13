@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
+from ..assembly.composition_primitives import RETAINED_C2_PARENT_BY_SUFFIX
 from ..assembly.naming_utils import (
     BRANCH_HANDLED_FGS,
     format_suffix_with_locants,
@@ -3722,20 +3723,20 @@ def name_polyfunctional(features: Any) -> Optional[str]:
     # heteroatom-FG substituent (cyano / sulfanyl / hydroxy / aryloxy) routes
     # through this polyfunctional path uses the retained parent 'acetic acid'
     # with the alpha-carbon locants OMITTED — 'cyanoacetic acid' (BB 30999),
-    # 'sulfanylacetic acid' (BB 4967), '(4-chlorophenoxy)acetic acid'. Same rule
-    # as the general_acyclic path (_handler_shared). Guarded to a saturated
-    # 2-carbon CHAIN monoacid with substituents. A stereocentre inside a
-    # substituent is cited in that prefix ('[(2S)-2-aminopropanamido]acetic acid',
-    # j7). A stereocentre ON the chain can only be the alpha carbon, the one
+    # 'sulfanylacetic acid' (BB 4967), '(4-chlorophenoxy)acetic acid'. The 2-carbon
+    # nitrile likewise uses 'acetonitrile':34750, "with unlimited
+    # substitution"; 'hydrazinylacetonitrile (PIN)':38545); ``RETAINED_C2_PARENT_BY_SUFFIX``
+    # names both. Same rule as the general_acyclic path (_handler_shared). Guarded to
+    # a saturated 2-carbon CHAIN monofunctional parent with substituents. A stereocentre
+    # inside a substituent is cited in that prefix ('[(2S)-2-aminopropanamido]acetic
+    # acid', j7). A stereocentre ON the chain can only be the alpha carbon, the one
     # substitutable position, so its descriptor is cited bare, without the locant
     # the retained parent does not show, the Blue Book "preceded by
     # a numerical or letter locant... when such locants are present"): '(S)-
     # hydroxy(phenyl)acetic acid', as '(R)-{bis[(1R)-1-hydroxyethyl]amino}{...}
     # acetic acid (PIN)' (:45731) and '(S)-cyclopropyl(hydroxy)acetaldehyde (PIN)'
-    # (:45259). Before (TRIAGE j12 findings 2/4/7) such a centre kept the
-    # systematic '(2S)-2-hydroxy-2-phenylethanoic acid' at pin_verified; 'ethanoic
-    # acid' is the non-preferred spelling:29725 'acetic acid (PIN)
-    # ethanoic acid').
+    # (:45259). 'ethanoic acid' / 'ethanenitrile' are the non-preferred spellings
+    # (:29725,:34754).
     # An E/Z double bond that does not touch the chain lies inside a substituent,
     # whose prefix already cites its descriptor ('[(2E)-but-2-enamido]acetic
     # acid'); only a stereo bond ON the two-carbon chain (an alpha C=N) keeps the
@@ -3745,7 +3746,7 @@ def name_polyfunctional(features: Any) -> Optional[str]:
         set(_db.get('atoms', ())) & _chain_set_db
         for _db in (getattr(features, 'double_bond_stereo', None) or ()))
     _acetic_context = (
-        principal_group == 'carboxylic_acid'
+        suffix in RETAINED_C2_PARENT_BY_SUFFIX
         and chain_length == 2 and count == 1
         and not double_locants and not triple_locants
         and all_prefixes
@@ -3852,7 +3853,8 @@ def name_polyfunctional(features: Any) -> Optional[str]:
         # carbothioyl / sulfeno), double-counting the alpha carbon. Read the two
         # chalcogen substituents off the alpha carbon directly to restore the
         # correct 'oxo(sulfanyl)acetic acid' family; None keeps the normal path.
-        _alpha_name = _alpha_chalcogen_acetic_name(mol, principal_chain, atom_to_locant)
+        _alpha_name = (_alpha_chalcogen_acetic_name(mol, principal_chain, atom_to_locant)
+                       if suffix == 'oic acid' else None)
         if _alpha_name is not None:
             name = _alpha_name
             # the FG loop's prefixes double-count this alpha carbon, so sys_name
@@ -3865,8 +3867,8 @@ def name_polyfunctional(features: Any) -> Optional[str]:
             # ('anilino(oxo)acetic acid', 'hydroxydi(phenyl)acetic acid'). Single-
             # substituent rows are unaffected (the enclose pass needs len >= 2).
             name = retained_acetic_from_prefixes(
-                all_prefixes, enclose_subsequent=len(all_prefixes) > 1
-            )
+                all_prefixes, parent=RETAINED_C2_PARENT_BY_SUFFIX[suffix],
+                enclose_subsequent=len(all_prefixes) > 1)
     elif _ald_result is not None:
         # retained acetaldehyde; the helper already applied the bare
         # alpha stereodescriptor (skip the generic stereo block below).
@@ -3876,9 +3878,8 @@ def name_polyfunctional(features: Any) -> Optional[str]:
           and _single_substitutable_atom_parent(mol, features, principal_chain,
                                                 all_prefixes, double_locants,
                                                 triple_locants, _chain_ez)):
-        # (the C2 nitrile is left out: its PIN is the retained 'acetonitrile' "with
-        # unlimited substitution",, the Blue Book, and this assembly spells
-        # it 'ethanenitrile', so the omission waits for the retained stem)
+        # (the C2 nitrile is left out: the retained 'acetonitrile' arm above takes every
+        # shape it can; what reaches here keeps the located systematic 'ethanenitrile')
         # (the Blue Book) "All locants are omitted for parent
         # compounds when all substitutable hydrogen atoms have the same locant":
         # 'amino(oxo)ethaneperoxoic acid (PIN)' (:30182); the first prefix bare,

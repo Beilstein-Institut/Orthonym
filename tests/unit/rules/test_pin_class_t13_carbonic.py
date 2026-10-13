@@ -99,7 +99,7 @@ NOT_PIN_ROWS = [
     ("NC(=O)OC(N)=O", "bis(1-aminomethanoic) anhydride"),
     ("NC(=O)NC(=O)O", "1-amido-2-imidodicarbonic acid"),
     ("NC(=O)NCCO", "2-(carbamoylamino)ethan-1-ol"),
-    ("NC(=O)NCC#N", "(carbamoylamino)ethanenitrile"),
+    ("NC(=O)NCC#N", "(carbamoylamino)acetonitrile"),   # nitrile junior to urea,:18158
     ("CC(C)(C)NC(=O)NC", "N-methyl-N'-tert-butylurea"),
 ]
 # the boundary: classes senior to urea keep their own parents

@@ -28,6 +28,7 @@ import pytest
 from rdkit import Chem
 
 from orthonym import Orthonym, name_compound, namer
+from orthonym.assembly.form_choice import lower_locants
 from orthonym.cli import _emit_tier_flags
 from tests.unit.namer.leads_l1_support import opsin_key, rdkit_key
 
@@ -221,16 +222,38 @@ def test_the_enumeration_is_bounded_and_no_hydrogen_moves():
     # 2,3 are lower than 4,5 although the methyl has the higher locant in the first (a comparison of
     # the roles, not a pair of names of one compound)
     ("5-methyl-2,3-dihydro-1H-imidazol-3-ium", "2-methyl-4,5-dihydro-1H-imidazol-3-ium"),
+    # the leading configuration block is not part of the skeleton: (f) ranks the locants of the
+    # prefixes whatever the locants of the descriptors (:3301)
+    ("(4S)-4-methyl-3,4,5,6-tetrahydropyrimidin-1-ium", "(6S)-6-methyl-3,4,5,6-tetrahydropyrimidin-1-ium"),
+    ("(4R)-2,4-dimethyl-3,4,5,6-tetrahydropyrimidin-1-ium", "(6R)-2,6-dimethyl-3,4,5,6-tetrahydropyrimidin-1-ium"),
+    # (j) after (f) and (g) (:3346): of equal locants, R on the lower locant before S ('Z, R, M, and
+    # r... are preferred to E, S, P, and s'); the first point of difference decides
+    ("(4R,6S)-2,4,6-trimethyl-3,4,5,6-tetrahydropyrimidin-1-ium", "(4S,6R)-2,4,6-trimethyl-3,4,5,6-tetrahydropyrimidin-1-ium"),
+    ("rel-(1R,2S)-1,2-dimethyl-1H-imidazol-3-ium", "rel-(1S,2R)-1,2-dimethyl-1H-imidazol-3-ium"),
+    ("(2Z,4E)-hexa-2,4-dien-1-aminium", "(2E,4Z)-hexa-2,4-dien-1-aminium"),
+    # (j) is a choice of locants: the descriptor on the lower locant, the same symbols
+    ("(4R)-2,4,6-trimethyl-3,4,5,6-tetrahydropyrimidin-1-ium", "(6R)-2,4,6-trimethyl-3,4,5,6-tetrahydropyrimidin-1-ium"),
 ])
 def test_the_lower_locants_by_p14_4(a, b):
-    assert namer._lower_locants(a, b) == -1 and namer._lower_locants(b, a) == 1
-    assert namer._lower_locants(a, a) == 0
+    assert lower_locants(a, b) == -1 and lower_locants(b, a) == 1
+    assert lower_locants(a, a) == 0
 
 
 def test_names_that_are_not_one_skeleton_are_not_compared():
-    assert namer._lower_locants("4-methyl-1H-imidazol-3-ium", "1-methyl-1H-imidazole") == 0
-    assert namer._lower_locants("(carbamimidoylamino)acetic acid",
-                                "[(diaminomethylidene)amino]acetic acid") == 0
+    assert lower_locants("4-methyl-1H-imidazol-3-ium", "1-methyl-1H-imidazole") == 0
+    # a configuration block is part of the skeleton as a set of symbols: a name with one and a
+    # name without, or with other symbols (one atom R in one form, S in the other), is not a choice
+    # of numbering that (j) governs, so the order of the forms decides as before
+    assert lower_locants("(4S)-4-methyl-3,4,5,6-tetrahydropyrimidin-1-ium",
+                         "6-methyl-3,4,5,6-tetrahydropyrimidin-1-ium") == 0
+    assert lower_locants("(4S)-4-methyl-3,4,5,6-tetrahydropyrimidin-1-ium",
+                         "(6R)-6-methyl-3,4,5,6-tetrahydropyrimidin-1-ium") == 0
+    assert lower_locants("(4S)-4-methyl-3,4,5,6-tetrahydropyrimidin-1-ium",
+                         "(4R)-4-methyl-3,4,5,6-tetrahydropyrimidin-1-ium") == 0
+    assert lower_locants("(4S)-4-methyl-3,4,5,6-tetrahydropyrimidin-1-ium",
+                         "(4S,6S)-4,6-dimethyl-3,4,5,6-tetrahydropyrimidin-1-ium") == 0
+    assert lower_locants("(carbamimidoylamino)acetic acid",
+                         "[(diaminomethylidene)amino]acetic acid") == 0
 
 
 def test_the_choice_never_gives_a_lower_label_than_the_drawing(monkeypatch):

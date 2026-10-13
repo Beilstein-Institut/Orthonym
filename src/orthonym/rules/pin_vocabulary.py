@@ -84,9 +84,13 @@ _OXOMETHYL = re.compile(r"oxomethyl(?!idene)")
 # retained 'acetic acid' / 'formic acid' (PINs) and the names derived
 # from them 'acetamide (PIN)', the Blue Book;:30444
 # 'formyl... methanoyl'): 'ethanoic acid', 'ethanamide', 'ethanoyl', 'ethanoate'
-# and the methane analogues are never the PIN spelling.
+# and the methane analogues are never the PIN spelling. Likewise (:34750,
+# "preferred IUPAC names, with unlimited substitution") 'CH3-CN acetonitrile (PIN)
+# ethanenitrile' (:34754): 'ethanenitrile' is the alternative, so a name that carries it
+# is a located systematic name, not the PIN ('(3-bromophenyl)acetonitrile (PIN)',:34827).
+# 'methanenitrile' is left out: formonitrile is substituted only as formic acid is.
 _UNRETAINED_C1C2_ACID = re.compile(
-    r"(?<!m)ethan(?:amid|oat|oic acid|oyl)|methan(?:amid|oat|oic acid|oyl)")
+    r"(?<!m)ethan(?:amid|oat|oic acid|oyl|enitrile)|methan(?:amid|oat|oic acid|oyl)")
 
 # (the Blue Book-33007): -NH-CO-R cited as a prefix is named by
 # the 'amido' method in a PIN ('4-formamidobenzoic acid (PIN)', not

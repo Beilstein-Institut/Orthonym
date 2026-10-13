@@ -146,7 +146,7 @@ The first point of difference decides between two sets of locants. `compare_loca
 Functions named `locant_sort_key` or `_locant_sort_key`: **9**. **6** are defined at module level, in `assembly/name_comparison.py`, `assembly/naming_utils.py`, `assembly/universal_substituent.py`, `rules/isotopes.py`, `rules/p44_scorer.py`, `rules/spiro.py`. **3** are nested inside another function, in `assembly/composer.py`, `rules/fused_rings.py`, `rules/partial_saturation.py`. Other sites that compare locant sets:
 
 - `perception/chains.py`, `_compare_locants`: first point of difference, re-written; breaks ties with `len <=`.
-- `namer.py`, `_lower_locants`: compares the locant roles of two finished names, a different object.
+- `assembly/form_choice.py`, `lower_locants`: compares the locant roles of two finished names of one species, a different object.
 
 <!-- rule-index:end numbering -->
 

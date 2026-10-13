@@ -37,6 +37,7 @@ from ..perception.ions import get_ion_sites
 from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..perception.molcache import inchikey_of
 from .ion_locants import cites_a_locant, name_neutral_ring_for_ion
+from .ring_cation_hydro import hydro_ring_cation_name
 
 # F- (DD3,: skeletal heteroatom-hydride anions named with the
 # -anide ending on the parent hydride. element -> the neutral parent-hydride
@@ -4276,15 +4277,7 @@ def _emit_ring_cumulative_suffix(mol, center_idx: int, suffix: str,
     Returns '' for any other suffix or on any decline (legacy fall-through)."""
     if suffix not in ('ide', 'ium', 'yl', 'ylidene', 'ylidyne', 'ylium', 'uide'):
         return ''
-    from ..perception.rings import get_ring_systems
-    ring_system = None
-    try:
-        for rs in get_ring_systems(mol, include_spiro=True):
-            if center_idx in rs:
-                ring_system = rs
-                break
-    except (RuntimeError, ValueError):
-        return ''
+    ring_system = _ring_system_of(mol, center_idx)
     if ring_system is None:
         return ''
 
@@ -4336,6 +4329,12 @@ def _emit_ring_cumulative_suffix(mol, center_idx: int, suffix: str,
         # territory -> legacy (on HEAD they are 'unknown' too, so no regression).
         if _ring_bears_principal_group(ring_mol, set(ring_system)):
             return ''
+        # (c) before (e): a hydro monocycle's '-ium' is numbered with its hydro prefixes
+        # in one numbering (ring_cation_hydro), not the neutral ring's name and a second locant.
+        one_numbering = (hydro_ring_cation_name(mol, ring_mol, ring_system, center_idx)
+                         if suffix == 'ium' else '')
+        if one_numbering:
+            return one_numbering
         # RC-D (, (c) the Blue Book 'monosubstituted homogeneous
         # monocyclic rings' / the Blue Book): the locant is OMITTED on a
         # monosubstituted HOMOGENEOUS (all-carbon) SYMMETRICAL ring where the single

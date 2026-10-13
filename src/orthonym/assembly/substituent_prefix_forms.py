@@ -1138,11 +1138,24 @@ def get_sulfanyl_prefix(
             # Outside the v1 scope of ``_acyl_on_chalcogen_name`` (a substituted or ring acyl:
             # 'hydroxyacetyl', 'cyclohexanecarbonyl'): the shared acyl-prefix authority of the
             # chalcogen cations (the neutral acid named, then acid -> acyl). Such an acyl is a
-            # compound prefix, enclosed before the chalcogen stem.
+            # compound prefix, enclosed before the chalcogen stem, section
+            # " Parentheses", the Blue Book: "Parentheses are used around compound
+            #... and complex... prefixes"). The acyl name may carry marks of its own (a
+            # stereodescriptor '(2E,4E)-hexa-2,4-dienoyl', a substituent '3-(4-chlorophenyl)
+            # propanoyl'): its enclosing mark then takes the next place of the order of
+            # (" Multiple types of enclosing marks",:7446: "the nesting order is as
+            # follows: {[({})]}, etc."), and (:7509) says "When the nesting
+            # order given in results in consecutive enclosing marks of the same level,
+            # the next level of enclosing mark is used": '[(2E,4E)-hexa-2,4-dienoyl]sulfanyl',
+            # as the book prints an acyl group on sulfur '1-[(acetylperoxy)sulfanyl]ethan-1-one
+            # (PIN)' (section " Diacyl derivatives of trioxidane and chalcogen
+            # analogues",:32358, example:32368). A literal '(' put a parenthesis
+            # directly inside a parenthesis.
             from ..rules.ions import _acyl_on_chalcogen_prefix
+            from .naming_utils import apply_enclosing_marks
             acyl = _acyl_on_chalcogen_prefix(mol, sub_carbon, sulfur_idx)
             if acyl:
-                acyl = f"({acyl})"
+                acyl = apply_enclosing_marks(acyl, -1)
         if not acyl:
             return None
         return f"{acyl}{suffix}"
