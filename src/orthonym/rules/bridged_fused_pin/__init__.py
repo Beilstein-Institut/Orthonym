@@ -165,13 +165,16 @@ def principal_suffix(mol, system: Set[int]):
     : the parent has the maximum number of principal characteristic groups;
     : a ring is senior to a chain on a tie). A cyclic anhydride, ester, amide or
     imide of the ring system is a pseudoketone (``_pseudoketone_principal``): suffix 'one'. An
-    amidine whose carbon and both nitrogens are skeletal atoms of the ring system is the ring
-    itself, not a group (``seniority.without_ring_skeleton_amidine``)."""
+    amidine or guanidine whose carbon is a skeletal atom of the ring system is the ring itself,
+    not a group, and its one exocyclic -NH2, if it has one, is an amine
+    (``seniority.ring_skeleton_units_resolved``); one with any other exocyclic part declines
+    unless a senior group carries the name."""
     from ...perception.functional_groups import detect_functional_groups
-    from ..seniority import get_principal_group, without_ring_skeleton_amidine
-    # an amidine whose carbon and both nitrogens are skeletal atoms of the ring system is the ring
-    # itself, not a '-imidamide' group:34173,:34200): the DBU / DBN skeleton
-    groups = without_ring_skeleton_amidine(detect_functional_groups(mol), system)
+    from ..seniority import get_principal_group, ring_skeleton_units_resolved
+    # an amidine or guanidine whose carbon is a skeletal atom of the ring system is the ring itself,
+    # not a '-imidamide' or 'guanidine' group:34173,:34200;:34242): the
+    # DBU / DBN / TBD skeleton; its one exocyclic -NH2 is an amine:26168)
+    groups = ring_skeleton_units_resolved(mol, detect_functional_groups(mol), system)
     pg, _ = get_principal_group(mol, groups)
     outside = _unranked_groups_outside(mol, groups, system)
     if outside:
@@ -185,6 +188,13 @@ def principal_suffix(mol, system: Set[int]):
         if "guanidine" in outside:
             from ...metrics.provenance import record_non_pin_fragment
             record_non_pin_fragment(_GUANIDINE_PREFIX_SPELLED)
+    if pg is None and any(m[1] in system for m in groups.get("guanidine") or ()):
+        # a guanidine unit of the ring that ``ring_skeleton_units_resolved`` kept has an exocyclic
+        # nitrogen that is not a plain -NH2: with no senior group it is the 'imine' (or the
+        # substituted amine) of the ring, expressed by a suffix this builder does not spell
+        #:26510 "All imines are named substitutively using the suffix 'imine'"); the
+        # prefix 'imino' is for "characteristic groups having seniority over imines" (:26540)
+        return None
     if pg is None:
         return ("none", None, set(), set())
     if pg in _PSEUDOKETONE_CLASSES:

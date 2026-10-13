@@ -37,7 +37,8 @@ from ..perception.ions import get_ion_sites
 from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 from ..perception.molcache import inchikey_of
 from .ion_locants import cites_a_locant, name_neutral_ring_for_ion
-from .ring_cation_hydro import hydro_ring_cation_name, hydro_ring_zwitterion_name, neutralized_cation
+from .ring_cation_hydro import (hydro_ring_cation_name, hydro_ring_zwitterion_name, neutralized_cation,
+                                ring_numbering_tie_key, ring_stereo_prefix)
 
 # F- (DD3,: skeletal heteroatom-hydride anions named with the
 # -anide ending on the parent hydride. element -> the neutral parent-hydride
@@ -3924,7 +3925,7 @@ def _order_ring_cycle(mol, ring_system):
 
 
 def _charged_ring_locants(mol, ring_system, center_idx, anion_attach_idx=None,
-                          subst_atoms=None):
+                          subst_atoms=None, tie_key=None):
     """Full single-ring IUPAC numbering for a charged ring centre, choosing the
     orientation that gives lowest locants in / order:
       (a) all heteroatoms as a set;
@@ -3947,12 +3948,12 @@ def _charged_ring_locants(mol, ring_system, center_idx, anion_attach_idx=None,
           (suffixes);"* outranks clause (f) ``:3301`` *"detachable alphabetized
           prefixes …"*. Without this criterion the substituted case is decided
           by the canonical-rank tiebreak instead of by the rule, because the
-          substituted-position SET (e) is direction-symmetric in exactly the
-          Blue Book's own worked example (``:42456``
-          ``1-methyl-4,6-diphenylpyridin-1-ium-2-carboxylate``: both directions
-          give substituents at {1,2,4,6}). Default ``None`` leaves the key, and
-          therefore every pre-existing caller, byte-identical.
-      (e) other substituents; with a canonical-rank final deterministic tiebreak.
+          substituted-position SET (e) is direction-symmetric in the Blue Book's
+          own worked example (``:42456`` ``1-methyl-4,6-diphenylpyridin-1-ium-2-
+          carboxylate``: both directions give {1,2,4,6}). Default ``None`` leaves
+          the key, and every pre-existing caller, byte-identical.
+      (e) other substituents; then ``tie_key(locants)`` when given (g), (j):
+          ``ring_cation_hydro.ring_numbering_tie_key``); with a canonical-rank final tiebreak.
     Returns ``(atom_to_locant, indicated_h_locant)`` keyed by the SAME atom indices
     as ``mol`` (index-preserving), or ``(None, None)`` for a fused/multi ring
     (caller falls back to the general ``_ring_iupac_locants`` supplier). Subsumes
@@ -4016,7 +4017,7 @@ def _charged_ring_locants(mol, ring_system, center_idx, anion_attach_idx=None,
                          if anion_attach_idx is not None else ())
             centre_key = tuple(sorted(loc[c] for c in centers))
             key = (het_set, senior, indh, centre_key, anion_key,
-                   subst, canonkey)
+                   subst, tie_key(loc) if tie_key else (), canonkey)
             if best is None or key < best[0]:
                 best = (key, loc, indh[0] if indh else None)
     return best[1], best[2]
@@ -4941,14 +4942,13 @@ def _p74_ring_substituent_groups(mol, ring_system, locants, skip_atoms):
     return groups
 
 
-def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms):
+def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms, p14_4_j_numbering=False):
     """Every exo substituent on ``ring_system``, locanted in the caller's ONE
     numbering, alphabetised into a ready-to-splice prefix string ('' when the ring
     is bare). Returns ``None`` to FAIL CLOSED.
 
-    Assembly is delegated, not reinvented: ``format_substituent_prefix`` is
-    documented as "the ONE correct substituent-prefix + needs-parens reference"
-     / and ``alpha_sort_key`` is the alphanumerical key.
+    Assembly is delegated, not reinvented: ``format_substituent_prefix`` is documented as "the ONE
+    correct substituent-prefix + needs-parens reference" /, ``alpha_sort_key`` is the key.
 
     The substituent token comes from ``name_substituent`` — the authoritative
      namer, and the SAME primitive ``emit_cumulative_ium_ide`` already uses
@@ -4966,16 +4966,19 @@ def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms):
     group. That is a defect in the shared primitive, not something to paper over
     here, so such substituents FAIL CLOSED and are recorded in
     `internal notes`."""
-    from ..assembly.naming_utils import alpha_sort_key, format_substituent_prefix
+    from ..assembly import naming_utils as nu
     groups = _p74_ring_substituent_groups(mol, ring_system, locants, skip_atoms)
     if groups is None:
         return None
     if not groups:
         return ''
     parts = []
-    for token in sorted(groups, key=alpha_sort_key):
+    # order; ``p14_4_j_numbering``: the numbering took (j) (``ring_numbering_tie_key``), so tokens of
+    # one key ('(1R)-1-hydroxyethyl', '(1S)-...') are cited R first; other callers keep atom order
+    tie = nu.prefix_citation_sort_key if p14_4_j_numbering else (lambda token: ())
+    for token in sorted(groups, key=lambda t: (nu.alpha_sort_key(t), tie(t))):
         locs = sorted(groups[token])
-        parts.append(format_substituent_prefix(token, locs, len(locs)))
+        parts.append(nu.format_substituent_prefix(token, locs, len(locs)))
     return '-'.join(parts)
 
 
@@ -5048,37 +5051,32 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
         C[n+]1ccccc1C(=O)[O-] -> 1-methylpyridin-1-ium-2-carboxylate
         C[n+]1c(C(=O)[O-])cc(-c2ccccc2)cc1-c1ccccc1 -> 1-methyl-4,6-diphenylpyridin-1-ium-2-carboxylate
 
-    the last being the Blue Book's own worked (PIN) example, ``:42456``, under
-    ** "Zwitterionic compounds with at least one ionic center on a
-    characteristic group"** (heading ``:42445``).
+    the last being the Blue Book's own worked (PIN) example, ``:42456``, under **
+    "Zwitterionic compounds with at least one ionic center on a characteristic group"** (``:42445``).
 
-    **ONE numbering for the whole name.** This emitter previously ran two branches that took the
-    ring numbering from the namer's *neutral*-ring supplier and concatenated a separately-built
-    cation-substituent prefix onto the resulting *substituted* ring name: two numberings in one
-    string. Measured on the DEFAULT path (all round-trip through OPSIN, so neither the
-    round-trip metric nor could see them):
-      * ``1-methyl4-methylpyridin-1-ium-2-carboxylate`` — no hyphen, ``1-methyl`` + ``4-methyl`` unmerged;
-      * ``1-methyl4-bromopyridin-1-ium-2-carboxylate`` — 'bromo' must precede 'methyl';
-      * ``1-methyl2,4-dimethylpyridin-1-ium-6-carboxylate`` — carboxylate 6, ``:42447``: 2;
-    and, caught by, ``1-propylpyridin-1-ium-2-carboxylate`` for an **isopropyl** group
-    (the old branch named substituents with the carbon-counting ``classify_substituent``).
-    So the numbering is derived ONCE over the ORIGINAL charged mol, with the
-    anion-attachment criterion (``_charged_ring_locants(..., anion_attach_idx=...)``); every ring
-    substituent is located in THAT numbering by ``_p74_ring_substituent_prefix``; the stem comes
-    from a ring stripped of all of them. A hydro mancude monocycle is named by
+    **ONE numbering for the whole name.** The old branches took the ring numbering from the namer's
+    *neutral*-ring supplier and glued a separately-built cation-substituent prefix onto the resulting
+    *substituted* ring name: two numberings in one string. Measured on the DEFAULT path (all
+    round-trip through OPSIN, so neither the round-trip metric nor saw them):
+      * ``1-methyl4-methylpyridin-1-ium-2-carboxylate`` (no hyphen, unmerged), ``1-methyl4-bromopyridin-...``
+        ('bromo' precedes 'methyl',, ``1-methyl2,4-dimethylpyridin-...-6-carboxylate`` (:42447: 2);
+    and, caught by, ``1-propylpyridin-1-ium-2-carboxylate`` for an **isopropyl** group.
+    So the numbering is derived ONCE over the ORIGINAL charged mol, with the anion-attachment
+    criterion (``_charged_ring_locants(..., anion_attach_idx=...)``) and, where that ties, (g) then (j)
+    (``ring_numbering_tie_key``: '(3R,5S)-3,5-dimethylpiperidin-1-ium-4-carboxylate'); every ring substituent
+    is located in THAT numbering by ``_p74_ring_substituent_prefix`` and so are the ring's stereodescriptors
+    , ``:44643``: '(2S)-pyrrolidin-1-ium-2-carboxylate'); the stem comes from a ring stripped of all
+    substituents. A hydro mancude monocycle is named by
     ``ring_cation_hydro.hydro_ring_zwitterion_name`` (the bare ring's own hydro locants are a second
     numbering), an azolium with a substituted indicated-hydrogen nitrogen by
     ``azolium_cations.azolium_zwitterion_name``.
 
-    Fails closed ('') whenever a part is uncorroborated — a fused/bridged ring (no simple cycle,
-    so no numbering), a substituent the authoritative namer cannot spell, or a formal
-    charge anywhere outside the cation/anion pair. The caller then falls through to the legacy
-    path."""
+    Fails closed ('') whenever a part is uncorroborated — a fused/bridged ring (no simple cycle, so no
+     numbering), a substituent the namer cannot spell, a charge outside the cation/anion pair, or
+    a stereogenic ring N-H (``ring_stereo_prefix``). The caller then falls through to the legacy path."""
     from ..perception.rings import get_ring_systems
-    # Only the cation/anion pair may carry charge. A third charged atom means a
-    # further ionic centre, which requires to be expressed as its own suffix
-    # rather than swept into a prefix -- and a charged substituent is exactly what
-    # `name_substituent` would silently spell as its neutral form.
+    # Only the cation/anion pair may carry charge: a third charged atom is a further ionic centre, which
+    # expresses as its own suffix, and `name_substituent` would spell a charged substituent neutral.
     charged = [a.GetIdx() for a in mol.GetAtoms() if a.GetFormalCharge()]
     if set(charged) != {cation_idx, anion_idx}:
         return ''
@@ -5103,8 +5101,14 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
     if one_numbering:
         return one_numbering
 
+    # The '-carboxylate' suffix expresses the carboxyl group, so it is not also a prefix.
+    carboxyl_atoms = {carboxyl_c, *(nb.GetIdx() for nb in mol.GetAtomWithIdx(carboxyl_c).GetNeighbors()
+                                    if nb.GetSymbol() == 'O')}
+    tie_key = ring_numbering_tie_key(mol, lambda: _p74_ring_substituent_groups(
+        mol, ring_system, {a: a for a in ring_system}, carboxyl_atoms))
     locants, _indicated_h = _charged_ring_locants(
-        neutralized_cation(mol, cation_idx) or mol, ring_system, cation_idx, anion_attach_idx=ring_attach)
+        neutralized_cation(mol, cation_idx) or mol, ring_system, cation_idx, anion_attach_idx=ring_attach,
+        tie_key=tie_key)
     if not locants:
         return ''
     cation_locant = locants.get(cation_idx)
@@ -5112,20 +5116,16 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
     if cation_locant is None or carboxyl_locant is None:
         return ''
 
-    # The carboxyl group is expressed by the '-carboxylate' suffix, so it must not
-    # also be enumerated as a prefix.
-    carboxyl_atoms = {carboxyl_c}
-    for nb in mol.GetAtomWithIdx(carboxyl_c).GetNeighbors():
-        if nb.GetSymbol() == 'O':
-            carboxyl_atoms.add(nb.GetIdx())
-
-    prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, carboxyl_atoms)
+    prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, carboxyl_atoms, p14_4_j_numbering=True)
     if prefix is None:
         return ''
     stem = _p74_bare_ring_stem(mol, ring_system, cation_idx)
     if not stem:
         return ''
-    return (f"{_join_prefix_stem(prefix, _elide_terminal_e(stem))}"
+    stereo = ring_stereo_prefix(mol, locants)
+    if stereo is None:
+        return ''
+    return (f"{stereo}{_join_prefix_stem(prefix, _elide_terminal_e(stem))}"
             f"-{cation_locant}-ium-{carboxyl_locant}-carboxylate")
 
 

@@ -4528,7 +4528,7 @@ def _senior_group_outside_ring(mol, ring_atoms: Set[int]) -> Optional[str]:
     'tertiary_amide' (phthalide, N-methylphthalimide, a 1-methylquinoline-2,4-
     dione, whose amide match also lists the N-methyl carbon)."""
     from ..perception.functional_groups import detect_functional_groups
-    from .seniority import SENIORITY_ORDER, _PREFIX_ONLY_PRINCIPAL
+    from .seniority import SENIORITY_ORDER, _PREFIX_ONLY_PRINCIPAL, ring_skeleton_units_resolved
     inside = set(ring_atoms)
     for a in ring_atoms:
         at = mol.GetAtomWithIdx(a)
@@ -4545,7 +4545,10 @@ def _senior_group_outside_ring(mol, ring_atoms: Set[int]) -> Optional[str]:
             b.GetBondType() in (Chem.BondType.DOUBLE, Chem.BondType.TRIPLE)
             and b.GetOtherAtom(at).GetSymbol() != 'C' for b in at.GetBonds())
 
-    fgs = detect_functional_groups(mol)
+    # an amidine whose carbon is a skeletal atom of the ring system is the ring itself, and its
+    # exocyclic -NH2 an amine:34200,:26168): no group senior to the
+    # amine suffix of '3,4-dihydroquinolin-2-amine' stands outside the ring
+    fgs = ring_skeleton_units_resolved(mol, detect_functional_groups(mol), ring_atoms)
     for fg in SENIORITY_ORDER:
         if fg in _PREFIX_ONLY_PRINCIPAL:
             continue

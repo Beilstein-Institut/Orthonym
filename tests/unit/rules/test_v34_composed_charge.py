@@ -1035,9 +1035,9 @@ def test_ws_stereo_achiral_floor_name_unaffected_no_stereo_block():
 # the floor) -- this is a pure internal-quality fix: `route_charged`'s own
 # emitted string is no longer grammatically malformed/unparseable for this
 # whole class (any skeletal-ium ring whose anion-attachment ring
-# atom is a stereocentre), even though it still omits the stereo descriptor
-# itself (a separate, larger gap -- threading stereo into this NEW
-# cumulative-suffix builder is out of this fix's scope).
+# atom is a stereocentre). The stereodescriptor was a separate gap, closed
+# afterwards: the emitter cites the ring's descriptors natively, in its own
+# numbering (tests/unit/rules/test_ring_zwitterion_stereo.py).
 # --------------------------------------------------------------------------
 
 def test_ws_noabstain_p74_skeletal_ium_stem_no_longer_emits_spurious_yl():
@@ -1050,14 +1050,15 @@ def test_ws_noabstain_p74_skeletal_ium_stem_no_longer_emits_spurious_yl():
     cation_idx = [a.GetIdx() for a in mol.GetAtoms() if a.GetFormalCharge() == 1][0]
     anion_idx = [a.GetIdx() for a in mol.GetAtoms() if a.GetFormalCharge() == -1][0]
     name = emit_zwitterion_ring_carboxylate(mol, cation_idx, anion_idx)
-    assert name == "1-methylpyrrolidin-1-ium-2-carboxylate"
+    # (the Blue Book): the ring's descriptor at the front of the complete name
+    assert name == "(2S)-1-methylpyrrolidin-1-ium-2-carboxylate"
     assert "-yl" not in name  # the spurious substituent-yl morpheme is gone
     got = opsin_parse(name)
     assert got, f"OPSIN could not parse {name!r} (pre-fix this was unparseable)"
-    # constitution matches (this builder never claimed to thread stereo)
+    # constitution AND configuration match
     have = Chem.MolToInchiKey(Chem.MolFromSmiles(got))
     want = Chem.MolToInchiKey(Chem.MolFromSmiles(smi))
-    assert have[:14] == want[:14]
+    assert have == want
 
 
 def test_ws_noabstain_p74_bare_ring_stem_resets_every_ring_atom():
