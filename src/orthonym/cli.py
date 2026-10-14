@@ -560,12 +560,16 @@ def _process_batch(input_file: str, output_file: str, style: str,
     not have. Validated ONCE up front rather than per row -- the per-row
     ``except Exception`` below would otherwise turn a typo'd mode into a
     silent "ERROR:" line and a zero-proof run.
+
+    The output has exactly one line per input line, in input order, so line N
+    of the output belongs to line N of the input: a blank input line gives a
+    blank output line, and an empty input file gives an empty output.
     """
     from .namer import validate_binding_proof
     validate_binding_proof(binding_proof)
     try:
         with open(input_file, 'r') as f:
-            smiles_list = [line.strip() for line in f if line.strip()]
+            input_lines = [line.strip() for line in f]
     except FileNotFoundError:
         print(f"Error: Input file not found: {input_file}", file=sys.stderr)
         return 1
@@ -575,8 +579,13 @@ def _process_batch(input_file: str, output_file: str, style: str,
 
     results = []
     errors = 0
+    named = 0
 
-    for smiles in smiles_list:
+    for smiles in input_lines:
+        if not smiles:
+            results.append("")
+            continue
+        named += 1
         try:
             if confidence:
                 result = name_compound(smiles, style=style,
@@ -601,23 +610,22 @@ def _process_batch(input_file: str, output_file: str, style: str,
             results.append(f"{smiles}\tERROR: {e}")
             errors += 1
 
-    # Write output
-    output_text = "\n".join(results)
+    output_text = "".join(line + "\n" for line in results)
 
     if output_file:
         try:
             with open(output_file, 'w') as f:
-                f.write(output_text + "\n")
+                f.write(output_text)
             if verbose:
-                print(f"Processed {len(smiles_list)} SMILES, {errors} errors")
+                print(f"Processed {named} SMILES, {errors} errors")
                 print(f"Output written to: {output_file}")
         except IOError as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             return 1
     else:
-        print(output_text)
+        sys.stdout.write(output_text)
         if verbose:
-            print(f"\nProcessed {len(smiles_list)} SMILES, {errors} errors",
+            print(f"\nProcessed {named} SMILES, {errors} errors",
                   file=sys.stderr)
 
     return 0 if errors == 0 else 1
