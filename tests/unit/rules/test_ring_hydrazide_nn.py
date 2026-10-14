@@ -176,4 +176,4 @@ def _validity_gate_on(monkeypatch):
     ],
 )
 def test_ring_hydrazide_fail_closed(smiles, _validity_gate_on):
-    assert "unknown" in name_compound(smiles)
+    assert "unknown" in name_compound(smiles, on_failure="label")

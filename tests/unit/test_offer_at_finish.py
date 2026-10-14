@@ -98,7 +98,7 @@ class TestNameTieredHonoursWinningOffer:
 
         floor_name = "2,3-dihydroxypropyl formate"  # arbitrary stand-in name
 
-        def _fake_name(self, smiles):
+        def _fake_name(self, smiles, **_kwargs):
             # Mirrors what `_finish` leaves behind after a REAL floor win:
             # a losing primary offer (pin_path/T1) and a winning floor
             # offer (t4_floor/T4) in `self._offers`, with
@@ -129,7 +129,7 @@ class TestNameTieredHonoursWinningOffer:
         ran at all, e.g. `_disable_opsin_validity_gate`) -- `name_tiered`
         must derive tier/is_pin/source the OLD way in that case, exactly
         as it always has."""
-        def _fake_name(self, smiles):
+        def _fake_name(self, smiles, **_kwargs):
             self._offers = []
             self._last_selected_offer = None
             # the gate verified this string (pin_verified is earned by a

@@ -87,7 +87,7 @@ class TestZeroWrong:
 
     @pytest.mark.opsin_gate
     def test_witness_never_wrong(self):
-        name = name_compound(W1)
+        name = name_compound(W1, on_failure="label")
         assert (
             name is None
             or name.startswith("unknown")

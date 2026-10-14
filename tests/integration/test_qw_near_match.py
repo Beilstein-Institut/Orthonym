@@ -302,7 +302,7 @@ def test_vb_counting_fix(smiles, expected_name):
 @pytest.mark.parametrize("smiles", [p.values[0] for p in DEFERRED_COMPOUNDS])
 def test_deferred_compound_names(smiles):
     """Deferred compounds: verify naming doesn't crash and produces a name."""
-    result = name_compound(smiles)
+    result = name_compound(smiles, on_failure="label")
     assert result is not None, f"Naming returned None for {smiles}"
     assert result != "unknown", f"Naming returned 'unknown' for {smiles}"
     # These are expected to fail RT but should still produce some name

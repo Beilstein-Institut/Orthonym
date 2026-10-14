@@ -400,7 +400,7 @@ class TestMalformedSuffixFixes:
     def test_no_cycloane_in_output(self):
         """cycloane must not appear -- complex polycyclic returns SMILES fallback."""
         smiles = "c1ccc2cc3c(cc2c1)-c1cc2ccccc2cc1-c1cc2ccccc2cc1-c1cc2ccccc2cc1-3"
-        name = name_compound(smiles)
+        name = name_compound(smiles, on_failure="label")
         assert "cycloane" not in name, (
             f"Malformed suffix 'cycloane' found in: {name}"
         )

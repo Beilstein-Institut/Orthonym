@@ -93,5 +93,5 @@ def test_p68_parent_hydrides_already_name_with_the_guard_untouched(
 
 def test_element_refusal_stays_specific_not_generic():
     """The specific wording is the informative half that widening would destroy."""
-    name = Orthonym().name("C1CC[Sn]CC1")
+    name = Orthonym().name("C1CC[Sn]CC1", on_failure="label")
     assert name == "tin compound (not supported)", name

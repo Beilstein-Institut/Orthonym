@@ -78,4 +78,4 @@ def test_pin_default_is_unaffected(smiles):
     """The charge distribution is behind ``allow_aromatic_general`` (best-effort
     only). The PIN/default tier still declines this out-of-PIN-scope class rather
     than emitting a general-engine name -- byte-identical to before the fix."""
-    assert name_compound(smiles) == "unknown organic compound"
+    assert name_compound(smiles, on_failure="label") == "unknown organic compound"

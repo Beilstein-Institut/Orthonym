@@ -29,14 +29,14 @@ def _dt_name_compound(smiles):
     from orthonym import Orthonym, name_compound  # noqa: F811
     if smiles in DEFAULT_TIER_DECLINES and default_tier_rule_applies():
         return _declined_pin_row(smiles)["name"]
-    return name_compound(smiles)
+    return name_compound(smiles, on_failure="label")
 
 
 def _dt_name(smiles):
     from orthonym import Orthonym, name_compound  # noqa: F811
     if smiles in DEFAULT_TIER_DECLINES and default_tier_rule_applies():
         return _declined_pin_row(smiles)["name"]
-    return Orthonym(style="pin").name(smiles)
+    return Orthonym(style="pin").name(smiles, on_failure="label")
 
 
 def _dt_row(smiles):
@@ -273,7 +273,7 @@ class TestP25ThreeComponentOrthoPeri:
         if not _namer._validity_gate_jar_present():
             pytest.skip("OPSIN jar not present; production gate cannot run")
         monkeypatch.setattr(_namer, "_DISABLE_VALIDITY_GATE", False, raising=False)
-        out = name_compound("C1=CC=C2C(=C1)C=CC3=C2C4=CC=CC=C4C5=CC=CC=C35")
+        out = name_compound("C1=CC=C2C(=C1)C=CC3=C2C4=CC=CC=C4C5=CC=CC=C35", on_failure="label")
         assert out in (None, "unknown organic compound")
 
 

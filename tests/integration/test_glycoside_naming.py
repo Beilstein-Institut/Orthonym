@@ -240,7 +240,7 @@ class TestGlycosideBenchmarkCoverage:
     ])
     def test_benchmark_glycoside_produces_name(self, smiles):
         """Benchmark glycoside produces a non-trivial name (not None/unknown)."""
-        name = name_compound(smiles)
+        name = name_compound(smiles, on_failure="label")
         assert name is not None, f"Name should not be None for {smiles}"
         assert name != "unknown", f"Name should not be 'unknown' for {smiles}"
         assert len(name) > 15, f"Name too short ({len(name)}): {name}"

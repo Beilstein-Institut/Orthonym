@@ -155,7 +155,7 @@ def test_disulfate_honest_fail():
         "CC(C)[C@H](CC[C@@H](C)[C@H]1CC[C@H]2[C@@H]3CC=C4C[C@@H]"
         "(OS(=O)(=O)O)CC[C@]4(C)[C@H]3CC[C@]12C)OS(=O)(=O)O"
     )
-    name = name_compound(smiles)
+    name = name_compound(smiles, on_failure="label")
     # Either honest-fail, OR a complete name (this phase ships honest-fail).
     assert name in (None, "unknown organic compound") or (
         "sulfate" in name and "-yl" in name

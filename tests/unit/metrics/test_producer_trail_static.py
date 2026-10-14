@@ -54,8 +54,8 @@ ALLOWED_PRODUCERS = {
     "assembly/handlers/tier_a_ring.py::_spiro_principal_suffix_preference":
         "a handler's own call to the engine, whose name the handler returns as its own result; "
         "the inner seam notes the handler's return, which is the deepest seam (decision 1)",
-    "cli.py::main":
-        "the --engine probe prints the engine's result and builds no row",
+    "cli.py::_engine_only":
+        "the --engine-only probe prints the engine's result and builds no row",
     "rules/esters.py::_name_ring_dicarboxylic_diester":
         "names the diacid that the diester is derived from, not the molecule; the handler returns "
         "its own name",

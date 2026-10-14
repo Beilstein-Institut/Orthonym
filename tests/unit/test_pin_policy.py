@@ -71,14 +71,14 @@ class TestTrivialFallbackMechanism:
         # name_compound normalizes the raw 'unknown' failure signal to the
         # descriptive fallback string.
         from orthonym.errors import is_failure_name
-        out = name_compound(_SEAM_SMILES, style="pin")
+        out = name_compound(_SEAM_SMILES, style="pin", on_failure="label")
         assert out == _SEAM_FAILURE
         assert is_failure_name(out)
 
     def test_default_fails_closed_no_trivial(self, seam_general_name):
         """Default pipeline fails closed even when a general-only trivial
         name exists for the molecule."""
-        assert name_compound(_SEAM_SMILES, style="pin") == _SEAM_FAILURE
+        assert name_compound(_SEAM_SMILES, style="pin", on_failure="label") == _SEAM_FAILURE
 
     def test_trivial_flag_falls_back(self, seam_general_name):
         """--trivial opts into the general-only retained name when (and only
@@ -115,9 +115,9 @@ class TestTrivialFallbackMechanism:
 
     def test_name_compound_accepts_trivial_fallback_kwarg(self, seam_general_name):
         """name_compound threads trivial_fallback through to Orthonym."""
-        assert name_compound(_SEAM_SMILES, style="pin") == _SEAM_FAILURE
+        assert name_compound(_SEAM_SMILES, style="pin", on_failure="label") == _SEAM_FAILURE
         assert name_compound(_SEAM_SMILES, style="pin",
-                             trivial_fallback=True) == _SEAM_NAME
+                             trivial_fallback=True, on_failure="label") == _SEAM_NAME
 
 
 # --------------------------------------------------------------------------
@@ -471,9 +471,9 @@ class TestC8TrivialThreading:
         )
         lines = [l for l in result.stdout.splitlines() if l.strip()]
         assert len(lines) == 2
-        # Without --trivial the second line must be the failure string
+        # Without --trivial the second line has no name (the default of --on-failure: an
+        # empty name column; the failure label is --on-failure label)
         second_name = lines[1].split("\t")[1] if "\t" in lines[1] else lines[1]
-        assert second_name == _SEAM_FAILURE, (
-            f"Without --trivial, failure must give {_SEAM_FAILURE!r}, "
-            f"got {second_name!r}"
+        assert second_name == "", (
+            f"Without --trivial, failure must give an empty name, got {second_name!r}"
         )

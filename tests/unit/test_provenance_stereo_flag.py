@@ -46,7 +46,7 @@ def test_name_tiered_surfaces_flag_for_shipped_general_engine(monkeypatch):
     it; the bare name string carries no stereo/parenthetical marker."""
     be = _mk("best-effort")
 
-    def fake_name(smi):
+    def fake_name(smi, **_kwargs):
         pv.record_source("general_engine")
         pv.record_stereo_unexpressed(True)
         return "pentan-2-ol"
@@ -66,7 +66,7 @@ def test_name_tiered_flag_not_surfaced_on_suppressed_emission(monkeypatch):
     flag — it only rides a name that actually shipped."""
     be = _mk("best-effort")
 
-    def fake_name_fail(smi):
+    def fake_name_fail(smi, **_kwargs):
         pv.record_source("general_engine")
         pv.record_stereo_unexpressed(True)
         return "unknown organic compound"  # failure sentinel

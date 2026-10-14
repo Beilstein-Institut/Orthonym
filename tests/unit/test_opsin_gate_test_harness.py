@@ -99,7 +99,7 @@ def test_the_canary_ships_a_wrong_molecule_when_the_gate_is_off():
 
 @pytest.mark.opsin_gate
 def test_the_canary_is_suppressed_when_the_gate_is_on():
-    assert Orthonym(style="pin").name(CANARY) in _DESCRIPTIVE_FALLBACK_NAMES
+    assert Orthonym(style="pin").name(CANARY, on_failure="label") in _DESCRIPTIVE_FALLBACK_NAMES
 
 
 # ---------------------------------------------------------------------------

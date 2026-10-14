@@ -109,7 +109,8 @@ class NamingResult(NamedTuple):
     Attributes
     ----------
     name: str
-        The name, the same string:func:`orthonym.name_compound` returns.
+        The name: what:func:`orthonym.name_compound` returns with ``on_failure="label"``,
+        so the label for a structure with no name.
     tree: NameTreeNode or None
         The parts of the name.
     atom_to_locant_hint: dict of int to int or None

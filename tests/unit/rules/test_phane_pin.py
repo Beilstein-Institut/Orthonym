@@ -410,8 +410,8 @@ def test_dispatch_still_fails_closed_for_heteroatom_bridge_and_controls():
     from orthonym import Orthonym
 
     namer_on = Orthonym(style="pin")
-    assert namer_on.name("c1cc2ccc1CNc1ccc(cc1)CN2") == "unknown organic compound"
-    assert namer_on.name("c1cc2ccc1COc1ccc(cc1)CO2") == "unknown organic compound"
-    assert namer_on.name("c1cc2ncc1CCc1ccc(cn1)CC2") == "unknown organic compound"
-    assert namer_on.name("c1ccc(-c2ccccc2)cc1") == "1,1'-biphenyl"
-    assert namer_on.name("c1ccc2ccccc2c1") == "naphthalene"
+    assert namer_on.name("c1cc2ccc1CNc1ccc(cc1)CN2", on_failure="label") == "unknown organic compound"
+    assert namer_on.name("c1cc2ccc1COc1ccc(cc1)CO2", on_failure="label") == "unknown organic compound"
+    assert namer_on.name("c1cc2ncc1CCc1ccc(cn1)CC2", on_failure="label") == "unknown organic compound"
+    assert namer_on.name("c1ccc(-c2ccccc2)cc1", on_failure="label") == "1,1'-biphenyl"
+    assert namer_on.name("c1ccc2ccccc2c1", on_failure="label") == "naphthalene"

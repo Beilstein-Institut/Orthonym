@@ -102,7 +102,7 @@ def namer():
 
 @pytest.mark.opsin_gate
 def test_choline_sulfate_via_capability(namer):
-    out = namer.name("C[N+](C)(C)CCOS(=O)(=O)[O-]")
+    out = namer.name("C[N+](C)(C)CCOS(=O)(=O)[O-]", on_failure="label")
     # B1 (charged_router wiring) is a separate follow-on task (spec section 6);
     # this enabler alone may still leave the zwitterion abstaining. Either the
     # RT-valid target or an honest abstention is acceptable here -- never a

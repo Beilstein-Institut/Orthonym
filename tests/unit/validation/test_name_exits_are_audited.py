@@ -203,7 +203,7 @@ def test_isotope_refusal_exit_is_routed_through_finish():
                     return_value=None), \
          mock.patch.object(Orthonym, "_finish", autospec=True,
                            side_effect=Orthonym._finish) as spy:
-        out = namer.name("[2H]C([2H])([2H])O")
+        out = namer.name("[2H]C([2H])([2H])O", on_failure="label")
     assert is_failure_name(out), out
     assert spy.call_count == 1, "the isotope refusal exit bypassed _finish"
     assert spy.call_args.args[1] == out

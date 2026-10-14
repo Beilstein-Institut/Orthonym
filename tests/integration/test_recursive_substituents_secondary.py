@@ -229,7 +229,7 @@ class TestBenchmarkSubstituentLoss:
         named = 0
         failures = []
         for smi in BENCHMARK_SUBSTITUENT_LOSS:
-            name = name_compound(smi)
+            name = name_compound(smi, on_failure="label")
             if name and len(name) > 0:
                 named += 1
             else:

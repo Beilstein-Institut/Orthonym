@@ -90,7 +90,7 @@ def test_coverage_gate_no_bare_scaffold(smiles, old_name, heavy_atoms):
     2. Not be "unknown" (no worsening)
     3. Have adequate length for the molecule size
     """
-    result = name_compound(smiles)
+    result = name_compound(smiles, on_failure="label")
 
     # Must not worsen to unknown
     assert result is not None, f"name_compound returned None for {smiles[:40]}..."

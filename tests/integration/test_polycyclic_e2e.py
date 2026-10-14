@@ -297,7 +297,7 @@ class TestEdgeCases:
 
     def test_empty_string_returns_unknown(self):
         """Empty SMILES returns 'unknown'."""
-        result = name_compound('')
+        result = name_compound('', on_failure="label")
         assert result == 'unknown', f"Expected 'unknown', got: {result}"
 
     def test_single_atom_not_polycyclic(self):

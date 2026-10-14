@@ -34,8 +34,11 @@ benzene
 `--confidence`
 : Print the name with a coverage score, the part of the engine that built it, and the parts of the score. When no measurement was taken it says so: `Confidence: unverified (no coverage measurement was taken)`.
 
+`--on-failure {empty,label,raise}`
+: What to give for a structure that gets no name. `empty` (the default) prints an empty name and, on the error stream, one line `SMILES<tab>CODE: reason` with the limit code and the label. `label` prints the label in place of a name, as earlier versions did. `raise` stops with an error: the same line on the error stream and exit status `1` (with `--batch` the line gets `ERROR:` and the run ends with status `1`). It applies to a name, to `--confidence` and to `--batch`; `--provenance`, `--dump-tree` and `--engine-only` report the structure as it is. The codes are the stable part (see [Declines](../declines.md)); the label texts can change.
+
 `--verbose`, `-v`
-: Also print the SMILES and the style. With `--batch` and `--output`, also say how many lines were named and how many failed.
+: Also print the SMILES and the style. With `--batch`, also say how many lines were read, how many failed and how many got no name.
 
 `--dump-tree`, `--format {text,json}`
 : Print the parts of the name as a tree instead of the name.
@@ -79,4 +82,4 @@ These are for looking inside the engine. None of them changes a name, except `--
 
 ## Exit status
 
-`0` when the name (or the label for a decline) was printed, for `--help` and `--version`, and when `--fetch-jars` succeeded. `1` for a SMILES that RDKit cannot read, a batch with at least one such line, a call with neither a SMILES nor `--batch` (the help is printed), or a `--fetch-jars` that could not fetch or check a jar. `2` when a jar can be neither found nor downloaded; this is checked before the input is read, except with `--fetch-jars`.
+`0` when the name was printed, when an empty name or a label was printed for a decline (`--on-failure empty` and `label`), for `--help` and `--version`, and when `--fetch-jars` succeeded. `1` for a SMILES that RDKit cannot read, a batch with at least one such line, a decline with `--on-failure raise`, a call with neither a SMILES nor `--batch` (the help is printed), or a `--fetch-jars` that could not fetch or check a jar. `2` when a jar can be neither found nor downloaded; this is checked before the input is read, except with `--fetch-jars`.

@@ -95,7 +95,7 @@ def test_default_pin_path_still_abstains(smi, _stereo):
     import subprocess, sys
     code = (
         "from orthonym.namer import Orthonym;"
-        f"print(Orthonym().name({smi!r}))"
+        f"print(Orthonym().name({smi!r}, on_failure='label'))"
     )
     out = subprocess.run([sys.executable, "-c", code],
                          capture_output=True, text=True)

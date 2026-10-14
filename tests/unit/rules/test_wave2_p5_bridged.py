@@ -43,7 +43,7 @@ class TestP25CyclicBridges:
 
     def test_benzeno_bridge_internal_oracle(self):
         smi = "C1=CC=C2C(=C1)C1c3ccccc3C2c2ccccc21"  # triptycene = 9,10-[1,2]benzenoanthracene
-        name = name_compound(smi)
+        name = name_compound(smi, on_failure="label")
         # INTERNAL ORACLE: either the correct BB PIN, or fail closed (never wrong).
         assert name in ("unknown organic compound", "9,10-[1,2]benzenoanthracene")
         if name != "unknown organic compound":

@@ -304,7 +304,7 @@ def test_partial_sat_drop_false_for_mixed_hydro_shape():
 ])
 def test_veto_fails_closed_on_documented_leaks_no_java(smiles):
     raw = Orthonym(style="pin", _disable_opsin_validity_gate=True)
-    assert raw.name(smiles) == _NOW_NAMED.get(smiles, "unknown organic compound")
+    assert raw.name(smiles, on_failure="label") == _NOW_NAMED.get(smiles, "unknown organic compound")
 
 
 @pytest.mark.unit

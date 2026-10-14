@@ -52,16 +52,19 @@ def test_isolated_atom_raises():
     assert ei.value.code == "UNSUPPORTED_ELEMENT"
 
 
-# ---- default path is byte-identical (no raise, legacy strings) ----
+# ---- the label path is byte-identical (no raise, legacy strings); the default is "" ----
 
 def test_default_path_no_raise_and_legacy_strings():
-    # name default: wildcard does NOT raise; returns whatever it returned before.
+    # name with on_failure="label": wildcard does NOT raise; returns the legacy label.
     n = Orthonym()
-    out = n.name("CC*")  # must not raise
+    out = n.name("CC*", on_failure="label")  # must not raise
     assert isinstance(out, str)
-    # name_compound default: metal -> exact legacy descriptive string.
-    assert name_compound("[Au]") == "gold compound (not supported)"
-    assert name_compound("CCO") == "ethanol"  # in-scope unchanged
+    # name_compound with on_failure="label": metal -> exact legacy descriptive string.
+    assert name_compound("[Au]", on_failure="label") == "gold compound (not supported)"
+    assert name_compound("CCO", on_failure="label") == "ethanol"  # in-scope unchanged
+    # the default of the public call is no name at all (tests/unit/test_on_failure.py)
+    assert n.name("CC*") == "" and name_compound("[Au]") == ""
+    assert name_compound("CCO") == "ethanol"
 
 
 def test_in_scope_inputs_never_raise():

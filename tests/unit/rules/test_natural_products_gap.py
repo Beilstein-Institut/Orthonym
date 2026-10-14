@@ -61,7 +61,7 @@ class TestDKPRetainedName:
         This test verifies the root cause and documents it.
         """
         smiles = "C=C1NC(=O)[C@H]([C@@H](C)[C@]2(O)C(=O)N(C)c3ccccc32)NC1=O"
-        name = name_compound(smiles)
+        name = name_compound(smiles, on_failure="label")
         assert name, "Should produce a name"
         # This compound has indoline fused to benzene (8 atoms) vs DKP (6 atoms).
         # The fused ring system wins by ring size. This is a deeper parent selection

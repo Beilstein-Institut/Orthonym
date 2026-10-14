@@ -249,7 +249,7 @@ class TestBenchmarkSteroidRegression:
     )
     def test_produces_name(self, smiles, expected_stem, expected_name, opsin_status):
         """Each compound produces a non-empty name."""
-        name = name_compound(smiles)
+        name = name_compound(smiles, on_failure="label")
         assert name is not None
         assert len(name) > 0
 

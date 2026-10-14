@@ -69,7 +69,7 @@ class TestBridgeFailClosed:
         # boronic-acid units: the unit namer cannot produce them -> the
         # recognizer (and the whole pipeline) must refuse, never emit a
         # wrong unit name.
-        assert name_compound("OB(O)c1ccc(COCc2ccc(B(O)O)cc2)cc1") == UNKNOWN
+        assert name_compound("OB(O)c1ccc(COCc2ccc(B(O)O)cc2)cc1", on_failure="label") == UNKNOWN
 
     def test_p51_3_1_locant_guard_direct(self):
         # 3-OH vs 4-OH: the split FRAGMENTS are both 'phenol'
@@ -157,7 +157,7 @@ class TestAsymmetricSubstitutedBenzyloxy:
         # DOCUMENTS the current never-wrong end state: the benzene-handler
         # parent-selection residual keeps this fail-closed (unknown), NEVER a
         # decoration-dropped wrong name. Paired with the xfail target above.
-        assert name_compound("COc1ccc(COCc2ccc(O)cc2)cc1") == UNKNOWN
+        assert name_compound("COc1ccc(COCc2ccc(O)cc2)cc1", on_failure="label") == UNKNOWN
 
     def test_benzyloxy_sibling_regression(self):
         # 'benzyloxy' is a concatenated (compound) prefix -- only the

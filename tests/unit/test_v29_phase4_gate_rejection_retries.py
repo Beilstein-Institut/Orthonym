@@ -88,7 +88,7 @@ def test_it_still_abstains_when_no_class_can_clear_the_gate(monkeypatch):
         return out
 
     monkeypatch.setattr(Orthonym, "_retry_cascade_on_gate_rejection", spy)
-    assert Orthonym(style="pin").name(NO_CLASS_CLEARS) in _DESCRIPTIVE_FALLBACK_NAMES
+    assert Orthonym(style="pin").name(NO_CLASS_CLEARS, on_failure="label") in _DESCRIPTIVE_FALLBACK_NAMES
     ran = [t for t in seen if t[0] and not is_failure_name(t[0]) and is_failure_name(t[1])]
     assert ran, "the gate never rejected a real name, so the retry was not exercised"
     assert all(is_failure_name(t[2]) for t in ran)

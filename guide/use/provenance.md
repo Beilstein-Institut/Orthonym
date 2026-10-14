@@ -10,7 +10,7 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
 ## Every field
 
 `name`
-: The name, or the label for a decline. With `--emit-tier` other than `pin`, a decline gives `null` here.
+: The name, or the label for a decline (the row is the record of the decline, so `--on-failure` does not change it). With `--emit-tier` other than `pin`, a decline gives `null` here.
 
 `tier`
 : How the name was built: {tier}`pin_verified`, {tier}`pin_unverified`, {tier}`systematic_verified`, {tier}`best_effort` or {tier}`abstain`. See [Output tiers](../tiers.md).

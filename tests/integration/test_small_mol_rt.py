@@ -351,7 +351,7 @@ class TestStereo:
 
     def test_041_dichlorobenzaldehyde_oxime(self):
         """#41: CCCC(CC)CO/N=C/c1ccc(Cl)cc1Cl - complex oxime."""
-        name = name_compound(r"CCCC(CC)CO/N=C/c1ccc(Cl)cc1Cl")
+        name = name_compound(r"CCCC(CC)CO/N=C/c1ccc(Cl)cc1Cl", on_failure="label")
         assert name is not None and len(name) > 3
 
     def test_045_enoyl_glycine(self):
@@ -465,7 +465,7 @@ class TestCharge:
 
     def test_065_charged_tricyclic(self):
         """#65: C/C=C1\\[C@H]2C=C(C)C[C@]1([NH3+])c1ccc(=O)[nH]c1C2 - charged tricyclic."""
-        name = name_compound(r"C/C=C1\[C@H]2C=C(C)C[C@]1([NH3+])c1ccc(=O)[nH]c1C2")
+        name = name_compound(r"C/C=C1\[C@H]2C=C(C)C[C@]1([NH3+])c1ccc(=O)[nH]c1C2", on_failure="label")
         assert name is not None and len(name) > 3
 
     def test_073_carnitine_ester(self):
@@ -628,7 +628,7 @@ class TestInorganicDescriptiveMessages:
 
     def test_wildcard_boron(self):
         """*B(*)* must indicate wildcard atoms."""
-        name = name_compound("*B(*)*")
+        name = name_compound("*B(*)*", on_failure="label")
         assert "not supported" in name, f"Expected descriptive message, got: {name}"
         assert name != "unknown", "Must not be bare 'unknown'"
 

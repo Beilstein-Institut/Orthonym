@@ -41,7 +41,7 @@ def test_acetyl_coa_0wrong_holds():
     # 0-wrong is ABSOLUTE: whatever acetyl-CoA emits, it must never be a WRONG
     # molecule. Today it abstains (residual non-purine blockers); if it ever
     # emits, that name must round-trip. This assertion holds in BOTH states.
-    name = Orthonym().name(ACETYL_COA)
+    name = Orthonym().name(ACETYL_COA, on_failure="label")
     assert name == "unknown organic compound" or opsin_roundtrip_check(ACETYL_COA, name)["passed"], name
 
 
