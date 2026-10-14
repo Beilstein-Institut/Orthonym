@@ -14,7 +14,7 @@ Byte-identical contract: this handler fires only when ``polycyclic_name``
 is set AND complex_ring would NOT take the dispatch — encoded as
 ``not _is_complex_ring_system(features.mol)`` in the predicate to preserve
 the inline gate ``not _complex_ring_accepted`` semantics. The cases where
-complex_ring fires-and-rejects (low ratio in V17 mode) still fall through
+complex_ring fires-and-rejects (low ratio) still fall through
 to the inline fallback path further down composer.py.
 
 References:

@@ -8,8 +8,8 @@ ATOM DROPS, median -8 heavy atoms, and that they are multi-blocked at the code
 site: mean 2.69 distinct producer-refusal codes per row, best single-site fix 10/132
 (8%). All 17 ``substituent_skip`` sites ``continue`` when a narrow producer
 declines a fragment, which removes that fragment's atoms from the name; because
-selection is ``first_applicable`` at pool size 1, each skip is terminal and
- then correctly rejects the atom-short name.
+the pool holds one candidate and ``best`` returns the first one added, each
+skip is terminal and then correctly rejects the atom-short name.
 
 So the lever is not a fix list. It is one fallback that always accounts for every
 atom -- the generalisation of the doctrine ``rules/terminal_ring.py`` already

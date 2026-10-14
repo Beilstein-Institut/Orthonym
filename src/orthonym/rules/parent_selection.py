@@ -182,8 +182,7 @@ def _build_ring_pos(ring_set: Set[int], ring_info: dict = None) -> dict:
                 }
             return ring_pos
         # Partial coverage -> sorted fallback (back-compat with pre-147
-        # callers; cascade step 6 in candidate_pool.py gates on complete
-        # coverage via _has_iupac_locants per a phase).
+        # callers).
 
     # Fallback: sorted atom indices (correct for carbocyclic rings).
     ring_sorted = sorted(ring_set)

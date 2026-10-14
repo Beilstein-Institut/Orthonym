@@ -927,7 +927,7 @@ def assemble_name(features: Any, style: str = "pin", _composing_ion: bool = Fals
     substituent enumeration, decomposition fallback) shared a single
     thread-local pool with the outer molecule, causing inner candidates
     to pollute pool[0] and beat the outer molecule's correct candidate
-    under selection_mode='first_applicable'. See:
+    (``best`` returns the first-added candidate). See:
     internal notes.
 
     Args:
@@ -3631,7 +3631,7 @@ def _assemble_benzene_name(features: Any, style: str) -> str:
     # substituent promotion, — the parent ring must be chosen by the
     # alphanumerical order of the complete candidate names (with the R<S
     # tie-break), which is DETERMINISTIC. The candidate pool otherwise competes a
-    # per-benzene-ring parent pass under 'first_applicable' (first-added wins), so
+    # per-benzene-ring parent pass (``best`` returns the first-added one), so
     # the choice flipped with the SMILES atom order. Delegate to the single
     # preferred-parent authority so every pass yields the same, correct name.
     _pg = getattr(features, 'principal_group', None)

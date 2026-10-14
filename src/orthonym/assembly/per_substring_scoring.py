@@ -21,9 +21,7 @@ Mechanism (REUSED, not re-invented — RESEARCH §Don't-Hand-Roll):
 
 POST-HOC contract (, audit §POST-HOC Byte-Identical Contract): the
 ``node_scores`` dict is attached on ``CandidateName`` AFTER ``compute_confidence``
-returns; it NEVER feeds back into ``confidence`` (contrast the V18
-``multiple_bond_count`` recompute at ``candidate_pool.py:810-823`` — the
-explicit anti-model).
+returns; it NEVER feeds back into ``confidence``.
 
 Binary ``substituent_score`` is locked (audit §Binary-vs-Graded); a graded
 variant is a documented escape hatch only if the SCORE-04 curated near-tie set

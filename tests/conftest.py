@@ -622,18 +622,13 @@ def _naming_state_isolation():
 # ============================================================================
 # `importlib.reload` re-executes a module inside the same module object, so its
 # import-time reads of the environment and its classes are replaced for the rest
-# of the process; monkeypatch restoring the environment does not undo that. Four
-# tests reloaded coverage_scoring and candidate_pool under
-# ORTHONYM_USE_V18_WEIGHTS=true and left them so: every later test on the worker
-# named with the V18 weights (the canary oxime row
-# '(3Z,6E)-2,4,4,7-tetramethylnona-6,8-dien-3-one oxime' became '...-3-oxime')
-# and saw another CandidateName class (isinstance failed). TRIAGE 'Canary oxime --
-# test-order flake'. Reload with `tests.support.module_reload.reloaded`, which
-# puts the module back. This guard records the namespace of every orthonym module
-# a test reloads (before its first reload in the test) and, after the test, puts
-# back any module that was left changed and ERRORS the test that left it.
-# Validated on the known positives: each of the four reload sites without
-# `reloaded` errors here.
+# of the process; monkeypatch restoring the environment does not undo that. A test
+# that reloads a module under a changed environment and leaves it so makes every
+# later test on the worker run with the reloaded constants and see other class
+# objects (isinstance fails). Reload with `tests.support.module_reload.reloaded`,
+# which puts the module back. This guard records the namespace of every orthonym
+# module a test reloads (before its first reload in the test) and, after the test,
+# puts back any module that was left changed and ERRORS the test that left it.
 _RELOADED_MODULES: Dict[str, dict] = {}
 _ORIGINAL_RELOAD = None
 

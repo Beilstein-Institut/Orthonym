@@ -1,16 +1,13 @@
 """Reload modules for the length of one test, then put them back.
 
-A few integration tests reload ``orthonym.assembly.coverage_scoring`` and
-``orthonym.assembly.candidate_pool`` so that the modules' import-time reads of
-``ORTHONYM_USE_V18_WEIGHTS`` and ``ORTHONYM_SELECTION_MODE`` see the test's
-environment. ``importlib.reload`` re-executes a module inside the SAME module
-object, so the reloaded constants (the V18 factor weights) and the new class
+A test that reloads an orthonym module (for example so that the module's
+import-time read of an environment variable sees the test's environment) changes
+that module for the rest of the pytest worker. ``importlib.reload`` re-executes a
+module inside the SAME module object, so the reloaded constants and the new class
 objects stay there after the test; ``monkeypatch`` restoring the environment does
-not undo them. Every later test on that pytest worker then named with the V18
-weights -- the canary oxime row '(3Z,6E)-2,4,4,7-tetramethylnona-6,8-dien-3-one
-oxime' became '...-3-oxime' -- and saw another ``CandidateName`` class, so
-``isinstance`` checks against the class it imported failed (TRIAGE 'Canary oxime --
-test-order flake').
+not undo them. Every later test on that worker then runs with the reloaded
+constants and sees other class objects, so ``isinstance`` checks against the class
+it imported fail.
 
 ``reloaded`` keeps the reload for the body of the test and afterwards puts each
 module's original namespace back into the module object, so the rest of the run

@@ -11,15 +11,12 @@ compound that was previously protected by the fused-guard, it will drop into
 
 These tests run BEFORE a phase lands as a regression guard.
 
-Each of the 20 NP compounds runs under V17 (first_applicable, the production
-mode) via the `feature_flag_mode` fixture. (It used to run under the score_based
-V18 mode as well; that variant was removed with the candidate-pool cascade
-tests.)
+Each of the 20 NP compounds runs through name_compound in the production
+configuration.
 
 Acceptance model (intentionally soft per):
-  - name_compound(smiles) MUST NOT crash and MUST produce a non-empty name
-    in either mode. A catastrophic regression (empty name, exception) fails
-    the test.
+  - name_compound(smiles) MUST NOT crash and MUST produce a non-empty name.
+    A catastrophic regression (empty name, exception) fails the test.
   - The `test_np_canary_name_contains_substring_or_is_systematic` test is
     soft: it accepts either a trivial-name substring match OR a long
     systematic name (>30 chars). Subtle naming differences are caught by
@@ -31,7 +28,7 @@ names). The internal notes list includes both names as intentional duplicates
 slot distinct by design — one PubChem canonical paclitaxel SMILES, and a
 second "taxol" slot using a mildly different representation that
 canonicalizes to the same molecule. The test passes as long as both
-representations produce non-empty names in both modes.
+representations produce non-empty names.
 
 Source: https://iupac.qmul.ac.uk/BlueBook/P3.html
 Source: https://iupac.qmul.ac.uk/BlueBook/P4.html
@@ -40,7 +37,6 @@ import pytest
 from rdkit import Chem
 
 from orthonym.errors import is_failure_name  # (DD7 S1) fail-closed signal
-from tests.support.module_reload import reloaded
 
 
 # 20 NP compounds per internal notes.
@@ -84,8 +80,7 @@ NP_BACKBONE_ALIASES = {
     # Caffeine alias above already covers the new caffeine_v18_canary slot
     # (same trivial-name compound, different V18-plan- SMILES form).
     # Per RESEARCH b, all 5 boundary compounds produce non-empty
-    # IUPAC-correct names in BOTH first_applicable AND score_based modes
-    # via cascade non-entry (chain_len < 2 → ring-as-parent) for the
+    # IUPAC-correct names via cascade non-entry (chain_len < 2 → ring-as-parent) for the
     # plain purines, and via cascade entry → acid-suffix decomposition
     # for the acid_on_purine_adv case. The aliases below accept the
     # systematic purine-2,6-dione output.
@@ -119,7 +114,7 @@ NP_CANARIES = [
     # paclitaxel == taxol (intentional duplicate per list). We use a
     # differently-formatted SMILES here to exercise the canonicalization
     # path alongside the "taxol" slot above. Both canonicalize to the
-    # same structure; both must produce non-empty names in both modes.
+    # same structure; both must produce non-empty names.
     ("paclitaxel",   "CC(=O)O[C@@H]1C(=O)[C@@]2(C)[C@@H](O)C[C@H]3OC[C@@]3([C@@H]2[C@H](OC(=O)c2ccccc2)[C@@]2(O)CC(=O)C(C)=C1[C@H]2OC(C)=O)NC(=O)c1ccccc1"),
     ("vincristine",  "CCC1(O)CC2CN(CCc3c2[nH]c2ccccc32)CC1"),
     ("ergosterol",   "CC(C)C(C)C=CC(C)C1CCC2C1(C)CCC3C2CC=C4CC(O)CCC34C"),
@@ -143,31 +138,8 @@ NP_CANARIES = [
 
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Helpers
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(params=[
-    ("false", "first_applicable"),  # V17 (default soak per)
-], ids=["v17"])
-def feature_flag_mode(request, monkeypatch):
-    """Fixture: each test runs under V17 (first_applicable, the production mode).
-
-    The score_based V18 variant candidate-pool cascade) is no longer run:
-    the pool never holds more than one candidate in production.
-
-    Sets ORTHONYM_USE_V18_WEIGHTS + ORTHONYM_SELECTION_MODE and reloads
-    coverage_scoring + candidate_pool so the env vars are picked up at
-    module-import time; the modules' original namespaces are put back
-    after the test (``tests.support.module_reload.reloaded``, TRIAGE
-    'Canary oxime -- test-order flake').
-    """
-    use_v18, sel_mode = request.param
-    monkeypatch.setenv("ORTHONYM_USE_V18_WEIGHTS", use_v18)
-    monkeypatch.setenv("ORTHONYM_SELECTION_MODE", sel_mode)
-    from orthonym.assembly import coverage_scoring, candidate_pool
-    with reloaded(coverage_scoring, candidate_pool):
-        yield (use_v18, sel_mode)
 
 
 def _skip_if_unparseable(smiles, name_substring):
@@ -187,7 +159,7 @@ def _skip_if_unparseable(smiles, name_substring):
 
 
 def _name(smi):
-    """Helper to invoke name_compound after env-var reload."""
+    """Helper to invoke name_compound."""
     from orthonym import name_compound
     return name_compound(smi)
 
@@ -199,19 +171,17 @@ def _name(smi):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("name_substring,smiles", NP_CANARIES)
-def test_np_canary_produces_non_empty_name(name_substring, smiles, feature_flag_mode):
-    """ hard gate: each NP canary produces a non-empty name in BOTH V17 and V18.
+def test_np_canary_produces_non_empty_name(name_substring, smiles):
+    """ hard gate: each NP canary produces a non-empty name.
 
     Any regression here blocks a phase closure and the 146-147-148 triple
     merge per internal notes: "Any regression in 148 pre-merge blocks phase
     closure."
     """
     _skip_if_unparseable(smiles, name_substring)
-    use_v18, sel_mode = feature_flag_mode
     name = _name(smiles)
     assert name, (
-        f"D-18 regression: {name_substring} ({smiles}) produced empty name "
-        f"in mode=(V18={use_v18}, sel={sel_mode}). "
+        f"D-18 regression: {name_substring} ({smiles}) produced empty name. "
         f"P-31.1.3.4 NP override may have regressed "
         f"(parent_selection.py:594-606)."
     )
@@ -219,19 +189,15 @@ def test_np_canary_produces_non_empty_name(name_substring, smiles, feature_flag_
 
 @pytest.mark.integration
 @pytest.mark.parametrize("name_substring,smiles", NP_CANARIES)
-def test_np_canary_name_contains_substring_or_is_systematic(
-    name_substring, smiles, feature_flag_mode,
-):
+def test_np_canary_name_contains_substring_or_is_systematic(name_substring, smiles):
     """ soft gate: NP canary names are either recognizable (trivial-name
     substring match) or defensibly systematic (>30-char name from the cascade).
 
-    Subtle differences between V17 and V18 output are expected and handled
-    by a phase Plan 07's ship-gate diagnostic disclosure . This
-    test catches suspicious short-name outputs that would suggest the
-    cascade failed to fire.
+    Subtle naming differences are handled by a phase Plan 07's ship-gate
+    diagnostic disclosure . This test catches suspicious short-name
+    outputs that would suggest the cascade failed to fire.
     """
     _skip_if_unparseable(smiles, name_substring)
-    use_v18, sel_mode = feature_flag_mode
     name = _name(smiles)
     if not name:
         pytest.skip("empty name already covered by previous hard-gate test")
@@ -272,7 +238,7 @@ def test_np_canary_name_contains_substring_or_is_systematic(
         f"D-18 soft failure: {name_substring} produced suspicious name "
         f"{name!r} (no trivial substring, no NP-scaffold alias "
         f"{aliases!r}, not a long systematic name, and not a G0 fail-closed "
-        f"refusal) in mode=(V18={use_v18}, sel={sel_mode}). Investigate parent selection."
+        f"refusal). Investigate parent selection."
     )
 
 

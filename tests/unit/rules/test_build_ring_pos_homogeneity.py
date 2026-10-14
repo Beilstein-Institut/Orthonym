@@ -100,9 +100,8 @@ def test_pure_tuple_iupac_locants_passthrough():
 def test_partial_coverage_falls_back_to_sorted():
     """When iupac_locants covers only some ring atoms, fall back to sorted.
 
-    Per back-compat: non-cascade-step-6 callers rely on the sorted
-    proxy. Cascade step 6 gates on complete coverage via _has_iupac_locants
-    at candidate_pool.py so this fallback is safe there.
+    Per back-compat: callers that hand on a partial map rely on the
+    sorted proxy.
 
     Source: a phase internal notes (sorted-fallback preserved).
     """

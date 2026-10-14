@@ -4294,10 +4294,10 @@ def get_ring_assembly_iupac_locants(mol) -> Optional[Dict[int, _Locant]]:
     the supplier emits plain integer locants — the comparator in
     ``compare_locant_sets`` and ``_build_ring_pos`` sees the integer base.
 
-    Coverage invariant per Pitfall 7: returns ``None`` when partial
-    coverage would otherwise leak into the cascade-step-6 gate. The gate
-    in ``candidate_pool.py:634::_has_iupac_locants`` checks dict
-    truthiness only; a partial map would silently mis-rank candidates.
+    Coverage invariant per Pitfall 7: returns ``None`` when only part of the
+    ring atoms would be numbered. ``_build_ring_pos`` uses ``iupac_locants``
+    only when it covers every atom of the ring system and otherwise uses the
+    sorted-int proxy, so a partial map is never handed on.
 
     Args:
         mol: RDKit Mol object.

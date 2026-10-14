@@ -1843,7 +1843,7 @@ def get_spiro_iupac_locants(mol) -> Optional[Dict[int, _Locant]]:
     Wraps the existing `_get_polyspiro_numbering` (multi-spiro) and
     `get_spiro_numbering` (monospiro) helpers, returning the same
     atom -> locant map shape that a phase's `_build_ring_pos`
-    consumes via the `_has_iupac_locants` cascade-step-6 gate.
+    consumes as `iupac_locants`.
 
     Coverage invariant per Pitfall 7: returns None on partial coverage
     so the cascade-step-6 gate falls through to the sorted-int proxy.

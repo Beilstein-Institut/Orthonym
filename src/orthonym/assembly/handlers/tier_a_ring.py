@@ -15,8 +15,7 @@ Internal cascade order (preserved verbatim from composer.py inline body):
 3. partial_sat fallback when complex_ring rejected (composer.py:1103-1110) — direct return
 4. heterocycle + lactone safety net (composer.py:1122-1152)
 5. benzene (composer.py:1159-1173)
-6. a phase chain push-to-pool (composer.py:1185-1192)
-7. select_best_candidate selector + handler-level stereo injection (composer.py:1197-1305)
+6. select_best_candidate selector + handler-level stereo injection (composer.py:1197-1305)
 
 Returns None if all sub-paths fall through AND no Tier-A candidate ratio
 gate accepted. The surrounding dispatch_inner loop then continues to
@@ -37,7 +36,7 @@ IUPAC cite: (principal chain vs ring competition).
 NAMING NOTE: 'tier_a_ring' is the RING CASCADE, not one producer. _is_tier_a_ring
 fires for every cyclic molecule whose parent is not a chain; the handler then
 tries complex_ring, polycyclic, partial_sat, heterocycle and benzene in the order
-listed above, pushes the chain candidate to the pool and lets select_best_candidate
+listed above, adds the ring candidates to the pool and lets select_best_candidate
 choose. For spiro parents it also calls general_engine.name_general
 (_spiro_principal_suffix_preference). "Tier-A" is the 'ring_a' handler-policy tier
 of candidate_pool.HANDLER_POLICIES; it has nothing to do with the result tiers
@@ -510,9 +509,7 @@ def name_tier_a_ring(
                     ),
                 )
                 if _complex_cand is not None:
-                    if _tier_a_pool.selection_mode == 'score_based':
-                        _complex_ring_accepted = True
-                    elif _complex_cand.factors.get('ratio', 0) >= 0.40:
+                    if _complex_cand.factors.get('ratio', 0) >= 0.40:
                         _complex_ring_accepted = True
         # If complex ring naming fails, fall through.
 
@@ -629,16 +626,6 @@ def name_tier_a_ring(
                         features, 'benzene',
                     ),
                 )
-
-    # === Sub-path 5: a phase chain push-to-pool (composer.py:1185-1192) ===
-    if _tier_a_pool.selection_mode == 'score_based':
-        from ..candidate_pool import compute_chain_candidate
-        _chain_cand = compute_chain_candidate(features, style=style)
-        if _chain_cand is not None:
-            _tier_a_pool.add(
-                _chain_cand.name, 'chain', features,
-                parent_atom_indices=_chain_cand.parent_atom_indices,
-            )
 
     # === Selector + handler-level stereo injection (composer.py:1197-1321) ===
     # PHASE 146 PRESERVE: the slicing pattern below MUST survive a phase's

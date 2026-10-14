@@ -14,15 +14,13 @@ Tests in this module verify:
   (a) the inline _MIN_RATIO_FALLBACK constant literal exists in source,
   (b) the if-fallback condition exists in source,
   (c) _MIN_RATIO_ACCEPT and _CASCADE_RATIO_MIN constants are REMOVED,
-  (d) 3 low-heavy-atom canary molecules produce valid names in BOTH
-      V17 and V18 modes — the fallback is doing its job.
+  (d) 3 low-heavy-atom canary molecules produce valid names — the
+      fallback is doing its job.
 
 Source: https://iupac.qmul.ac.uk/BlueBook/P4.html
 """
 
 import pytest
-
-from tests.support.module_reload import reloaded
 
 
 # Three low-heavy-atom canaries per internal notes ("add 3 low-heavy-atom
@@ -38,33 +36,10 @@ LOW_HA_CANARIES = [
 ]
 
 
-@pytest.fixture(params=[
-    ("false", "first_applicable"),  # V17
-], ids=["v17"])
-def both_modes(request, monkeypatch):
-    """Fixture: each test runs under V17 (first_applicable, the production mode).
-
-    The score_based V18 variant candidate-pool cascade) is no longer run:
-    the pool never holds more than one candidate in production.
-
-    The two modules are reloaded to read the env vars at import time and put
-    back after the test (``tests.support.module_reload.reloaded``, TRIAGE
-    'Canary oxime -- test-order flake').
-    """
-    use_v18, sel_mode = request.param
-    monkeypatch.setenv("ORTHONYM_USE_V18_WEIGHTS", use_v18)
-    monkeypatch.setenv("ORTHONYM_SELECTION_MODE", sel_mode)
-    from orthonym.assembly import coverage_scoring, candidate_pool
-    with reloaded(coverage_scoring, candidate_pool):
-        yield (use_v18, sel_mode)
-
-
 @pytest.mark.integration
 @pytest.mark.parametrize("smiles,expected_substring", LOW_HA_CANARIES)
-def test_low_ha_canaries_produce_name_in_both_modes(
-    smiles, expected_substring, both_modes
-):
-    """: low-HA molecules MUST produce a non-empty name in both V17 and V18.
+def test_low_ha_canaries_produce_name_in_both_modes(smiles, expected_substring):
+    """: low-HA molecules MUST produce a non-empty name.
 
     The fallback `if total_heavy <= 15: return best.name` ensures small
     molecules (<=15 heavy atoms) always return the best Tier A candidate
@@ -74,12 +49,12 @@ def test_low_ha_canaries_produce_name_in_both_modes(
     name = name_compound(smiles)
     assert name, (
         f"D-10 violation: {smiles} produced empty name "
-        f"in mode={both_modes} — the low-HA rescue fallback is not firing"
+        "— the low-HA rescue fallback is not firing"
     )
     # Name should contain the expected retained-name substring (loose match).
     assert expected_substring.lower() in name.lower(), (
         f"D-10 verification: {smiles} expected '{expected_substring}' "
-        f"in name; got '{name}' (mode={both_modes})"
+        f"in name; got '{name}'"
     )
 
 

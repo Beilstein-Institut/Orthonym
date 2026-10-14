@@ -290,8 +290,7 @@ class TestVB:
     Verifies that ``_build_ring_info_for_parent_selection`` Branch 6 routes
     >=4-ring non-cataloged bridged systems through the new
     ``polycyclic_von_baeyer.get_higher_polycyclo_iupac_locants`` supplier and
-    that the cascade-step-6 gate (`candidate_pool._has_iupac_locants`)
-    consumes the resulting locants with FULL atom coverage.
+    that `iupac_locants` carries the resulting locants with FULL atom coverage.
 
     Source: 151-internal notes / /; internal notes-A.md verdict
     THIN_WRAPPER; a phase cascade-step-6 gate.

@@ -71,7 +71,7 @@ It is still a CHARACTER COUNT standing in for coverage, and it is
 anti-correlated with coverage (correct ``cholesterol`` 0.393; a name that
 invents atoms 5.333). It is STILL left unchanged here, for the reason Z2 gave
 and Z3 confirms: ``atom_coverage`` carries weight 0.20 in
-``FACTOR_WEIGHTS_V17``, so altering it moves ``confidence`` and therefore
+``FACTOR_WEIGHTS``, so altering it moves ``confidence`` and therefore
 candidate selection, which requires a full gate run to certify. Do not "fix"
 the factor without one, and do not cite ``factors['ratio']`` or
 ``factors['atom_coverage']`` as evidence about atoms. Real coverage:
@@ -82,7 +82,6 @@ into the ``decomposition/engine.py`` guards by Task Z3. Full audits:
 """
 
 import logging
-import os
 import re
 import threading
 from dataclasses import dataclass, field
@@ -178,25 +177,13 @@ class CandidateName:
     # changes atom_coverage and breaks byte-identical (see RESEARCH
     # Risk 3 / PATTERNS Risk 1).
     parent_atom_indices: Optional[set] = None
-    # a phase: principal-characteristic-group count for the parent
-    # structure. Populated POST-HOC by CandidatePool.add via
-    # _count_pcgs_in_parent. Same Risk 1 mitigation as parent_atom_indices:
-    # NEVER passed into compute_confidence — that would break the
-    # byte-identical guarantee. Used by Tier-1 cascade filter
-    # _filter_max_pcg_count.
-    # Default None means "not yet computed" (the cascade treats None as 0).
-    # Source: https://iupac.qmul.ac.uk/BlueBook/P4.html
-    parent_pcg_count: Optional[int] = None
-    # a phase: ring-type authoritative IUPAC locants used by
-    # Tier-1 cascade step 6 (_filter_lowest_locants) per +.
+    # Ring-type authoritative IUPAC locants of the parent.
     # Populated POST-HOC by CandidatePool.add — same Risk 1 mitigation
     # as parent_atom_indices: NEVER passed into compute_confidence
     # (would break byte-identical guarantee).
     # Shape: {"iupac_locants": {atom_idx: int | (int, str) tuple}} or None.
-    # None means "no authoritative locants available" (spiro/VB stubs
-    # per, or unsupported ring type) — cascade step 6 short-circuits
-    # via _has_iupac_locants probe at candidate_pool.py:501-514.
-    # Source: https://iupac.qmul.ac.uk/BlueBook/P4.html +
+    # None means "no authoritative locants available" (spiro/VB stubs,
+    # or unsupported ring type).
     ring_info: Optional[Dict[str, Any]] = None
     # a phase SCORE-01: structured Name-Tree IR for this candidate. Populated
     # POST-HOC by CandidatePool.add(tree=...) — same Risk 1 mitigation as
@@ -305,26 +292,10 @@ CONFIDENCE_GATE_THRESHOLD: float = 0.40
 # fg_recognition (0.062) > substituent_completeness (0.047) >
 # ratio (0.042) = atom_coverage (0.042)
 # Pre-calibration baseline: ratio=0.30, atom_cov=0.30, fg=0.25, sub=0.15
-#
-# a phase : two dicts FACTOR_WEIGHTS_V17 and FACTOR_WEIGHTS_V18 are
-# declared; FACTOR_WEIGHTS is bound to one or the other at module-import time
-# based on the ORTHONYM_USE_V18_WEIGHTS env var (default 'false' = V17).
-# The V18 dict adds the multiple_bond_count factor (,.
-# Calibrated weight values are written by Plan 04 grid search.
-#
-# ----------------------------------------------------------------
-# a phase /: feature-flag-controlled FACTOR_WEIGHTS dispatch.
-# ORTHONYM_USE_V18_WEIGHTS env var read at module-import time.
-# Default 'false' (V17 active) during the post-148 soak week per.
-# Rollback one-liner:
-# ORTHONYM_USE_V18_WEIGHTS=false ORTHONYM_SELECTION_MODE=first_applicable pytest tests/
-# Source: https://iupac.qmul.ac.uk/BlueBook/P4.html,
-# ----------------------------------------------------------------
-_USE_V18 = os.getenv('ORTHONYM_USE_V18_WEIGHTS', 'false').strip().lower() == 'true'
 
-# V17 weights (a phase + 145.2 baseline — byte-identical preserved).
-# ratio=0.0 from 145.2 -a.1 (zero IUPAC justification per Blue Book grep).
-# parent_correctness=0.0 from 145.1 (scaffolded; raised to calibrated value in V18).
+# The active weights. ratio=0.0 from 145.2 -a.1 (zero IUPAC justification
+# per Blue Book grep). parent_correctness=0.0 from 145.1 (the factor is
+# scaffolded and contributes exactly 0.0).
 #
 # BYTE-IDENTICAL PROOF :
 # - Python 3.7+ dict iteration is insertion-order-deterministic.
@@ -337,43 +308,13 @@ _USE_V18 = os.getenv('ORTHONYM_USE_V18_WEIGHTS', 'false').strip().lower() == 'tr
 # RISK 2 (PATTERNS Risk 2): inserting parent_correctness in the MIDDLE would
 # change weighted-sum order; floating-point summation is non-associative,
 # so the rounded result may differ in the 5th decimal. DO NOT REORDER.
-FACTOR_WEIGHTS_V17: Dict[str, float] = {
+FACTOR_WEIGHTS: Dict[str, float] = {
     'ratio': 0.0,
     'atom_coverage': 0.20,
     'fg_recognition': 0.35,
     'substituent_completeness': 0.25,
     'parent_correctness': 0.0,
 }
-
-# V18 weights (a phase calibrated by grid search in Plan 04).
-# CALIBRATED by Plan 04 grid search (2026-04-24, 52 configs, anti-overfit delta=0.0).
-# Grid: 5^5 with sum-to-1.0 constraint; parent_correctness DROPPED per
-# (std=0.0 until a phase wires features.parent_selection_result); 52 surviving
-# configs evaluated over ~2.5 hrs wall-clock on 4 workers.
-# multiple_bond_count is the NEW factor per — calibration
-# retained it at 0.25 (NOT triggered; factor has meaningful discriminative
-# signal even under 's production path).
-# Insertion order: multiple_bond_count is APPENDED LAST per IEEE 754
-# invariant (when V17 loop encounters this dict via reload, the 6th term
-# is added LAST so prior 5 sums are byte-identical to V17).
-# Source: https://iupac.qmul.ac.uk/BlueBook/P4.html
-FACTOR_WEIGHTS_V18: Dict[str, float] = {
-    'ratio': 0.0,                       # permanent 0.0 (a phase -a.1)
-    'atom_coverage': 0.05,              # RECALIBRATED via a phase boundary-extension grid
-    'fg_recognition': 0.25,             # RECALIBRATED (post-148 cascade unblock shifts optimum)
-    'substituent_completeness': 0.25,   # RECALIBRATED
-    'parent_correctness': 0.35,         # RECALIBRATED — a phase INTERIOR optimum (was 0.25 at 148.1 corner)
-    'multiple_bond_count': 0.10,        # RECALIBRATED (lowered to keep sum-to-1.0)
-}
-# Sum = 1.00 (0.00 + 0.05 + 0.25 + 0.25 + 0.35 + 0.10); sum-to-1.0 constraint satisfied.
-# a phase partial (100/255 configs; 5-hr abort): Wilson-95-LB winner;
-# SATISFIED: parent_correctness=0.35 is INTERIOR to [0.30, 0.50] grid; no further
-# boundary extension needed. Top-10 cluster: PC=0.30 (5/10), PC=0.35 (3/10), PC=0.40 (1/10), PC=0.45 (1/10).
-
-# Active weights — flipped via ORTHONYM_USE_V18_WEIGHTS env var.
-FACTOR_WEIGHTS: Dict[str, float] = (
-    FACTOR_WEIGHTS_V18 if _USE_V18 else FACTOR_WEIGHTS_V17
-)
 
 # Confidence bands for structured logging
 CONFIDENCE_HIGH: float = 0.75    # DEBUG level
@@ -518,48 +459,6 @@ def _compute_substituent_completeness(name: str, features: Any) -> float:
     return min(named_subs / total_expected, 1.0)
 
 
-def _compute_multiple_bond_count(
-    features: Any,
-    parent_atom_indices: Optional[Set[int]],
-) -> float:
-    """Count (double + triple) bonds where both endpoints are in parent_atom_indices.
-
-    a phase: parent atoms ONLY (NOT entire molecule), per
-    which says "ring system or chain" = the parent skeleton. Substituent
-    multiple bonds (e.g. a nitrile substituent's C#N triple bond) do NOT
-    contribute because the bond's endpoints are not both in parent_atom_indices.
-
-    Returns a numeric count (e.g., 0, 1, 2, 3) as a float. The weighted-sum
-    in compute_confidence multiplies by FACTOR_WEIGHTS_V18['multiple_bond_count']
-    and clamps the final confidence to [0, 1] — so a parent with 3 multiple
-    bonds and a 0.10 weight contributes 0.30 to confidence (capped if total > 1).
-
-    Note: This helper is functionally identical to
-    candidate_pool._count_multiple_bonds_in_atom_set; the duplication is
-    intentional to avoid a coverage_scoring <-> candidate_pool circular import
-    (candidate_pool imports compute_confidence from coverage_scoring, so the
-    reverse direction is forbidden). See RESEARCH
-
-    Source: https://iupac.qmul.ac.uk/BlueBook/P4.html
-    """
-    mol = getattr(features, 'mol', None)
-    if mol is None or not parent_atom_indices:
-        return 0.0
-    try:
-        from rdkit import Chem
-    except ImportError:
-        return 0.0
-    atom_set = set(parent_atom_indices)
-    count = 0
-    for bond in mol.GetBonds():
-        if (bond.GetBeginAtomIdx() in atom_set
-                and bond.GetEndAtomIdx() in atom_set):
-            bt = bond.GetBondType()
-            if bt == Chem.BondType.DOUBLE or bt == Chem.BondType.TRIPLE:
-                count += 1
-    return float(count)
-
-
 # ---------------------------------------------------------------------------
 # Main scoring function
 # ---------------------------------------------------------------------------
@@ -636,23 +535,13 @@ def compute_confidence(
         'atom_coverage': round(min(atom_cov, 1.0), 4),
         'fg_recognition': round(fg_recognition, 4),
         'substituent_completeness': round(sub_completeness, 4),
-        # a phase: placeholder set to 0.0 so the sum-loop at lines 324-326
+        # a phase: placeholder set to 0.0 so the sum-loop below
         # doesn't raise KeyError on the new FACTOR_WEIGHTS key. CandidatePool.add
         # overwrites this POST-HOC with the real ParentCorrectnessScorer.score
         # result. With FACTOR_WEIGHTS['parent_correctness'] = 0.0, the placeholder
         # contributes exactly 0.0 to confidence (IEEE 754) -- byte-identical safe.
         'parent_correctness': 0.0,
     }
-    # a phase: multiple_bond_count factor (V18-only).
-    # Guard ensures V17 path (where the key is absent from FACTOR_WEIGHTS)
-    # produces byte-identical factors dict. POST-HOC overwrite in pool.add
-    # for V18 mode handles the case where this is initially 0.0
-    # (parent_atom_indices=None at compute_confidence call time per Risk 1).
-    # Source: https://iupac.qmul.ac.uk/BlueBook/P4.html
-    if 'multiple_bond_count' in FACTOR_WEIGHTS:
-        factors['multiple_bond_count'] = round(
-            _compute_multiple_bond_count(features, parent_atom_indices), 4
-        )
 
     # Weighted linear combination
     confidence = sum(
