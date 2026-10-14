@@ -65,7 +65,7 @@ orthonym --fetch-jars</code></pre>
         <span class="ot-rung-tier">Best effort</span>
         <code class="ot-rung-id">best_effort</code>
       </div>
-      <p class="ot-name ot-rule--best-effort"><i>cis</i>-bicyclo[4.4.0]decane</p>
+      <p class="ot-name ot-rule--best-effort"><i>cis</i>-decahydronaphthalene</p>
       <p class="ot-cmd"><code>orthonym --emit-tier best-effort "C1CC[C@H]2CCCC[C@H]2C1"</code><span class="ot-cmd-note">cis-decalin</span></p>
       <p class="ot-rung-say">From a last-resort producer; OPSIN read it back to the same molecule.</p>
     </div>

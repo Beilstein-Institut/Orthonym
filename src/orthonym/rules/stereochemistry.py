@@ -21,9 +21,10 @@ atom indices as those are NOT valid IUPAC locants.
 
 import logging
 import re
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Tuple, Union
 
 from rdkit import Chem
+from rdkit.Chem import inchi
 
 from ..perception.molcache import (  # audit 2026-09-03 (S2): per-call atom/bond tuples
     atoms_of,
@@ -606,6 +607,62 @@ def strip_stereo_blocks(name: str):
         # both a leading and a nested block converges (read-only gate probe only).
         s = _STRIP_STEREO_NESTED_RE.sub(_nested, s).strip()
     return s, blocks
+
+
+def locate_stereo_blocks(name: str) -> List[Tuple[int, int, str]]:
+    """``[(start, end, text)]``: where in ``name`` each descriptor block that
+    :func:`strip_stereo_blocks` removes sits.
+
+    It finds the blocks with the same two matchers as:func:`strip_stereo_blocks`
+    (``_STRIP_STEREO_LEADING_RE`` and ``_STRIP_STEREO_NESTED_RE``) run to the same
+    fixpoint, and follows every removal back to its offset in ``name``. ``text`` is the
+    block as:func:`strip_stereo_blocks` returns it (``'(1r,4r)'``, ``'cis'``), and the
+    list is in the order of its ``blocks``. ``name[start:end]`` is the block with its
+    following hyphen (``'(1r,4r)-'``); the enclosing mark of a nested block lies before
+    ``start`` and is not part of the span. Removing the spans from ``name`` gives
+    ``strip_stereo_blocks(name)[0]``.
+
+    READ-ONLY, like:func:`strip_stereo_blocks`: the blocks and their offsets are what
+    the descriptor check read, so a caller that rewrites a block rewrites the one that
+    was checked. A removal that is not contiguous in ``name`` (a block cut by an earlier
+    removal) is reported with the span that covers it; ``name[start:end] == text + '-'``
+    is false there, which a caller that edits by span tests.
+    """
+    if not name:
+        return []
+    found: List[Tuple[int, int, str]] = []
+    s = name
+    pos = list(range(len(name)))  # pos[i]: the offset in ``name`` of s[i]
+
+    def _trim():
+        nonlocal s, pos
+        a = len(s) - len(s.lstrip())
+        b = len(s.rstrip())
+        s, pos = s[a:b], pos[a:b]
+
+    _trim()
+    prev = None
+    while prev != s:
+        prev = s
+        m = _STRIP_STEREO_LEADING_RE.match(s)
+        if m:
+            found.append((pos[0], pos[m.end() - 1] + 1, m.group(1)))
+            s, pos = s[m.end():], pos[m.end():]
+        _trim()
+        keep_s, keep_pos, last = [], [], 0
+        for m in _STRIP_STEREO_NESTED_RE.finditer(s):
+            # group(0) is '<mark>(<block>)-'; the block starts after the mark.
+            found.append((pos[m.start() + 1], pos[m.end() - 1] + 1,
+                          m.group(0)[1:-1]))
+            keep_s.append(s[last:m.start() + 1])
+            keep_pos.extend(pos[last:m.start() + 1])
+            last = m.end()
+        if last:
+            keep_s.append(s[last:])
+            keep_pos.extend(pos[last:])
+            s, pos = "".join(keep_s), keep_pos
+        _trim()
+    return found
 
 
 def needs_stereo_injection(mol, name: str) -> bool:
@@ -1361,3 +1418,79 @@ def get_junction_locants_for_fused_system(
         result[bridgehead_atoms[1]] = f'{total_positions}a'
 
     return result
+
+
+def _ring_cistrans_is_complete(mol, a: int, b: int) -> bool:
+    """True iff a relative ``cis``/``trans`` descriptor is a COMPLETE, enantiospecific
+    label for the ring stereocentres ``a`` and ``b`` -- i.e. flipping BOTH of them
+    yields the SAME molecule, ``(up,up) ≅ (down,down)``. Then the ring carries no
+    independent absolute handedness and ``cis``/``trans`` loses nothing.
+    When they are DISTINCT the ring is a true chiral pair (e.g. 1,2-cyclohexane, or
+    a ring bearing opposite-sense pendant stereo on mirror-paired arc atoms) whose
+    absolute ``(R,S)`` block ``cis``/``trans`` cannot express -- excluded here,
+    kept on rung 1's ``full`` candidate.
+
+    Stereo-AWARE by construction (unlike a stereo-blind arc-rank test, which is a
+    local invariant, not a 3D automorphism, and admits the diazinane leak). Uses
+    the full stereo InChIKey; no OPSIN. Failure direction is safe: a
+    canonicalisation glitch can only make this REJECT (lost breadth), never admit
+    (a wrong emission). Both centres must be defined stereocentres (they carry
+    ``_CIPCode``); an undefined tag returns False (cannot certify -> keep absolute).
+    """
+    m = Chem.RWMol(mol)
+    for idx in (a, b):
+        at = m.GetAtomWithIdx(idx)
+        t = at.GetChiralTag()
+        if t == Chem.ChiralType.CHI_TETRAHEDRAL_CW:
+            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CCW)
+        elif t == Chem.ChiralType.CHI_TETRAHEDRAL_CCW:
+            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CW)
+        else:
+            return False
+    try:
+        orig = inchi.MolToInchiKey(mol)
+        flipped = inchi.MolToInchiKey(m.GetMol())
+    except Exception:
+        return False  # InChI failure -> cannot certify -> keep absolute (safe)
+    return bool(orig) and orig == flipped
+
+
+def _rings_jointly_complete(mol, rings: List[FrozenSet[int]]) -> bool:
+    """True iff a SINGLE relative name over ALL ``rings`` is complete -- i.e.
+    flipping EVERY ring stereocentre of EVERY ring at once yields the SAME
+    molecule.
+
+    Rung 1c can emit up to TWO relative rings in one name. Such a name denotes
+    the set ``{X, fb1(X), fb2(X), fb1fb2(X)}`` (each ``fb_i`` flips ring i's two
+    centres). ``_ring_cistrans_is_complete`` certifies each ring individually
+    (``fb_i(X) ≅ X``), but a two-descriptor name is 0-wrong only if the COMBINED
+    flip also holds (``fb1fb2(X) ≅ X``) -- per-ring symmetry does not formally
+    imply joint symmetry when a molecular automorphism couples the two rings, and
+    the OPSIN round-trip gate cannot backstop a relative descriptor (it
+    false-confirms one member). This checks the joint condition directly: flip
+    all centres of all rings on one copy, require the full-stereo InChIKey to be
+    unchanged. Same reject-safe failure directions as
+    ``_ring_cistrans_is_complete`` (undefined tag / InChI failure / empty key ->
+    False -> keep absolute). Belt-and-suspenders: empirically unreached on the
+     cluster (dominantly single-ring), but 0-wrong is ABSOLUTE.
+    """
+    centres = [a for rs in rings
+               for a in rs if mol.GetAtomWithIdx(a).HasProp("_CIPCode")]
+    if not centres:
+        return False
+    m = Chem.RWMol(mol)
+    for idx in centres:
+        at = m.GetAtomWithIdx(idx)
+        t = at.GetChiralTag()
+        if t == Chem.ChiralType.CHI_TETRAHEDRAL_CW:
+            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CCW)
+        elif t == Chem.ChiralType.CHI_TETRAHEDRAL_CCW:
+            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CW)
+        else:
+            return False
+    try:
+        orig = inchi.MolToInchiKey(mol)
+        flipped = inchi.MolToInchiKey(m.GetMol())
+    except Exception:
+        return False
+    return bool(orig) and orig == flipped
