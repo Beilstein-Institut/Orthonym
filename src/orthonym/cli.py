@@ -255,7 +255,7 @@ def main(args: List[str] = None) -> int:
             "Print a JSON row instead of the bare name, with the keys name, tier, "
             "is_pin, source, opsin, gates_passed, gate_outcome, formula, "
             "limit_code, stereo_unexpressed, suffix_free_prefix_name, "
-            "prefix_order_fallback, verified and spelling_failures. "
+            "prefix_order_fallback, verified, spelling_failures and producer. "
             "'verified' is opsin (OPSIN read the whole name back to the same "
             "molecule), opsin_constitution (the same constitution; the "
             "stereodescriptors were not confirmed by OPSIN), identity (a name from "

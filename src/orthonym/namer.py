@@ -37,6 +37,7 @@ from .errors import (
     unsupported_ring_system,
 )
 from .gate_retry import gate_candidate, name_with_forced_locants
+from .metrics.producer_trail import carried as _carried, noted as _noted, suspended as _suspended
 from .validation.opsin_ambiguity import reject_ambiguous, restore_withdrawn, withdrawn_name
 from .validation.stereo_descriptors import (  # noqa: F401 both names are imported FROM this module (tests, spies); callers resolve them here at call time
     stereo_block_units as _stereo_block_units,
@@ -5044,7 +5045,7 @@ class Orthonym:
                         # comment at hydro_assembly_withheld).
                         from .rules.ring_assemblies import hydro_assembly_withheld
                         with hydro_assembly_withheld():
-                            _iso_name = decorate_isotopic_name(smiles, self.style, self)
+                            _iso_name = _noted("isotope", decorate_isotopic_name(smiles, self.style, self), _iso_probe)
                         if _iso_name is not None:
                             # (fix wave 1): every exit of name goes
                             # through _finish. This one lives OUTSIDE the main
@@ -5201,36 +5202,36 @@ class Orthonym:
                     handler = _conf.get('handler', 'unknown')
                     # a phase -01 : thread the authoritative parent
                     # map + phenol flag to the backstop.
-                    result = _final_stereo_check(
+                    result = _carried(result, _final_stereo_check(
                         mol, result, handler=handler,
                         atom_to_locant=_conf.get('atom_to_locant'),
                         is_phenol_benzene=_conf.get('is_phenol_benzene'),
-                    )
+                    ))
                     # Universal OPSIN-grammar backstop (a phase,).
                     # Order: stereo-backstop -> grammar-backstop. Stereo
                     # may have repositioned descriptors that grammar
                     # then re-validates.
-                    result = _final_grammar_check(
+                    result = _carried(result, _final_grammar_check(
                         result, smiles, handler,
                         self._grammar, self._grammar_stats,
-                    )
+                    ))
                     # (169.5): real-OPSIN validity gate, the last
                     # transform before the name leaves name. Default-ON,
                     # fail-OPEN on no-JAR. Skipped for neutralize-recurse /
                     # fragment intermediates (self._disable_opsin_validity_gate).
                     if not self._disable_opsin_validity_gate:
                         _pre_gate = result
-                        result = _final_opsin_validity_gate(
+                        result = _carried(result, _final_opsin_validity_gate(
                             result, smiles, self._grammar_stats,
                             besteffort_unverified=self._general_fallback_unverified, general_fallback_tier=self._general_fallback,
-                        )
+                        ))
                         # a phase: the gate is now a FILTER over the
                         # cascade, not a terminal abort. Only fires when a real
                         # name was suppressed; returns the same fallback unless
                         # a later class clears the gate.
-                        result = self._retry_cascade_on_gate_rejection(
+                        result = _carried(result, self._retry_cascade_on_gate_rejection(
                             smiles, _pre_gate, result,
-                        )
+                        ))
             # DETERMINISM (w2f p11): abstention must have ONE canonical sentinel.
             # Some fail-closed paths (a handler that DECLINES without producing a
             # candidate — e.g. lambda-multiring-spiro unsupported) leave result ==
@@ -5311,7 +5312,7 @@ class Orthonym:
                         and _shipped_name_round_trip(_salt_word, smiles) == "verified"):
                     from .metrics.provenance import record_source
                     record_source("trivial_retained")
-                    result = _salt_word
+                    result = _noted("table:trivial", _salt_word)
             # (opt-in): a candidate suppressed by a downstream gate
             # (/ vetoes) left only the failure sentinel; give the
             # engine its late, fully-gated shot before the failure ships.
@@ -5367,13 +5368,13 @@ class Orthonym:
                 _dprobe = Chem.MolFromSmiles(smiles)
                 if _dprobe is not None:
                     from .decomposition import try_decompose
-                    _dname = _rescues.run(try_decompose, _dprobe, style=self.style)
+                    _dname = _noted("decomposition", _rescues.run(try_decompose, _dprobe, style=self.style), _dprobe)
                     if _dname and not is_failure_name(_dname):
-                        _dgated = _rescues.run(
+                        _dgated = _carried(_dname, _rescues.run(
                             _final_opsin_validity_gate,
                             _dname, smiles, self._grammar_stats,
                             besteffort_unverified=self._general_fallback_unverified,
-                            general_fallback_tier=self._general_fallback)
+                            general_fallback_tier=self._general_fallback))
                         if not is_failure_name(_dgated):
                             result = _dgated
             # (offer-not-return, a project rule): a molecule whose SENIOR
@@ -5547,7 +5548,8 @@ class Orthonym:
         # therefore requires that the default tier emits the same string.
         _wrapped = _PIN_PROMOTION_WRAPPED.set(True)
         try:
-            return tw.name(smiles)
+            with _suspended():
+                return tw.name(smiles)
         except Exception:
             # A twin failure must never break tier reporting; treat as "strict
             # did not produce this name" (conservative -> demote), never a crash.
@@ -5638,6 +5640,10 @@ class Orthonym:
                 primed locants). Such a name is systematic_verified at most; the
                 default tier declines it with NO_VERIFIED_PIN and keeps the entries
                 as the reason. Empty otherwise.
+            ``producer``
+                The code that built the name that ships (``inner:tier_a_ring``,
+                ``engine:general``,...), or None when no name ships. A diagnostic
+                id: it follows the code and can change in any release.
 
         Raises
         ------
@@ -5730,17 +5736,23 @@ class Orthonym:
             _BOOK_RETRY_OWNED.reset(owned)
 
     def _name_tiered_impl(self, smiles: str) -> dict:
+        from .metrics.producer_trail import close_trail, lookup, open_trail
         from .metrics.provenance import clear_provenance, get_provenance
         clear_provenance()
         self._default_tier_row = None
-        name = self.name(smiles)
-        # The default tier's emission rule already derived this call's row (the
-        # emitted name's, or the decline's): the same row, not a second derivation.
-        stash = getattr(self, "_default_tier_row", None)
-        self._default_tier_row = None
-        if stash is not None and stash[0] == name:
-            return dict(stash[1])
-        return self._tier_row_and_pin_form(smiles, name, get_provenance())[0]
+        token = open_trail(smiles)
+        try:
+            name = self.name(smiles)
+            # The default tier's emission rule already derived this call's row (the
+            # emitted name's, or the decline's): the same row, not a second derivation.
+            stash = getattr(self, "_default_tier_row", None)
+            self._default_tier_row = None
+            row = (dict(stash[1]) if stash is not None and stash[0] == name
+                   else self._tier_row_and_pin_form(smiles, name, get_provenance())[0])
+            row["producer"] = None if row.get("tier") == "abstain" else lookup(row.get("name"))
+            return row
+        finally:
+            close_trail(token)
 
     def _tier_row_and_pin_form(self, smiles: str, name, prov: dict):
         """The provenance row of ``name`` (see:meth:`name_tiered`), and whether the
@@ -6357,8 +6369,8 @@ class Orthonym:
         # unexpressible element. Emitted UNFLAGGED so the caller's exact-isomeric
         # _rt_match is the authority (, Adv3). Gated by the kill switch.
         in_key = _self_consistency_full_key(smiles)
-        composed = (_try_compose_input_stereo(cand, smiles, in_key)
-                    if (in_key and _STEREO_OMISSION_RECLAIM) else None)
+        composed = _carried(cand, _try_compose_input_stereo(cand, smiles, in_key)
+                            if (in_key and _STEREO_OMISSION_RECLAIM) else None)
         if composed:
             return (True, False, composed)     # e.g. CID 122493921 -> (1Z)-...
 
@@ -6710,16 +6722,16 @@ class Orthonym:
                 # (order/proportion/water-last preserved). Fail-closed if ANY
                 # component is unnameable OR charged (charged -> P5 scope). The
                 # whole-string gate below round-trips the joined name.
-                cand = self._name_multifragment_complete(mol, canonical)
+                cand = _noted("multifragment", self._name_multifragment_complete(mol, canonical), mol)
                 if cand is None:
                     return None
             else:
                 feats = self._perceive(mol, smiles, canonical)
                 self._classify(feats)
-                eng = name_general(
+                eng = _noted("engine:general", name_general(
                     mol, feats,
                     allow_aromatic_general=self._allow_aromatic_general,
-                    allow_suffix_free=self._general_fallback_unverified)
+                    allow_suffix_free=self._general_fallback_unverified), mol)
                 #: charge is lifted only under complete
                 # (allow_aromatic_general); the E1 cert must accept the charged
                 # partition there too (the charge is a suffix on a bound atom).
@@ -6802,7 +6814,7 @@ class Orthonym:
                     )
                     reset_t4_floor_substitute()
                     with isolated_naming_session():
-                        cand = name_t4_complete(mol, feats)
+                        cand = _noted("engine:t4", name_t4_complete(mol, feats), mol)
                     if cand is None:
                         return None
                     origin["floor_substitute"] = last_t4_was_floor_substitute()
@@ -6850,7 +6862,7 @@ class Orthonym:
                     # verification ladder below runs on the general name exactly
                     # as it did before this phase.
                     if self._allow_aromatic_general:
-                        _retained_cand = self._retained_structural_preference(mol)
+                        _retained_cand = _noted("table:retained", self._retained_structural_preference(mol), mol)
                         if _retained_cand and _retained_cand != cand:
                             if self._disable_opsin_validity_gate:
                                 cand = _retained_cand  # test/internal mode
@@ -7156,7 +7168,7 @@ class Orthonym:
             # own internal perception is cheap and bailed early for every hang
             # witness (measured: 0-2200 inner ops), so the rescue is near-free.
             with isolated_naming_session(reset_cache=True):
-                cand = name_t4_complete(mol, None)
+                cand = _noted("engine:t4", name_t4_complete(mol, None), mol)
             if not cand or is_failure_name(cand):
                 return None
             _permitted, _flagged, _name_out = self._stereo_emit_decision(
@@ -7357,7 +7369,7 @@ class Orthonym:
             # gets the full recursion budget a standalone call gets, rather
             # than the elevated session_depth of the enclosing name.
             with isolated_naming_session():
-                cand = name_t4_complete(mol, feats)
+                cand = _noted("engine:t4", name_t4_complete(mol, feats), mol)
         except Exception as e:  # fail-closed: a producer bug keeps the abstention
             logger.info("t4 rescue error (kept abstention): %s", e)
             return None
@@ -7443,7 +7455,7 @@ class Orthonym:
         try:
             from .assembly.fragment_naming import is_top_level_naming as _d1_top
             if _d1_top():
-                _d1_name = _coordination_retained_name(smiles)
+                _d1_name = _noted("table:coordination", _coordination_retained_name(smiles))
                 if _d1_name is not None:
                     name = _d1_name
         except Exception:  # pragma: no cover - a lookup must never break naming
@@ -7618,7 +7630,7 @@ class Orthonym:
                             self._maybe_append_floor_offers(
                                 _cov_mol, smiles, name,
                                 primary_is_failure=False)
-                        name = self._select_rt_passing_offer_name(name, smiles)
+                        name = _carried(name, self._select_rt_passing_offer_name(name, smiles))
                 elif (_cov_is_top_level() and is_failure_name(name)
                         and self._general_fallback_unverified
                         and not getattr(self, '_suppress_floor_offer', False)):
@@ -7640,8 +7652,8 @@ class Orthonym:
                         self._maybe_append_floor_offers(
                             _cov_mol, smiles, name, primary_is_failure=True)
                         if self._offers:
-                            name = self._select_rt_passing_offer_name(
-                                name, smiles)
+                            name = _carried(name, self._select_rt_passing_offer_name(
+                                name, smiles))
         except Exception as _cae:  # pragma: no cover - defensive
             # SHADOW must never break a name regardless of what goes wrong
             # inside the audit; a VETO must fail OPEN on its own internal
@@ -7661,7 +7673,7 @@ class Orthonym:
         # After the offer selection, so an offer that won on an advisory fail-open
         # branch of _offer_rt_ok is checked too.
         try:
-            name = self._exit_round_trip_check(name, smiles)
+            name = _carried(name, self._exit_round_trip_check(name, smiles))
         except Exception as _xe:  # pragma: no cover - defensive, fails closed
             logger.info("exit round-trip check failed (withdrawn): %s", _xe)
             name = _descriptive_fallback(smiles)
@@ -7670,7 +7682,7 @@ class Orthonym:
         # exit check, so it can only turn an abstention into a name, never change
         # a name that ships. See _maybe_prefix_order_fallback; restore_withdrawn then keeps the name withdrawn as OPSIN-ambiguous.
         try:
-            name = restore_withdrawn(self._maybe_prefix_order_fallback(name, smiles), smiles)
+            name = restore_withdrawn(_carried(name, self._maybe_prefix_order_fallback(name, smiles)), smiles)
         except Exception as _pe:  # pragma: no cover - defensive, keeps the abstention
             logger.info("prefix-order fallback failed (abstention kept): %s", _pe)
         # Review fixes (the paper, L74: "At the best-effort tier, a name that OPSIN
@@ -7691,7 +7703,7 @@ class Orthonym:
                     _np_pv.record_source("pin_path")
                     _record_gate_outcome(
                         _np_pv.carveout_outcome("np_stereoparent"), _np_name)
-                    name = _np_name
+                    name = _noted("table:np_parent", _np_name)
         except Exception as _npe:  # pragma: no cover - defensive, keeps the abstention
             logger.info("natural-product list fallback failed (abstention kept): %s", _npe)
         try:
@@ -7842,7 +7854,7 @@ class Orthonym:
             with isolated_naming_session():
                 feats = self._perceive(mol, smiles, canonical)
                 self._classify(feats)
-                floor_name = name_t4_complete(mol, feats)
+                floor_name = _noted("engine:t4", name_t4_complete(mol, feats), mol)
             if not floor_name or is_failure_name(floor_name):
                 return
             from .assembly.coverage_audit import audit_coverage
@@ -7952,7 +7964,7 @@ class Orthonym:
         from .assembly.t4_coverage import name_prefix_order_fallback
         try:
             with isolated_naming_session():
-                reordered = name_prefix_order_fallback(mol)
+                reordered = _noted("engine:t4", name_prefix_order_fallback(mol), mol)
         except PerfBudgetExceeded:
             # the molecule's hang budget ran out inside the floor (a BaseException,
             # so the floor's own guard does not catch it): the abstention stands.
@@ -8660,7 +8672,7 @@ class Orthonym:
         if trivial:
             from .metrics.provenance import record_source
             record_source("trivial_retained")
-            return trivial
+            return _noted("table:trivial", trivial, mol)
         return result
 
     def name_with_confidence(self, smiles: Union[str, Chem.Mol]) -> dict:
@@ -8913,7 +8925,7 @@ class Orthonym:
             rt = opsin_roundtrip_check(smiles, cand)
         except Exception:
             return None
-        return cand if rt and rt.get("passed") else None
+        return _noted("retained_fused", cand, mol) if rt and rt.get("passed") else None
 
     def _try_np_systematic_downgrade(
             self, smiles: str, retained_name: str) -> Optional[str]:
@@ -9101,7 +9113,7 @@ class Orthonym:
             self._last_dispatch_class = result.class_id
             name = None
         else:
-            name = result.handler(
+            name = _noted(f"outer:{result.class_id.value}", result.handler(
                 mol, smiles, canonical_smiles,
                 features=None,
                 style=self.style,
@@ -9109,7 +9121,7 @@ class Orthonym:
                 general_fallback=self._general_fallback,
                 allow_aromatic_general=self._allow_aromatic_general,
                 general_fallback_unverified=self._general_fallback_unverified,
-            )
+            ), mol)
 
         # Cascade-continuation when a handler returns None (the audit row
         # notes for ANION_SMALL / POLY_ANION / MULTI_COMPONENT_NEUTRAL /
@@ -9136,7 +9148,7 @@ class Orthonym:
                 if not matched:
                     continue
                 self._cfr_router._dispatch_stats[entry.class_id] += 1
-                name = entry.handler(
+                name = _noted(f"outer:{entry.class_id.value}", entry.handler(
                     mol, smiles, canonical_smiles,
                     features=None,
                     style=self.style,
@@ -9144,7 +9156,7 @@ class Orthonym:
                     general_fallback=self._general_fallback,
                     allow_aromatic_general=self._allow_aromatic_general,
                     general_fallback_unverified=self._general_fallback_unverified,
-                )
+                ), mol)
                 result = ClassDispatchResult(
                     class_id=entry.class_id,
                     handler=entry.handler,
@@ -9168,7 +9180,7 @@ class Orthonym:
         if name is None and result.class_id == StoutClass.GENERAL:
             features = self._perceive(mol, smiles, canonical_smiles)
             self._classify(features)
-            assembled = assemble_name(features, style=self.style)
+            assembled = _noted("composer", assemble_name(features, style=self.style), mol)
             name = assembled
 
             # a phase -01 (/): thread the authoritative chain
@@ -9239,10 +9251,10 @@ class Orthonym:
                 from .assembly.general_engine import name_general
                 from .validation.coverage_gate import certify_general_result
                 try:
-                    _eng = name_general(
+                    _eng = _noted("engine:general", name_general(
                         mol, features,
                         allow_aromatic_general=self._allow_aromatic_general,
-                        allow_suffix_free=self._general_fallback_unverified)
+                        allow_suffix_free=self._general_fallback_unverified), mol)
                     # a phase B4: shared best-effort certification gate (E1 +
                     # structural binding-spine axes), replacing the E1-only
                     # check so the inline G1 lane cannot ship a name that
@@ -9471,7 +9483,7 @@ class Orthonym:
                 record_suppression(AbstentionCode.COVERAGE_DOWNGRADE,
                                    detail='garbled', candidate=assembled)
                 from .decomposition import try_decompose
-                decomp_name = try_decompose(mol, style=self.style)
+                decomp_name = _noted("decomposition", try_decompose(mol, style=self.style), mol)
                 if decomp_name and decomp_name != assembled:
                     return decomp_name
                 # Decomposition also failed: return the SMILES-based
@@ -9499,7 +9511,7 @@ class Orthonym:
                 record_suppression(AbstentionCode.COVERAGE_DOWNGRADE,
                                    detail='low_confidence', candidate=assembled)
                 from .decomposition import try_decompose
-                decomp_name = try_decompose(mol, style=self.style)
+                decomp_name = _noted("decomposition", try_decompose(mol, style=self.style), mol)
                 if decomp_name and decomp_name != assembled:
                     logger.info(
                         "Quality gate: rejecting low-confidence name "
@@ -9565,7 +9577,7 @@ class Orthonym:
                                            detail='low_atom_coverage',
                                            candidate=assembled)
                         from .decomposition import try_decompose
-                        decomp_name = try_decompose(mol, style=self.style)
+                        decomp_name = _noted("decomposition", try_decompose(mol, style=self.style), mol)
                         if decomp_name and decomp_name != assembled:
                             logger.info(
                                 "Atom coverage gate: rejecting low-coverage "

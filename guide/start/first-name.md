@@ -65,7 +65,9 @@ $ orthonym "CC(=O)Oc1ccccc1C(=O)O" --provenance | python -m json.tool
     "stereo_unexpressed": false,
     "suffix_free_prefix_name": false,
     "prefix_order_fallback": false,
-    "verified": "opsin"
+    "verified": "opsin",
+    "spelling_failures": [],
+    "producer": "inner:tier_a_ring"
 }
 ```
 
@@ -74,7 +76,7 @@ The two lines to read first:
 - `tier` is {tier}`pin_verified`: the strict path for the Preferred IUPAC Name built the name and verified it. The other tiers are on [Output tiers](../tiers.md).
 - `verified` is `opsin`: OPSIN read the name back to the same molecule.
 
-Every other field is explained on [The provenance row](../use/provenance.md).
+Every other field is explained on [The provenance row](../use/provenance.md), `producer` (the code that built the name) among them.
 
 ## When there is no name
 

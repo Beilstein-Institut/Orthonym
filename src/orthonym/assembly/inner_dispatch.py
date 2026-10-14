@@ -425,6 +425,8 @@ def dispatch_inner(
                 if _junior:
                     from ..metrics.provenance import record_non_pin_label
                     record_non_pin_label(_junior)
+        from ..metrics.producer_trail import noted
+        noted(f"inner:{entry.handler_id}", result, _mol)
         return InnerDispatchResult(
             handler_id=entry.handler_id,
             handler=entry.handler,

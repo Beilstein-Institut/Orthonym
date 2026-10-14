@@ -340,6 +340,44 @@ def test_the_known_state_includes_the_test_suite_guard_set():
                      "_NAMING_DEPTHS": NAMING_DEPTHS}
 
 
+# ---------------------------------------- the record of which code built the name
+
+def test_trail_is_in_the_idle_list():
+    """The producer record is idle (``None``) outside a naming call: the leak check
+    reads it and ``reset_naming_state`` puts it back."""
+    from orthonym.metrics import producer_trail
+    from orthonym.wallclock import _IDLE_CONTEXTVARS
+
+    assert ("orthonym.metrics.producer_trail", "_TRAIL", None) in _IDLE_CONTEXTVARS
+    assert leaked_naming_state() == {}
+    token = producer_trail.open_trail("CCO")
+    try:
+        assert set(leaked_naming_state()) == {"_TRAIL"}
+        assert set(clear_leaked_naming_state()) == {"_TRAIL"}
+        assert producer_trail._TRAIL.get() is None
+        assert leaked_naming_state() == {}
+    finally:
+        producer_trail.close_trail(token)
+    assert producer_trail._TRAIL.get() is None
+
+
+def test_trail_is_reset_after_a_timeout():
+    """An alarm that lands while a record is open leaves no record behind: the limit
+    puts the variable back to its value outside the call."""
+    from orthonym.metrics import producer_trail
+
+    assert leaked_naming_state() == {}
+    with pytest.raises(WallClockTimeout) as info:
+        with wall_clock_limit(0.05):
+            producer_trail.open_trail("CCO")
+            producer_trail.noted("inner:a", "ethanol")
+            time.sleep(2)
+    assert leaked_naming_state() == {}
+    assert producer_trail._TRAIL.get() is None
+    assert "orthonym.metrics.producer_trail._TRAIL" in info.value.restored
+    assert producer_trail.lookup("ethanol") is None
+
+
 # ------------------------------------------- the persistent OPSIN pipe after an interrupt
 
 class _InterruptFirstRead:

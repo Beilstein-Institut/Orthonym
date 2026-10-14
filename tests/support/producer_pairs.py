@@ -1,0 +1,108 @@
+"""Rows and the producer a trace observed for the name that ships.
+
+Every pair is the first seam (deepest builder) that returned the shipped string, read from a trace
+in a fresh process with the OPSIN validity gate on (the shipped configuration).
+
+Rows owned by another lane (metals, carbon-free species and atoms, lowercase r/s centres) are not
+used: a lane that merges first could move such a row to another producer. One producer has no
+organic positive and keeps metal rows: table:coordination (the list is of metal complexes).
+"""
+# 13C and 18O labels on an ester: the engine builds a name, OPSIN reads it as ambiguous, so the default
+# tier declines it (NO_VERIFIED_PIN; tests/unit/opsin_ambiguity/test_amb7_ambiguity_gate.py)
+LABELLED_ESTER = "CC1=CC=C(C=C1)[13CH](C)OC(=[18O])C2=C(C(=C(C(=C2F)F)F)F)F"
+HEROIN = "CC(=O)O[C@H]1C=C[C@H]2[C@H]3CC4=C5[C@@]2([C@H]1OC5=C(C=C4)OC(C)=O)CCN3C"
+
+# cob(I)alamin and cob(II)alamin: the exact-structure list of metal-complex names
+# (tests/unit/rules/test_d1_coordination_v36.py has the table's fixtures)
+COB_I = ("CC1=C2[N]3[C@@H]4[C@H](CC(N)=O)[C@@]2(C)CCC(=O)NC[C@@H](C)OP(=O)(O)O[C@H]2[C@@H](O)"
+         "[C@H](O[C@@H]2CO)n2c[n+](c5cc(C)c(C)cc52)[Co-4]325[N+]3=C1[C@@H](CCC(N)=O)C(C)(C)C3=CC1="
+         "[N+]2C(=C(C)C2=[N+]5[C@]4(C)[C@@](C)(CC(N)=O)[C@@H]2CCC(N)=O)[C@@](C)(CC(N)=O)[C@@H]1CCC(N)=O")
+COB_II = ("CC1=C2[N]3[C@@H]4[C@H](CC(N)=O)[C@@]2(C)CCC(=O)NC[C@@H](C)OP(=O)([O-])O[C@H]2[C@@H](O)"
+          "[C@H](O[C@@H]2CO)n2c[n+](c5cc(C)c(C)cc52)[Co-3]325[N+]3=C1[C@@H](CCC(N)=O)C(C)(C)C3=CC1="
+          "[N+]2C(=C(C)C2=[N+]5[C@]4(C)[C@@](C)(CC(N)=O)[C@@H]2CCC(N)=O)[C@@](C)(CC(N)=O)[C@@H]1CCC(N)=O")
+# a PubChem row whose floor name fails its round trip at the stereo layer in the order
+# (tests/unit/rules/test_prefix_order_fallback.py); with the mechanical spellings the best-effort
+# tier ships the floor's name with the prefixes in another order
+PREFIX_ORDER_ROW = ("Cc1cn([C@H]2CC(O[P@]3O[C@](C)(c4ccccc4)[C@@H]4CCCN43)[C@@H](CO)O2)"
+                    "c(=O)[nH]c1=O")
+
+# Rows whose shipped name is the string of a producer with the input's stereo composed onto it
+# (Orthonym._stereo_emit_decision): the general engine and omit the descriptor of an exocyclic double
+# bond between two rings, and the emit decision of the best-effort tier adds it back. The first two rows
+# ship from the inline lane of _name_impl, the next two from the late recovery; the last row is composed
+# by the validity gate, not by the emit decision, and keeps the label of the handler's string. The
+# first two are small molecules made for the purpose (no corpus row ships from the inline lane); the
+# others are ChEBI molecules. None is in a holdout split (checked by full InChIKey and by connectivity).
+STEREO_COMPOSED = [
+    ("CC1=CC(=O)OC/1=C2\\CCCO2", "best-effort", "engine:general"),
+    ("O=C1OCC(=O)/C1=C2\\CCCO2", "best-effort", "engine:general"),
+    ("O=C1Nc2ccccc2/C1=C1/Nc2ccccc2/C1=N\\O", "best-effort", "engine:t4"),
+    ("O=C1N=C(O)/C(=C2\\C=C(O)C(=O)N=C2O)C=C1O", "best-effort", "engine:general"),
+    ("C1O[C@H]1[C@H]1CO1", "best-effort", "inner:ring_assembly"),
+]
+
+PAIRS = [
+    # the first dispatch of the outer classes
+    ("CCO", "pin", "outer:retained_name"),
+    ("c1ccccc1", "pin", "outer:retained_name"),
+    ("O=C([O-])[C@@H]1CCC=N1", "pin", "outer:anion_small"),
+    ("C[C@H](N)C(=O)O", "pin", "outer:amino_acid"),
+    ("O=C[C@H](O)CO", "pin", "outer:carbohydrate_lookup"),
+    ("C[C@@]12C(CC[C@H]1[C@@H]1CCC3=CC(CC[C@]3(C)[C@H]1CC2)=O)=O", "pin", "outer:natural_product"),
+    ("NCCOCCN", "pin", "outer:multiplicative"),
+    ("S=C(S)S", "pin", "outer:inorganic_acid"),
+    ("O=P(O)(Cl)c1ccccc1", "pin", "outer:inorganic_acid"),
+    ("[CH3+]", "pin", "outer:cation_retained"),
+    ("C[NH3+].[Cl-]", "pin", "outer:salt"),
+    ("CC(=O)[O-].[NH4+]", "pin", "outer:salt"),
+    ("NCC(=O)N[C@@H](CC(N)=O)C(=O)NCC(=O)O", "best-effort", "outer:peptide"),
+    # the cascade that goes on when the first class's handler returns None
+    ("C[C@]12CC[C@H](O[C@@H]3O[C@H](C(=O)O)[C@@H](O)[C@H](O)[C@H]3O)C[C@H]1CC[C@@H]1[C@@H]2CC[C@]2(C)C(=O)CC[C@@H]12",
+     "pin", "outer:natural_product"),
+    ("C/C(=C\\[C@H]1OC(=O)[C@@H](C)[C@@H]1C)[C@H]1CCC2=C3C=CC4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C",
+     "best-effort", "outer:natural_product"),
+    # the inner handlers
+    ("Cn1cnc2c1c(=O)n(C)c(=O)n2C", "pin", "inner:tier_a_ring"),
+    ("C1CC2CCC1C2", "pin", "inner:tier_a_ring"),
+    ("CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O", "pin", "inner:general_acyclic"),
+    ("CC(=O)Nc1ccc(O)cc1", "pin", "inner:ester_family"),
+    ("O=C1CCCO1", "pin", "inner:lactone"),
+    ("c1ccc(-c2ccccc2)cc1", "pin", "inner:ring_assembly"),
+    ("CC(=O)OOC(C)=O", "pin", "inner:anhydride"),
+    # the composer, where no inner handler built the name
+    ("N=C(N)NC=O", "pin", "composer"),
+    ("CC[S+]", "pin", "composer"),
+    # the decomposition engine
+    ("CC(=O)N(C(=O)c1ccccc1)c1ccc2ccccc2c1", "pin", "decomposition"),
+    ("CCOC(=O)C#CCC1CCCCC1", "best-effort", "decomposition"),
+    # the general engine: the late recovery, the inline lane, and the engine inside T4
+    ("C=C[C@@]1(O)CC(C#N)=CC1=O", "best-effort", "engine:general"),
+    ("O=C(O)c1ccccc1SCCCN1C(=O)c2cccc3cccc(c23)C1=O", "best-effort", "engine:general"),
+    ("FOc1ccccc1", "best-effort", "engine:general"),
+    ("CC(=O)OCl", "best-effort", "engine:general"),
+    ("NCC(CN)CN", "best-effort", "engine:general"),
+    # the isotope decorator, which names a labelled molecule before the outer classes see it
+    ("Cl[12CH](Cl)Cl", "pin", "isotope"),
+    ("[2H]C([2H])([2H])O", "pin", "isotope"),
+    # the retained fused name of a purine-containing molecule that is not itself a fused ring (ADP-ribose,
+    # an acyl coenzyme A), which the late recovery and the inline lane try before the von Baeyer fallback
+    ("Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OC[C@H]2O[C@@H](O)[C@H](O)[C@@H]2O)[C@@H](O)[C@H]1O",
+     "best-effort", "retained_fused"),
+    ("CC(C)(COP(=O)(O)OP(=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(=O)(O)O)[C@@H](O)C(=O)NCCC(=O)"
+     "NCCSC(=O)C=Cc1ccccc1", "best-effort", "retained_fused"),
+    # the late recovery of the general engine names the components of a multi-component input and joins them
+    ("C1CCC(C1)NN.[Cl-]", "best-effort", "multifragment"),
+    ("CCOC(=O)C.C/C=C/C=C/C(=O)[O-]", "best-effort", "multifragment"),
+    # the exact-match list of natural-product parents, the last resort before a decline (germacrane is
+    # named by outer:natural_product at the default tier)
+    ("CC(C)[C@@H]1CC[C@H](C)CCC[C@H](C)CC1", "best-effort", "table:np_parent"),
+    # no organic positive: the list of metal-complex names, taken by name at its exit
+    (COB_I, "pin", "table:coordination"),
+    (COB_II, "pin", "table:coordination"),
+    # T4: the handoff of the late recovery, the rescue, and the floor offer
+    ("O=[N+]([O-])c1ccc(/C=C/c2ccc([N+](=O)[O-])cc2S(=O)(=O)O)c(S(=O)(=O)O)c1", "best-effort", "engine:t4"),
+    ("COC(=O)c1ccc(OC(CO)C(O)c2ccc(O)c(OC)c2)c(OC)c1", "best-effort", "engine:t4"),
+    ("C[C@@H]1CCC2C(C)(C)[C@H](O)CC[C@]2(C)[C@@]12Cc1c(O)cc3c(c1O2)CNC3=O", "best-effort", "engine:t4"),
+    # the stereo of the input composed onto the string of a producer
+    *STEREO_COMPOSED,
+]

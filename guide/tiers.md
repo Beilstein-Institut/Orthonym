@@ -41,7 +41,7 @@ The wider tiers are not simply "the default plus more". They also return the nam
 
 ```console
 $ orthonym "C1CC[C@H]2CCCC[C@H]2C1" --provenance
-{"name": "(4as,8as)-decahydronaphthalene", "tier": "pin_unverified", "is_pin": false, "source": "pin_path", "opsin": "verified_constitution_only", "gates_passed": ["self_consistency_constitution_only"], "gate_outcome": "self_consistency_constitution_only", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin_constitution"}
+{"name": "(4as,8as)-decahydronaphthalene", "tier": "pin_unverified", "is_pin": false, "source": "pin_path", "opsin": "verified_constitution_only", "gates_passed": ["self_consistency_constitution_only"], "gate_outcome": "self_consistency_constitution_only", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin_constitution", "spelling_failures": [], "producer": "inner:tier_a_ring"}
 ```
 
 At `valid` that name does not pass the full round trip, and no general-engine name does either, so the engine declines:
@@ -55,8 +55,10 @@ At `best-effort` a last-resort producer builds a name that OPSIN reads back to t
 
 ```console
 $ orthonym "C1CC[C@H]2CCCC[C@H]2C1" --emit-tier best-effort --provenance
-{"name": "cis-decahydronaphthalene", "tier": "best_effort", "is_pin": false, "source": "t4_floor", "opsin": "verified", "gates_passed": ["full_key_round_trip"], "gate_outcome": "full_key_round_trip_verified", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin"}
+{"name": "cis-decahydronaphthalene", "tier": "best_effort", "is_pin": false, "source": "t4_floor", "opsin": "verified", "gates_passed": ["full_key_round_trip"], "gate_outcome": "full_key_round_trip_verified", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin", "spelling_failures": [], "producer": "engine:t4"}
 ```
+
+The `producer` shows the change: `inner:tier_a_ring` built the default-tier name, and the last-resort namer (`engine:t4`) built the `best-effort` one.
 
 At a tier other than `pin`, a decline prints `(no name — CODE)` on the command line, and the provenance row has `"name": null`.
 
