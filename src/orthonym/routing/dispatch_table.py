@@ -1773,7 +1773,8 @@ def _handle_decomposition_pre_general(mol, smiles, canonical_smiles, features=No
     if _skip_decomposition:
         return None
     from orthonym.decomposition import try_decompose
-    return try_decompose(mol, style=style)
+    from orthonym.metrics.producer_trail import noted
+    return noted("decomposition", try_decompose(mol, style=style), mol)
 
 
 def _handle_general(mol, smiles, canonical_smiles, features=None, *,

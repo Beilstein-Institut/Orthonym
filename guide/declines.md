@@ -18,11 +18,13 @@ OPSIN validity gate suppressed unparseable name: 'unknown'
     "stereo_unexpressed": false,
     "suffix_free_prefix_name": false,
     "prefix_order_fallback": false,
-    "verified": "unverified"
+    "verified": "unverified",
+    "spelling_failures": [],
+    "producer": null
 }
 ```
 
-The first line is a log message on the error stream: the engine withdrew a candidate that OPSIN could not read. The JSON row is on the normal output.
+The first line is a log message on the error stream: the engine withdrew a candidate that OPSIN could not read. The JSON row is on the normal output. `producer` is `null`: no name ships, so no code is named ([Which code built the name](use/provenance.md#which-code-built-the-name)).
 
 ## The reason codes
 
@@ -42,10 +44,12 @@ Betaine shows the second case. Its strict-path name contains a part the engine r
 
 ```console
 $ orthonym "C[N+](C)(C)CC(=O)[O-]" --provenance
-{"name": "unknown organic compound", "tier": "abstain", "is_pin": false, "source": "abstain", "opsin": "n/a", "gates_passed": [], "gate_outcome": "suppressed", "formula": "C5H11NO2", "limit_code": "NO_VERIFIED_PIN", "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "unverified"}
+{"name": "unknown organic compound", "tier": "abstain", "is_pin": false, "source": "abstain", "opsin": "n/a", "gates_passed": [], "gate_outcome": "suppressed", "formula": "C5H11NO2", "limit_code": "NO_VERIFIED_PIN", "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "unverified", "spelling_failures": [], "producer": null}
 $ orthonym "C[N+](C)(C)CC(=O)[O-]" --emit-tier valid
 (trimethylazaniumyl)acetate
 ```
+
+The default-tier row has `"producer": null` although the engine built a name, because nothing ships. With `--provenance` the `valid` row names the code that built it.
 
 Natural-product names are a second case. Where a molecule's preferred name is a bridged fused name that the engine does not build yet, its natural-product name (`diamorphine`, `(9R,13S,14S)-3-methoxy-17-methylmorphinan`) is not the PIN. The default tier declines it with `NO_VERIFIED_PIN`, and a wider tier returns it labelled {tier}`systematic_verified`. `--trivial` also returns the trivial ones, such as `diamorphine`, at the default tier.
 

@@ -218,13 +218,14 @@ def _run_general_e1(mol, features) -> Optional[_Candidate]:
     except Exception:  # an unreadable charge keeps the engine run (and its verdict)
         pass
 
+    from ..metrics.producer_trail import noted
     from .general_engine import name_general
 
     try:
-        result = name_general(
+        result = noted("engine:general", name_general(
             mol, features,
             allow_aromatic_general=True,
-            allow_suffix_free=True)
+            allow_suffix_free=True), mol)
     except Exception as exc:  # fail-closed: an engine error is a clean abstain
         logger.info("t4 _run_general_e1: name_general raised: %s", exc)
         return None

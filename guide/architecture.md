@@ -121,6 +121,8 @@ The pool of offers holds the winner and at most two more names, the floor and th
 
 `name_tiered` calls `name`, then `_tier_row_and_pin_form` combines what the producers and gates recorded into the row of the [provenance page](use/provenance.md). The recording is done with context variables in `metrics/provenance.py`; `record_source` sets the `source` value. At the default tier the emission rule (`_default_tier_emits`) is applied inside `name` itself, so that `name_compound` and `name_tiered` agree: the row derived for that decision is the row `name_tiered` returns.
 
+`producer` is recorded another way, on purpose. `metrics/producer_trail.py` keeps, for the length of one `name_tiered` call, a map from each string a producer returned to the id of that producer. A call site passes its result through `noted("<id>", result, mol)`, a step that turns one name into another passes the label on with `carried(name_in, name_out)`, and the row reads the entry of the name that ships. The map is not a provenance variable: a write there is replayed by the memos and can make a call unstorable, so the record stays out of reach of the memos and the work budgets. Each helper returns its argument unchanged and cannot raise. The first producer to return a string keeps it, which is the innermost one, and the strict twin of the best-effort tier records nothing. `tests/unit/metrics/test_producer_trail_static.py` fails on a call of a producer or a rewriting step that is neither wrapped nor on its list of reasoned exceptions.
+
 ## Tiers are flags
 
 `--emit-tier` becomes constructor arguments of `Orthonym` (`_emit_tier_flags` in `cli.py` is the one table that maps one to the other):
@@ -177,7 +179,7 @@ Naming a molecule names its parts, and naming a part calls the same entry points
 
 Find out which code named your molecule, and whether the code you are about to change runs at all. Four ways, from cheap to precise.
 
-1. **The row.** `orthonym "SMILES" --provenance` shows `tier`, `source` and `gate_outcome`. `source` is coarse: `pin_path`, `general_engine`, `trivial_retained`, `t4_floor` or `abstain`. On a decline it can still name the last producer that ran.
+1. **The row.** `orthonym "SMILES" --provenance` shows `tier`, `source`, `producer` and `gate_outcome`. `producer` is the id of the code that built the name (`inner:tier_a_ring`, `engine:general`, `table:coordination`; the [provenance page](use/provenance.md#which-code-built-the-name) lists them), `null` when no name ships. `source` is coarse: `pin_path`, `general_engine`, `trivial_retained`, `t4_floor` or `abstain`. On a decline it can still name the last producer that ran.
 2. **The classes.** `orthonym "SMILES" --dispatch-stats` prints, on the error stream, how often each outer class and each inner handler matched. The counts include the parts of the molecule. `Orthonym.get_dispatch_stats` and `get_inner_dispatch_stats` give the same in Python.
 3. **The tree.** `orthonym "SMILES" --dump-tree` prints the parts of the name. Its `class_id` is the inner handler that built the name (`ester_family`, `general_acyclic`), or `coarse_fallback` when a class of the outer table did.
 4. **A call count.** Profile a few molecules of your class and look for the function:
@@ -199,7 +201,7 @@ for (path, line, func), row in pstats.Stats(pr).stats.items():
 
 Check the recipe against functions you know run before you trust a zero. A function that is imported inside another function (the shims do this) is still counted, because the profiler counts calls and not imports. To spy by patching a module attribute you must patch it in the module that calls it, since a function imported with `from x import f` keeps the old reference.
 
-The three vocabularies below are easy to confuse.
+The three vocabularies below are easy to confuse. The `producer` of the row uses the first two: `outer:` or `inner:` followed by the id, with a class id in lower case.
 
 | Where it shows | What the ids are |
 |:--|:--|
@@ -219,7 +221,7 @@ The three vocabularies below are easy to confuse.
 | `bicyclo`, `tricyclo`, `vonbaeyer_universal` | Von Baeyer namers for two rings, for three rings, and the general analysis of a cage. Several modules use each of them, `polycyclic.py` among them. |
 | `T4`, `t4_floor`, `t4_coverage` | The universal namer of the `best-effort` tier. "T1" to "T5" in older comments are the tier ids: T1 `pin_verified`, T2 `pin_unverified`, T3 `systematic_verified`, T4 `best_effort`, T5 `abstain`. |
 | `pin_path` | A `source` value for the strict path: class handlers, composer and inner handlers. It is not a module boundary, and not a promise that the name is a PIN. The `cis`/`trans` offer of a monocycle's pair at `best-effort` carries it too. |
-| `source` | Coarse. It records the last producer that wrote a value, and on a decline it can name a producer that ran and failed. Do not use it to count producers. |
+| `source` | Coarse. It records the last producer that wrote a value, and on a decline it can name a producer that ran and failed. Do not use it to count producers: `producer` is the field for that. |
 | `candidate_pool`, `CandidatePool`, `HANDLER_POLICIES` | The candidate names of one naming call. `add` scores a name and voids it when its length ratio is below the floor or, for the handlers of the `ring_b` tier in `HANDLER_POLICIES`, when its confidence is below the gate. `best` returns the first candidate whose handler returns directly, or else the first one added. The pool almost always holds a single candidate, because the first inner handler that succeeds returns its own name; the Tier-A ring handler is the exception and picks among its own candidates with `select_best_candidate`. The pool does not rank parents: the parent is chosen in `_classify`, by `select_parent`, and the P-44 ranking of parent candidates is `rules/p44_scorer.py`. The real source of alternatives is the routing: a rejected class is excluded and the next one is tried. Ranking of finished names is `offer_pool`. |
 | `Offer`, `offer_pool` | Whole finished names that compete in `_finish`. Not the same as `candidate_pool`. |
 | `SELF-01`, `E1` | In comments: SELF-01 is the OPSIN read-back of `_final_opsin_validity_gate`; E1 is the atom-coverage certificate. |

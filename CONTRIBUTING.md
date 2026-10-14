@@ -85,7 +85,7 @@ that passes the checks wins. Before you change anything, find out which code nam
 molecule.
 
 ```bash
-orthonym "CCOC(=O)C(C)O" --provenance                    # tier, source, how it was checked
+orthonym "CCOC(=O)C(C)O" --provenance                    # tier, source, producer, how it was checked
 orthonym "CCOC(=O)C(C)O" --emit-tier best-effort --provenance
 orthonym "CCOC(=O)C(C)O" --dispatch-stats                # outer classes and inner handlers that matched
 orthonym "CCOC(=O)C(C)O" --dump-tree                     # the parts of the name; class_id is the handler
@@ -96,6 +96,12 @@ you are about to edit runs for your molecule at all: a function can be documente
 where a rule is decided and still never be called for your class. The architecture page shows how
 to count calls with `cProfile`.
 
+The `producer` of the row is the id of the code that built the name. A new function that builds
+a whole-molecule name reports to the record: wrap its call in `noted("<id>", <the call>, mol)`. A
+new step that rewrites a name passes the label on: `carried(name, <the call>)`
+(`metrics/producer_trail.py`). `tests/unit/metrics/test_producer_trail_static.py` fails when a call of
+a listed producer or step is not wrapped, so add the function of a new one to its list.
+
 ## Adding a rule or changing a name
 
 1. **Start from the Blue Book.** Find the rule in the
@@ -104,8 +110,9 @@ to count calls with `cProfile`.
    heading and the criterion inside it. A rule number copied from a comment in the code may be
    wrong, so look it up. The book's examples marked `(PIN)` are the best test inputs.
 2. **Reproduce the name** with the commands above, at the default tier and at
-   `--emit-tier best-effort`. Note the `tier` and `source` of the row.
-3. **Find the producer and the rule's home.** The rule index lists the canonical helper of a
+   `--emit-tier best-effort`. Note the `tier`, `source` and `producer` of the row.
+3. **Find the producer and the rule's home.** The `producer` of the row says which code built the
+   name. The rule index lists the canonical helper of a
    rule and the places that decide the same question beside it. If the rule is written in
    several places, fix the shared helper first, and say in the pull request which other places
    you did not change.

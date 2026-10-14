@@ -1,10 +1,10 @@
 # The provenance row
 
-`orthonym "SMILES" --provenance` prints one row of JSON instead of the bare name, and `Orthonym.name_tiered` returns the same row as a dictionary. It says what the name is, how it was built and how it was checked.
+`orthonym "SMILES" --provenance` prints one row of JSON instead of the bare name, and `Orthonym.name_tiered` returns the same row as a dictionary. It says what the name is, how it was built, which code built it and how it was checked.
 
 ```console
 $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
-{"name": "1,3,7-trimethyl-3,7-dihydro-1H-purine-2,6-dione", "tier": "pin_verified", "is_pin": true, "source": "pin_path", "opsin": "verified", "gates_passed": ["self_consistency"], "gate_outcome": "self_consistency_verified", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin"}
+{"name": "1,3,7-trimethyl-3,7-dihydro-1H-purine-2,6-dione", "tier": "pin_verified", "is_pin": true, "source": "pin_path", "opsin": "verified", "gates_passed": ["self_consistency"], "gate_outcome": "self_consistency_verified", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin", "spelling_failures": [], "producer": "inner:tier_a_ring"}
 ```
 
 ## Every field
@@ -19,7 +19,7 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
 : `true` only for a certified Preferred IUPAC Name.
 
 `source`
-: Which part of the engine produced the name: `pin_path` (the strict path; at `best-effort` it also labels the `cis` or `trans` name of a monocycle's pair of stereocentres, which is made from a name with lowercase `r` and `s` that the engine built for the whole molecule and OPSIN cannot read, with the tier {tier}`systematic_verified`), `general_engine`, `trivial_retained` (a retained trivial name: from the last-resort table, or a trivial natural-product name such as `diamorphine`), `t4_floor` (a last-resort producer) or `abstain`.
+: Which part of the engine produced the name: `pin_path` (the strict path; at `best-effort` it also labels the `cis` or `trans` name of a monocycle's pair of stereocentres, which is made from a name with lowercase `r` and `s` that the engine built for the whole molecule and OPSIN cannot read, with the tier {tier}`systematic_verified`), `general_engine`, `trivial_retained` (a retained trivial name: from the last-resort table, or a trivial natural-product name such as `diamorphine`), `t4_floor` (a last-resort producer) or `abstain`. It is coarse; `producer` is the finer field.
 
 `opsin`
 : What the OPSIN check found: `verified`, `verified_constitution_only` (the constitution matched; the stereodescriptors were not compared), `unverified`, or `n/a` when there is no name.
@@ -52,13 +52,44 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
   `identity` (a name from an exact-match list: a metal-complex name found by your structure's exact InChIKey, or a natural-product parent name found by its exact structure; OPSIN cannot read these names),
   or `unverified` (no read-back recorded).
 
+`spelling_failures`
+: The spelling rules of the Preferred IUPAC Name that a name in preferred-name form breaks, as a list of `{"rule": ..., "detail": ...}` entries, and the rule of a part of the name that the engine records as not the preferred form. OPSIN cannot see these: a name can read back to your structure and still break one. Such a name is {tier}`systematic_verified` at most; the default tier declines it with `NO_VERIFIED_PIN` and keeps the entries as the reason. The list is empty otherwise.
+
+`producer`
+: The code that built the name that ships, for example `inner:tier_a_ring` or `engine:general`; `null` when no name ships, a default-tier `NO_VERIFIED_PIN` decline included. See [Which code built the name](#which-code-built-the-name).
+
+## Which code built the name
+
+`source` has five values and records the last producer that wrote it. `producer` is the finer field: the id of the code that built the name that ships. Use it to find the code to look at before you change a rule ([Architecture](../architecture.md#before-you-edit-a-function)), or to count which producers name a set of molecules.
+
+- **The deepest builder.** `producer` names the code that built the string, not the class that passed the molecule on. A peptide whose name an inner handler composed shows that handler, not `outer:peptide`. When two codes return the same name, the first one to return it is reported, which is the innermost.
+- **`null` when no name ships.** The default tier can build a name and withhold it (`NO_VERIFIED_PIN`, see [Declines](../declines.md)). Nothing ships then, so no code is named; a wider tier returns the name, and its row names the code.
+- **A diagnostic, not a contract.** The ids follow the code's class and handler ids and can change in any release: count with them, do not parse them.
+- **Only the row has it.** `Orthonym.name_tiered` and `--provenance` return the key; `name_compound` returns the bare name.
+
+| `producer` | The code that built the name |
+|:--|:--|
+| `outer:<class>` | A class of the outer table, with the class id in lower case: `outer:retained_name`, `outer:natural_product`, `outer:peptide`. The [rule index](../rule-index.md#from-a-handler-id-to-its-code) lists the classes and the file of each. |
+| `inner:<handler>` | An inner handler: `inner:tier_a_ring` (rings), `inner:ester_family` (acids, alcohols and esters), `inner:general_acyclic` (chains). The same page lists the handlers. |
+| `composer` | The composer assembled the name itself; no inner handler built it. |
+| `engine:general` | The general engine. |
+| `engine:t4` | The last-resort namer of the `best-effort` tier, with its variant that cites the substituent prefixes in another order. |
+| `decomposition` | The fragment-based namer, which names a large structure from its parts. |
+| `multifragment` | The recovery for an input of several components: each component is named and the names are joined. |
+| `retained_fused` | A retained fused-ring name for a molecule that holds a purine without being a fused ring itself, such as an acyl coenzyme A or ADP-ribose. |
+| `isotope` | The isotope step, which names an isotopically labelled molecule by adding the isotope descriptors to the name of its skeleton. |
+| `table:coordination` | The list of metal-complex names, matched by the exact structure (`verified` is `identity`). |
+| `table:trivial` | The last-resort table of retained trivial names. |
+| `table:np_parent` | The list of natural-product parent names, matched by the exact structure, used as a fallback. |
+| `table:retained` | A retained or fused-ring name for a molecule that is exactly such a structure, which the late recovery prefers to the engine's own name when it reads back. |
+
 ## Read `tier` and `verified` together
 
 The tier says how a name was built. The `verified` field says whether OPSIN read it back. The two can differ: at the default tier, *cis*-decalin gets a name in preferred-name form that OPSIN read back with the right constitution only.
 
 ```console
 $ orthonym "C1CC[C@H]2CCCC[C@H]2C1" --provenance
-{"name": "(4as,8as)-decahydronaphthalene", "tier": "pin_unverified", "is_pin": false, "source": "pin_path", "opsin": "verified_constitution_only", "gates_passed": ["self_consistency_constitution_only"], "gate_outcome": "self_consistency_constitution_only", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin_constitution"}
+{"name": "(4as,8as)-decahydronaphthalene", "tier": "pin_unverified", "is_pin": false, "source": "pin_path", "opsin": "verified_constitution_only", "gates_passed": ["self_consistency_constitution_only"], "gate_outcome": "self_consistency_constitution_only", "formula": null, "limit_code": null, "stereo_unexpressed": false, "suffix_free_prefix_name": false, "prefix_order_fallback": false, "verified": "opsin_constitution", "spelling_failures": [], "producer": "inner:tier_a_ring"}
 ```
 
 `--provenance` works for one SMILES at a time; `--batch` ignores it. For many molecules, loop over `Orthonym.name_tiered` as shown on [Batch files](batch.md).

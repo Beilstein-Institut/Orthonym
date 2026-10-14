@@ -273,6 +273,7 @@ _IDLE_CONTEXTVARS: Tuple[Tuple[str, str, object], ...] = (
     ("orthonym.assembly.memo", "_cache_var", None),
     ("orthonym.assembly.memo", "pin_promotion_var", False),
     ("orthonym.assembly.memo", "prefixes_apart_var", False),
+    ("orthonym.metrics.producer_trail", "_TRAIL", None),
 )
 _IDLE_THREAD_LOCALS: Tuple[Tuple[str, str, Dict[str, object]], ...] = (
     ("orthonym.assembly.fragment_naming", "_fragment_guard",

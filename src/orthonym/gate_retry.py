@@ -23,23 +23,24 @@ def gate_candidate(namer_obj, smiles: str, cand: str) -> Optional[str]:
 
     from . import namer
     from .assembly.coverage_scoring import retrieve_confidence
+    from .metrics.producer_trail import carried
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
     conf = retrieve_confidence()
-    cand = namer._final_stereo_check(
+    cand = carried(cand, namer._final_stereo_check(
         mol, cand, handler=conf.get('handler', 'unknown'),
         atom_to_locant=conf.get('atom_to_locant'),
         is_phenol_benzene=conf.get('is_phenol_benzene'),
-    )
-    cand = namer._final_grammar_check(
+    ))
+    cand = carried(cand, namer._final_grammar_check(
         cand, smiles, conf.get('handler', 'unknown'),
         namer_obj._grammar, namer_obj._grammar_stats,
-    )
-    return namer._final_opsin_validity_gate(
+    ))
+    return carried(cand, namer._final_opsin_validity_gate(
         cand, smiles, namer_obj._grammar_stats,
         besteffort_unverified=namer_obj._general_fallback_unverified,
-        general_fallback_tier=namer_obj._general_fallback)
+        general_fallback_tier=namer_obj._general_fallback))
 
 
 def name_with_forced_locants(namer_obj, smiles: str) -> Optional[str]:
