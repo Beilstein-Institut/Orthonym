@@ -1,8 +1,7 @@
 """a phase: _should_bypass_fused_guard is deleted.
 
 Per a phase internal notes, the function is removed entirely (no
-feature-flagged code path). The ORTHONYM_USE_V18_WEIGHTS env var is the
-documented rollback mechanism (a phase). This file is the
+feature-flagged code path). This file is the
 import-failure regression scaffold — if any future change reintroduces
 the bypass it must also delete this test.
 
@@ -18,8 +17,7 @@ def test_bypass_function_is_deleted():
     """: importing the deleted bypass must raise ImportError.
 
     Per a phase internal notes, ``_should_bypass_fused_guard`` is removed
-    entirely (no feature-flagged code path). The ORTHONYM_USE_V18_WEIGHTS
-    env var is the documented rollback mechanism (a phase).
+    entirely (no feature-flagged code path).
     """
     with pytest.raises(ImportError):
         from orthonym.namer import _should_bypass_fused_guard  # noqa: F401

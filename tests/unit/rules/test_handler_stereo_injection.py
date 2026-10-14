@@ -344,7 +344,7 @@ class TestP91FormatCompliance:
 def test_gate_real_coverage_blocks_partial_fragment():
     """G-01 : The Tier-A injection guard MUST measure REAL atom
     coverage from CandidateName.parent_atom_indices (POST-HOC contract,
-    candidate_pool.py:759), NOT the ratio_score fallback in
+    ``CandidatePool.add``), NOT the ratio_score fallback in
     coverage_scoring.py:434-437.
 
     Test contract: when a synthetic CandidateName has parent_atom_indices

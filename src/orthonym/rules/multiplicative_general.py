@@ -1468,7 +1468,7 @@ def _name_general_multiplicative(mol) -> Optional[str]:
             return None
         return _try_unit_set(mol, kernels, rings, kernels)
     # no principal characteristic group: the senior parent hydride
-    from ..assembly.candidate_pool import _P_44_1_2_SENTINEL_RANK, P_44_1_2_ELEMENT_RANK
+    from .p44_scorer import P44_CLASS_RANK
     for at in mol.GetAtoms():
         if at.GetAtomicNum() == 7 and not at.IsInRing() and not _is_nitro_n(at):
             return None
@@ -1477,11 +1477,14 @@ def _name_general_multiplicative(mol) -> Optional[str]:
         return None
     ring_atoms = set().union(*rings) if rings else set()
 
+    # P44_CLASS_RANK gives the senior element the higher value; here the lower
+    # value is senior, so the rank is negated. An element outside the
+    # list ranks last (0).
     def rank(atoms):
-        return min(P_44_1_2_ELEMENT_RANK.get(mol.GetAtomWithIdx(a).GetSymbol(),
-                                             _P_44_1_2_SENTINEL_RANK) for a in atoms)
-    top_ring = rank(ring_atoms) if ring_atoms else _P_44_1_2_SENTINEL_RANK
-    top_hyd = min((rank(k.skel) for k in hyd), default=_P_44_1_2_SENTINEL_RANK)
+        return min(-P44_CLASS_RANK.get(mol.GetAtomWithIdx(a).GetSymbol(), 0)
+                   for a in atoms)
+    top_ring = rank(ring_atoms) if ring_atoms else 0
+    top_hyd = min((rank(k.skel) for k in hyd), default=0)
     # any other acyclic heteroatom that could head a parent hydride declines
     for at in mol.GetAtoms():
         z = at.GetAtomicNum()

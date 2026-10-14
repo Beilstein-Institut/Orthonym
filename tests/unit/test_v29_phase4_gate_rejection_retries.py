@@ -9,7 +9,7 @@ instead of aborting the molecule."
 ★ THE ROADMAP NAMED THE WRONG MECHANISM, and this test file exists partly to record
 it. a phase's text describes filtering over ``CandidatePool``. Measured 2026-07-31:
 the pool holds **one** candidate in **158 of 158** traced ``best`` calls over 120
-a dev split rows, and ``_best_two_tier`` records zero. The pool is not the generator of
+a dev split rows. The pool is not the generator of
 alternatives — the DISPATCH CASCADE is, and a phase works with it directly.
 
 SAFETY ARGUMENT (why this cannot ship a wrong name)

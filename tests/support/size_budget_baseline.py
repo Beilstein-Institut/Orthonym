@@ -13,7 +13,6 @@ the same qualified name, in source order) and the file path for files. A functio
 """
 
 FUNCTIONS = {
-    "src/orthonym/assembly/candidate_pool.py::CandidatePool.add#1": 201,
     "src/orthonym/assembly/composer.py::_assemble_amide_name#1": 493,
     "src/orthonym/assembly/composer.py::_assemble_amine_name#1": 204,
     "src/orthonym/assembly/composer.py::_assemble_complete_bicyclo_name#1": 221,
@@ -38,7 +37,7 @@ FUNCTIONS = {
     "src/orthonym/assembly/handlers/_handler_shared.py::_l5_prefix_locants_omitted#1": 375,
     "src/orthonym/assembly/handlers/ester_family.py::name_ester_family#1": 231,
     "src/orthonym/assembly/handlers/general_acyclic.py::name_general_acyclic#1": 270,
-    "src/orthonym/assembly/handlers/tier_a_ring.py::name_tier_a_ring#1": 537,
+    "src/orthonym/assembly/handlers/tier_a_ring.py::name_tier_a_ring#1": 525,
     "src/orthonym/assembly/naming_utils.py::_alpha_sort_key_core#1": 227,
     "src/orthonym/assembly/naming_utils.py::needs_brackets#1": 237,
     "src/orthonym/assembly/substituent_enumerator.py::_name_amino_branch#1": 311,

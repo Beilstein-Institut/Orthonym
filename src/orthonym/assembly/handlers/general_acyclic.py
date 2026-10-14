@@ -307,7 +307,7 @@ def name_general_acyclic(
     _coverage_measured = _coverage is not None and _coverage.ok
 
     # a phase: route chain-naming through pool.
-    # In first_applicable mode, pool.best returns the FIRST added
+    # pool.best returns the first direct-return winner, else the FIRST added
     # candidate. If a higher-priority handler already added one above,
     # pool.best is that one (chain naming computed but not returned).
     # If no other handler fired (this is the only candidate), pool.best

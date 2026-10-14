@@ -3693,9 +3693,8 @@ class MolecularFeatures:
 
     # a phase / V18 Appendix A.5: parent-selection result for downstream
     # coverage_scoring readers. Populated by _classify when select_parent
-    # runs for a cyclic+chain molecule (chain_len >= 2). a phase /
-    # will recalibrate FACTOR_WEIGHTS_V18['parent_correctness'] against the
-    # discrimination this slot provides.
+    # runs for a cyclic+chain molecule (chain_len >= 2).
+    # FACTOR_WEIGHTS['parent_correctness'] is 0.0.
     # Source: V18_MILESTONE_PLAN Appendix A.5.
     parent_selection_result: Optional[Any] = None
 
@@ -4008,7 +4007,7 @@ def _build_ring_info_for_parent_selection(features):
     # below or downstream branches.
     #
     # Source: 151-internal notes / /; internal notes-A.md verdict
-    # THIN_WRAPPER; a phase cascade-step-6 gate (candidate_pool.py:634).
+    # THIN_WRAPPER; the supplier feeds `iupac_locants` (`_build_ring_pos`).
     from .rules.polycyclic_von_baeyer import (
         get_higher_polycyclo_iupac_locants,
         is_higher_polycyclo,
@@ -4055,10 +4054,10 @@ def _build_ring_info_for_parent_selection(features):
     # selection through.3.
     #
     # CRITICAL: emits `base_component_atoms` (NEW key), NOT `iupac_locants`.
-    # Cascade step 6 in candidate_pool._has_iupac_locants checks
-    # specifically for `iupac_locants` — Branch 6.5's new key is invisible
-    # to that gate, so cascade step 6 stays GATED for non-cataloged fused
-    # systems (a phase + a phase lock).
+    # `_build_ring_pos` and the `p44_scorer` locant lookup read `iupac_locants`
+    # as the numbering of the whole ring system; the base component's atoms are
+    # only part of it, so the new key stays invisible to them and non-cataloged
+    # fused systems keep the sorted-int proxy (a phase lock).
     #
     # SCOPE LIMIT (a phase Plan 02 triage): restricted to 2-component
     # fused systems where.3 base selection is reliable. 3+ component

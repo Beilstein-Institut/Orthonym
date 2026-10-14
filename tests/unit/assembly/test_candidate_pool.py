@@ -22,8 +22,10 @@ from orthonym.assembly.candidate_pool import (
 )
 import orthonym.assembly.candidate_pool as cp_module
 from orthonym.assembly.coverage_scoring import (
+    CONFIDENCE_GATE_THRESHOLD,
     CandidateName,
     HANDLER_PRIORITY,
+    compute_confidence,
 )
 from orthonym.namer import MolecularFeatures
 
@@ -32,14 +34,20 @@ from orthonym.namer import MolecularFeatures
 # Test helper (mirrors tests/unit/rules/test_coverage_scoring.py pattern)
 # ---------------------------------------------------------------------------
 
-def _make_features(smiles, functional_groups=None, principal_group=None):
-    """Create a minimal MolecularFeatures for testing pool.add."""
+def _make_features(smiles, functional_groups=None, principal_group=None, **extra):
+    """Create a minimal MolecularFeatures for testing pool.add.
+
+    ``extra`` sets further attributes by name, as
+    tests/unit/rules/test_coverage_gating_expansion.py does.
+    """
     mol = Chem.MolFromSmiles(smiles)
     f = MolecularFeatures(mol=mol, smiles=smiles)
     if functional_groups is not None:
         f.functional_groups = functional_groups
     if principal_group is not None:
         f.principal_group = principal_group
+    for key, val in extra.items():
+        setattr(f, key, val)
     return f
 
 
@@ -87,11 +95,8 @@ class TestHandlerPolicy:
     def test_handler_policies_complex_ring_is_tier_a(self):
         """Test 3: complex_ring is Tier A with correct tier/priority/direct_return.
 
-        a phase: cascade_ratio_min and min_ratio_accept fields removed
-        from HandlerPolicy; the 0.40/0.30 constants no longer live on the
-        policy. Their V17-soak semantics are preserved via an inline guard
-        in composer.py (selection_mode-gated). Tier A membership assertions
-        remain as the post-cleanup invariant.
+        HandlerPolicy carries no ratio or threshold fields: the 0.40 complex_ring
+        acceptance is tested inline in handlers/tier_a_ring.py.
         """
         p = HANDLER_POLICIES['complex_ring']
         assert p.direct_return is False, "Tier A — pool decides"
@@ -99,22 +104,19 @@ class TestHandlerPolicy:
         assert p.priority == HANDLER_PRIORITY['complex_ring']
 
     def test_handler_policies_chain_priority_raised_to_ring_a_equal(self):
-        """Test 5: chain policy-priority raised to 4 (ring_a-peer) per.
+        """Test 5: the chain policy priority is 4 (that of the ring_a handlers).
 
-        a phase: chain becomes a first-class peer of ring_a handlers
-        in the two-tier selector. HANDLER_PRIORITY['chain']=1 is UNCHANGED
-        (so V17 select_best_candidate tiebreak stays byte-identical); only
-        the HANDLER_POLICIES-level priority is promoted to 4 for the
-        two-tier selector's ring_a-peer logic.
+        HANDLER_PRIORITY['chain'] is 1: select_best_candidate ranks by
+        HANDLER_PRIORITY, not by the HANDLER_POLICIES-level priority.
         """
         p = HANDLER_POLICIES['chain']
-        assert p.priority == 4, "SC-5: chain policy-priority raised to ring_a-peer (4)"
+        assert p.priority == 4, "chain policy priority is 4 (the ring_a handlers' value)"
         assert p.tier == 'chain'
         assert p.direct_return is False
-        # HANDLER_PRIORITY['chain'] remains 1 (V17 byte-identical invariant).
+        # HANDLER_PRIORITY['chain'] remains 1.
         assert HANDLER_PRIORITY['chain'] == 1, (
-            "HANDLER_PRIORITY['chain'] must stay 1 for V17 byte-identical "
-            "select_best_candidate tiebreak"
+            "HANDLER_PRIORITY['chain'] must stay 1: the select_best_candidate "
+            "tiebreak ranks by it"
         )
 
     @pytest.mark.parametrize("handler_id", [
@@ -147,16 +149,10 @@ class TestHandlerPolicy:
 
 class TestCandidatePoolInit:
     def test_pool_init_first_applicable(self):
-        """Test 6: default selection_mode is 'first_applicable'."""
+        """Test 6: a new pool holds no candidate and no direct-return winner."""
         pool = CandidatePool()
-        assert pool.selection_mode == 'first_applicable'
         assert pool._candidates == []
         assert pool._direct_return_winner is None
-
-    def test_pool_init_invalid_mode_raises(self):
-        """Test 8: unknown selection_mode raises AssertionError."""
-        with pytest.raises(AssertionError):
-            CandidatePool(selection_mode='bogus')
 
 
 # ---------------------------------------------------------------------------
@@ -165,15 +161,15 @@ class TestCandidatePoolInit:
 
 class TestCandidatePoolSelection:
     def test_pool_first_applicable_returns_first_added(self):
-        """Test 9: first_applicable returns first-added regardless of confidence."""
-        pool = CandidatePool(selection_mode='first_applicable')
+        """Test 9: best returns the first-added candidate regardless of confidence."""
+        pool = CandidatePool()
         # Add three candidates manually (bypassing add to control confidence)
         c1 = CandidateName(name="ethanol", handler='chain', confidence=0.4)
         c2 = CandidateName(name="ethyl alcohol", handler='chain', confidence=0.9)
         c3 = CandidateName(name="hydroxyethane", handler='chain', confidence=0.7)
         pool._candidates = [c1, c2, c3]
         best = pool.best()
-        assert best is c1, "first_applicable returns first-added (not highest confidence)"
+        assert best is c1, "best() returns the first-added candidate (not the highest confidence)"
 
     def test_pool_best_empty_returns_none(self):
         """pool.best with no candidates returns None."""
@@ -181,12 +177,44 @@ class TestCandidatePoolSelection:
         assert pool.best() is None
 
     def test_pool_direct_return_winner_short_circuits(self):
-        """Test 17: in first_applicable, first-added direct_return wins."""
-        pool = CandidatePool(selection_mode='first_applicable')
+        """Test 17: the first-added direct_return candidate wins."""
+        pool = CandidatePool()
         c1 = CandidateName(name="polycyclic_name", handler='polycyclic', confidence=0.6)
         c2 = CandidateName(name="complex_ring_name", handler='complex_ring', confidence=0.9)
         pool._candidates = [c1, c2]
         assert pool.best() is c1
+
+    def test_best_returns_direct_return_winner_else_first(self):
+        """best returns the candidate of the first direct_return handler when
+        one was added, otherwise the first candidate added.
+
+        Built through add on the real molecules, so the ratio floor does not
+        void the names. Hexahelicene is named twice: by complex_ring
+        (direct_return False) and then by polycyclic (direct_return True); the
+        pool holds both and best is the polycyclic candidate. Ethanol is named
+        by chain and then by complex_ring (neither direct_return): best is the
+        first.
+        """
+        assert HANDLER_POLICIES['complex_ring'].direct_return is False
+        assert HANDLER_POLICIES['polycyclic'].direct_return is True
+        assert HANDLER_POLICIES['chain'].direct_return is False
+
+        features = _make_features("c1ccc2c(c1)ccc1ccc3ccc4ccc5ccccc5c4c3c12")
+        pool = CandidatePool()
+        first = pool.add("hexahelicene", "complex_ring", features)
+        second = pool.add("hexahelicene", "polycyclic", features)
+        assert first is not None and second is not None
+        assert len(pool.all_candidates()) == 2
+        assert pool.best() is second
+        assert pool.best() is not first
+
+        features = _make_features("CCO")
+        pool = CandidatePool()
+        first = pool.add("ethanol", "chain", features)
+        second = pool.add("ethanol", "complex_ring", features)
+        assert first is not None and second is not None
+        assert len(pool.all_candidates()) == 2
+        assert pool.best() is first
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +250,46 @@ class TestCandidatePoolAdd:
         assert cand is not None
         assert len(pool.all_candidates()) == 1
 
+    def test_ratio_floor_and_tier_b_gate_void_a_candidate(self):
+        """add returns None, and stores nothing, when the ratio floor or the
+        confidence gate of a ring_b handler rejects the candidate.
+
+        A 30-carbon chain with a principal alcohol group and a very short name:
+          * "ol" has ratio 0.044, below RATIO_REJECT_FLOOR, so any handler's
+            candidate is voided, unless the producer measured a complete atom
+            partition (coverage_measured=True), which supersedes the floor;
+          * "hexane" has ratio 0.133, above the floor, so only the confidence
+            gate that applies to ring_b handlers (thioether) voids it, and the
+            same name from a chain handler is kept.
+        """
+        features = _make_features(
+            "C" * 30,
+            functional_groups={'alcohol': [(1,)]},
+            principal_group='alcohol',
+            principal_group_atoms=[(1,)],
+            substituents={0: [[2, 3]]},
+            ring_substituents={},
+            heterocycle_substituents={},
+            benzene_substituents={},
+        )
+        assert compute_confidence("ol", "chain", features).factors['ratio'] < cp_module.RATIO_REJECT_FLOOR
+        hexane_chain = compute_confidence("hexane", "chain", features)
+        assert hexane_chain.factors['ratio'] >= cp_module.RATIO_REJECT_FLOOR
+        assert HANDLER_POLICIES['thioether'].tier == 'ring_b'
+        assert HANDLER_POLICIES['chain'].tier == 'chain'
+        assert compute_confidence("hexane", "thioether", features).confidence < CONFIDENCE_GATE_THRESHOLD
+
+        pool = CandidatePool()
+        assert pool.add("ol", "chain", features) is None
+        assert pool.add("hexane", "thioether", features) is None
+        assert pool.all_candidates() == []
+
+        measured = pool.add("ol", "chain", features, coverage_measured=True)
+        assert measured is not None
+        kept = pool.add("hexane", "chain", features)
+        assert kept is not None
+        assert pool.all_candidates() == [measured, kept]
+
 
 # ---------------------------------------------------------------------------
 # Thread-local pool lifecycle tests
@@ -246,7 +314,6 @@ class TestPoolLifecycle:
             delattr(_pool_store, 'pool')
         pool = get_current_pool()
         assert isinstance(pool, CandidatePool)
-        assert pool.selection_mode == 'first_applicable'
 
     def test_pool_thread_local_isolated(self):
         """Test 13: pools in different threads do not share candidates."""
