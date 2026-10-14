@@ -161,7 +161,7 @@ def _skip_if_unparseable(smiles, name_substring):
 def _name(smi):
     """Helper to invoke name_compound."""
     from orthonym import name_compound
-    return name_compound(smi)
+    return name_compound(smi, on_failure="label")
 
 
 # ---------------------------------------------------------------------------

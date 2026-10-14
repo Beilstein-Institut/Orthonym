@@ -5,7 +5,9 @@ from orthonym.errors import OrthonymLimitError
 WILDCARD_MSG = "compound with wildcard atoms (not supported)"
 
 def _name(smiles):
-    return Orthonym().name(smiles)   # default raise_on_limit=False, as the CLI calls it
+    # on_failure="label": these tests are about the label the engine gives a wildcard structure
+    # (the default of the public call is the empty string, tests/unit/test_on_failure.py)
+    return Orthonym().name(smiles, on_failure="label")
 
 def test_simple_wildcard_does_not_ship_ethane():
     out = _name("CC*")

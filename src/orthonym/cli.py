@@ -8,10 +8,15 @@ Usage:
 """
 
 import argparse
+import functools
+import logging
 import sys
 from typing import List
 
 from . import __version__, name_compound
+from .errors import LIMIT_CATALOG, OrthonymLimitError, is_failure_name
+from .failure_mode import DEFAULT_MODE as DEFAULT_ON_FAILURE
+from .failure_mode import MODES as ON_FAILURE_MODES
 
 
 def _emit_tier_flags(emit_tier: str) -> dict:
@@ -57,6 +62,113 @@ def _emit_tier_flags(emit_tier: str) -> dict:
     }
 
 
+def _engine_only(parsed) -> int:
+    """``--engine-only``: the general engine's own name, as JSON, or that it declined."""
+    import json as _json
+
+    from rdkit import Chem as _Chem
+
+    from orthonym.assembly.general_engine import name_general
+    from orthonym.namer import Orthonym
+    from orthonym.validation.e1_certificate import verify_certificate
+    namer = Orthonym(style=parsed.style,
+                      _disable_opsin_validity_gate=True)
+    mol = _Chem.MolFromSmiles(parsed.smiles)
+    if mol is None:
+        print("Error: invalid SMILES", file=sys.stderr)
+        return 1
+    feats = namer._perceive(
+        mol, parsed.smiles, _Chem.MolToSmiles(mol, canonical=True))
+    namer._classify(feats)
+    res = name_general(mol, feats)
+    if res is None:
+        print(_json.dumps({
+            "engine": "refused",
+            "note": "fail-closed; see log for the refusal reason",
+        }))
+        return 0
+    verdict = verify_certificate(mol, res)
+    print(_json.dumps({
+        "engine": res.name,
+        "e1_ok": verdict.ok,
+        "e1_reason": verdict.reason,
+        "warning": "diagnostic output — E1-audited but NOT "
+                   "OPSIN-RT-gated; never a PIN",
+    }))
+    return 0
+
+
+def _unnamed_line(smiles: str, code: str, label: str) -> str:
+    """The line on the error stream for a structure that got no name."""
+    return f"{smiles}\t{code}: {label}"
+
+
+class _UnnamedReporter(logging.Filter):
+    """Print, on the error stream, the line for each structure the library reports as unnamed.
+
+    ``failure_mode`` logs one warning per unnamed structure on the logger ``orthonym``, with the
+    SMILES, the limit code and the label as record attributes. This filter turns it into the
+    line of the command line and drops the record, so the reason is not printed twice."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        code = getattr(record, "orthonym_code", None)
+        if code is None:
+            return True
+        print(_unnamed_line(record.orthonym_smiles, code, record.orthonym_label),
+              file=sys.stderr)
+        return False
+
+
+def _reports_unnamed(fn):
+    """Run ``fn`` (``main``) with the unnamed-structure line printed for each failure."""
+    @functools.wraps(fn)
+    def _wrapper(*args, **kwargs):
+        reporter = _UnnamedReporter()
+        logger = logging.getLogger("orthonym")
+        logger.addFilter(reporter)
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            logger.removeFilter(reporter)
+    return _wrapper
+
+
+def _add_on_failure_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--on-failure",
+        dest="on_failure",
+        choices=list(ON_FAILURE_MODES),
+        default=DEFAULT_ON_FAILURE,
+        help=("What to give for a structure that gets no name. empty (the default): an empty "
+              "name, and on the error stream a line with the SMILES, the limit code and the "
+              "reason, '<SMILES><tab><CODE>: <reason>'. label: the reason as the name, "
+              "'unknown organic compound' for example. raise: stop with an error (status 1; "
+              "with --batch the line gets ERROR: and the run ends with status 1). It applies "
+              "to a name, --confidence and --batch; --provenance, --dump-tree and "
+              "--engine-only report the structure as it is. With --batch --verbose the "
+              "count of lines without a name is printed.")
+    )
+
+
+def _print_tiered_name(row: dict, smiles: str, mode: str) -> None:
+    """The bare name of a tiered row (``--emit-tier``) or, for a structure with no name, what
+    ``--on-failure`` says: with ``label`` the row's label or '(no name - <code>)' as always."""
+    if mode == "label":
+        print(row["name"] if row["name"]
+              else f"(no name — {row['limit_code'] or row['tier']})")
+        return
+    if row["name"] and row["tier"] != "abstain":
+        print(row["name"])
+        return
+    code = row["limit_code"] or "UNNAMEABLE"
+    label = row["name"] or LIMIT_CATALOG.get(code, {}).get("message", "")
+    if mode == "raise":
+        raise OrthonymLimitError(code, label, smiles=smiles)
+    print("")
+    print(_unnamed_line(smiles, code, label), file=sys.stderr)
+
+
+@_reports_unnamed
 def main(args: List[str] = None) -> int:
     """Main entry point for CLI."""
     # Before anything can start the JVM: a native crash must print the Python
@@ -65,9 +177,10 @@ def main(args: List[str] = None) -> int:
     enable_crash_traceback()
     parser = argparse.ArgumentParser(
         description=("Orthonym: IUPAC names for chemical structures. Give a SMILES string "
-                     "and get its IUPAC name, checked by reading it back with OPSIN, or a "
-                     "label that says why no name was given. The few names OPSIN cannot "
-                     "read in full are marked by --provenance."),
+                     "and get its IUPAC name, checked by reading it back with OPSIN. A "
+                     "structure that gets no name has an empty name and a reason on the error "
+                     "stream (--on-failure). The few names OPSIN cannot read in full are "
+                     "marked by --provenance."),
         prog="orthonym"
     )
 
@@ -101,16 +214,16 @@ def main(args: List[str] = None) -> int:
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
-        help=("Also print the SMILES and the style. With --batch and --output, also "
-              "say how many lines were named and how many failed.")
+        help=("Also print the SMILES and the style. With --batch, also say how many lines "
+              "were read, how many failed and how many got no name.")
     )
 
     parser.add_argument(
         "--batch", "-b",
         type=str,
         help=("Name every SMILES in this file, one per line, and print one "
-              "'SMILES<tab>name' line each. --emit-tier and --provenance do not apply"
-              " to batch runs yet.")
+              "'SMILES<tab>name' line each; the name is empty for a line that gets no name "
+              "(--on-failure). --emit-tier and --provenance do not apply to batch runs yet.")
     )
 
     parser.add_argument(
@@ -306,6 +419,7 @@ def main(args: List[str] = None) -> int:
             "check fails). Works for one SMILES and for --batch."
         ),
     )
+    _add_on_failure_option(parser)
 
     parsed = parser.parse_args(args)
 
@@ -336,7 +450,8 @@ def main(args: List[str] = None) -> int:
         return _process_batch(parsed.batch, parsed.output, parsed.style,
                               parsed.verbose, parsed.confidence,
                               getattr(parsed, 'trivial_fallback', False),
-                              getattr(parsed, 'binding_proof', 'off'))
+                              getattr(parsed, 'binding_proof', 'off'),
+                              parsed.on_failure)
 
     # Single SMILES mode
     if not parsed.smiles:
@@ -352,7 +467,7 @@ def main(args: List[str] = None) -> int:
         if parsed.validation_stats:
             from orthonym.namer import Orthonym
             namer = Orthonym(style=parsed.style)
-            name = namer.name(parsed.smiles)
+            name = namer.name(parsed.smiles, on_failure=parsed.on_failure)
             print(name)
             stats = namer.get_validation_stats()
             print(f"Validation stats: {stats}", file=sys.stderr)
@@ -369,7 +484,7 @@ def main(args: List[str] = None) -> int:
             from orthonym.namer import Orthonym
             from orthonym.routing.dispatch_table import StoutClass
             namer = Orthonym(style=parsed.style)
-            name = namer.name(parsed.smiles)
+            name = namer.name(parsed.smiles, on_failure=parsed.on_failure)
             print(name)
             stats = namer.get_dispatch_stats()
             print("\n--- CFR Dispatch Stats (Phase 158 outer) ---", file=sys.stderr)
@@ -428,43 +543,13 @@ def main(args: List[str] = None) -> int:
             "enable_triviality_controller": getattr(
                 parsed, "enable_triviality_controller", False),
             "trivial_fallback": getattr(parsed, "trivial_fallback", False),
+            "on_failure": parsed.on_failure,
         }
 
         #: --engine-only diagnostic branch (before the tier branch: a
         # pure inspection surface, never a production emit path).
         if getattr(parsed, "engine_only", False):
-            import json as _json
-
-            from rdkit import Chem as _Chem
-
-            from orthonym.assembly.general_engine import name_general
-            from orthonym.namer import Orthonym
-            from orthonym.validation.e1_certificate import verify_certificate
-            namer = Orthonym(style=parsed.style,
-                              _disable_opsin_validity_gate=True)
-            mol = _Chem.MolFromSmiles(parsed.smiles)
-            if mol is None:
-                print("Error: invalid SMILES", file=sys.stderr)
-                return 1
-            feats = namer._perceive(
-                mol, parsed.smiles, _Chem.MolToSmiles(mol, canonical=True))
-            namer._classify(feats)
-            res = name_general(mol, feats)
-            if res is None:
-                print(_json.dumps({
-                    "engine": "refused",
-                    "note": "fail-closed; see log for the refusal reason",
-                }))
-                return 0
-            verdict = verify_certificate(mol, res)
-            print(_json.dumps({
-                "engine": res.name,
-                "e1_ok": verdict.ok,
-                "e1_reason": verdict.reason,
-                "warning": "diagnostic output — E1-audited but NOT "
-                           "OPSIN-RT-gated; never a PIN",
-            }))
-            return 0
+            return _engine_only(parsed)
 
         #: tiered-output branch. Constructs the namer directly (the
         # tier flags are namer-level), prints JSON with --provenance or the
@@ -498,16 +583,11 @@ def main(args: List[str] = None) -> int:
             row = namer.name_tiered(parsed.smiles)
             if parsed.provenance:
                 print(_json.dumps(row))
-            elif row["name"]:
-                print(row["name"])
             else:
-                # Composer1 Task 5 fix: a clean abstain has
-                # name=None by design (honest "no name" contract — see
-                # name_tiered's Composer1 Task 5 comment). Printing
-                # bare `None` to stdout would be confusing/broken output
-                # for this documented flag; print a labeled abstention
-                # indicator instead. Never fabricates a name.
-                print(f"(no name — {row['limit_code'] or row['tier']})")
+                # Composer1 Task 5 fix: a clean abstain has name=None by design
+                # (honest "no name" contract, see name_tiered), so the print of a
+                # row with no name is a function of its own (never a bare `None`).
+                _print_tiered_name(row, parsed.smiles, parsed.on_failure)
             return 0
 
         if parsed.confidence:
@@ -543,6 +623,10 @@ def main(args: List[str] = None) -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+    except OrthonymLimitError as e:
+        # --on-failure raise: the same line as for an unnamed structure, and the status of an error
+        print(_unnamed_line(parsed.smiles, e.code, e.message), file=sys.stderr)
+        return 1
     except Exception as e:
         print(f"Unexpected error: {e}", file=sys.stderr)
         return 1
@@ -551,7 +635,8 @@ def main(args: List[str] = None) -> int:
 def _process_batch(input_file: str, output_file: str, style: str,
                     verbose: bool, confidence: bool = False,
                     trivial_fallback: bool = False,
-                    binding_proof: str = "off") -> int:
+                    binding_proof: str = "off",
+                    on_failure: str = DEFAULT_ON_FAILURE) -> int:
     """Process multiple SMILES from a file.
 
     ``binding_proof`` is honoured here exactly as on the single-SMILES path:
@@ -563,7 +648,10 @@ def _process_batch(input_file: str, output_file: str, style: str,
 
     The output has exactly one line per input line, in input order, so line N
     of the output belongs to line N of the input: a blank input line gives a
-    blank output line, and an empty input file gives an empty output.
+    blank output line, and an empty input file gives an empty output. A line that
+    gets no name keeps its place: ``on_failure`` ("empty" by default) says whether
+    its name column is empty (the reason is printed on the error stream), the label,
+    or an ``ERROR:`` row.
     """
     from .namer import validate_binding_proof
     validate_binding_proof(binding_proof)
@@ -580,6 +668,7 @@ def _process_batch(input_file: str, output_file: str, style: str,
     results = []
     errors = 0
     named = 0
+    unnamed = 0
 
     for smiles in input_lines:
         if not smiles:
@@ -591,7 +680,9 @@ def _process_batch(input_file: str, output_file: str, style: str,
                 result = name_compound(smiles, style=style,
                                        include_confidence=True,
                                        trivial_fallback=trivial_fallback,
-                                       binding_proof=binding_proof)
+                                       binding_proof=binding_proof,
+                                       on_failure=on_failure)
+                unnamed += is_failure_name(result['name'])
                 # C4-D: None means UNMEASURED, not zero — emit the token
                 # 'unverified' rather than formatting None or implying 0.0000.
                 _conf = result.get('confidence')
@@ -604,7 +695,9 @@ def _process_batch(input_file: str, output_file: str, style: str,
             else:
                 nm = name_compound(smiles, style=style,
                                    trivial_fallback=trivial_fallback,
-                                   binding_proof=binding_proof)
+                                   binding_proof=binding_proof,
+                                   on_failure=on_failure)
+                unnamed += is_failure_name(nm)
                 results.append(f"{smiles}\t{nm}")
         except Exception as e:
             results.append(f"{smiles}\tERROR: {e}")
@@ -617,7 +710,7 @@ def _process_batch(input_file: str, output_file: str, style: str,
             with open(output_file, 'w') as f:
                 f.write(output_text)
             if verbose:
-                print(f"Processed {named} SMILES, {errors} errors")
+                print(f"Processed {named} SMILES, {errors} errors, {unnamed} unnamed")
                 print(f"Output written to: {output_file}")
         except IOError as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
@@ -625,7 +718,7 @@ def _process_batch(input_file: str, output_file: str, style: str,
     else:
         sys.stdout.write(output_text)
         if verbose:
-            print(f"\nProcessed {named} SMILES, {errors} errors",
+            print(f"\nProcessed {named} SMILES, {errors} errors, {unnamed} unnamed",
                   file=sys.stderr)
 
     return 0 if errors == 0 else 1

@@ -109,7 +109,7 @@ def test_the_refusal_is_not_replaced_by_a_structure_dropping_name(ungated_namer)
     molecule that no failure predicate can flag, i.e. strictly worse. The
     refusal must survive all the way out.
     """
-    out = ungated_namer.name("CCS[Zn]SCC")
+    out = ungated_namer.name("CCS[Zn]SCC", on_failure="label")
     assert out == "zinc compound (not supported)"
     assert out not in ("ethane", "ethylethane", "diethyl sulfide")
 
@@ -145,7 +145,7 @@ def test_carbon_count_fallback_refuses_a_heteroatom_bearing_fragment():
 def test_no_emitted_name_contains_a_refusal_sentinel(ungated_namer, smiles):
     """THE broad invariant: a sentinel may be the WHOLE answer (an honest refusal)
     but must never appear as a SUBSTRING of a composed name."""
-    out = ungated_namer.name(smiles)
+    out = ungated_namer.name(smiles, on_failure="label")
     assert out, smiles
     if is_refusal_sentinel(out):
         return                     # an honest, whole-string refusal is fine

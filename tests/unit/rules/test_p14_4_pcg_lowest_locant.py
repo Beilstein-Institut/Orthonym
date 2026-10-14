@@ -176,7 +176,7 @@ GOLD_DERIVED = [
 @pytest.mark.parametrize("smiles,expected", GOLD_DERIVED)
 def test_gold_derived_names_unchanged(smiles, expected):
     """Every gold-derived benzene name exposed to the numbering change."""
-    assert name_compound(smiles) == expected
+    assert name_compound(smiles, on_failure="label") == expected
 
 
 # --------------------------------------------------------------------------

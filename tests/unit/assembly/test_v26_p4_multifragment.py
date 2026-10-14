@@ -217,8 +217,8 @@ def test_identical_components_are_named_only_below_the_pin(production_gate):
     # entities). The PIN path declines it; the complete configuration keeps it. (It
     # used to be a BYTE_IDENTICAL_CASES row shipped by both.)
     smi = Chem.CanonSmiles("OCCO.OCCO")
-    assert _pin().name(smi) == "unknown organic compound"
-    assert _complete().name(smi) == "ethane-1,2-diol ethane-1,2-diol"
+    assert _pin().name(smi, on_failure="label") == "unknown organic compound"
+    assert _complete().name(smi, on_failure="label") == "ethane-1,2-diol ethane-1,2-diol"
 
 
 @pytest.mark.parametrize("smiles,expected", BYTE_IDENTICAL_CASES)
@@ -238,8 +238,8 @@ def test_complete_byte_identical_to_pin(smiles, expected, production_gate):
 @pytest.mark.parametrize("smiles,expected_failure", FAIL_CLOSED_CASES)
 def test_fail_closed_never_ships_partial_name(smiles, expected_failure,
                                               production_gate):
-    pin_out = _pin().name(Chem.CanonSmiles(smiles))
-    comp_out = _complete().name(Chem.CanonSmiles(smiles))
+    pin_out = _pin().name(Chem.CanonSmiles(smiles), on_failure="label")
+    comp_out = _complete().name(Chem.CanonSmiles(smiles), on_failure="label")
     assert is_failure_name(pin_out), (
         f"{smiles}: expected pin failure signal, got {pin_out!r}")
     assert is_failure_name(comp_out), (
@@ -255,9 +255,9 @@ def test_complete_names_what_pin_declines(smiles, pin_failure, production_gate):
     complete ships a name that round-trips to the input's full InChIKey (never a
     wrong or partial joined name); the PIN tier still gives its failure signal."""
     canon = Chem.CanonSmiles(smiles)
-    comp_out = _complete().name(canon)
+    comp_out = _complete().name(canon, on_failure="label")
     assert_full_rt(comp_out, canon, what="complete tier: ")
-    pin_out = _pin().name(canon)
+    pin_out = _pin().name(canon, on_failure="label")
     assert pin_out == pin_failure, (
         f"{smiles}: pin={pin_out!r} expected={pin_failure!r}")
 

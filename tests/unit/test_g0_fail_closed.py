@@ -199,7 +199,7 @@ NO_CRASH_METAL = [
 @pytest.mark.parametrize("smiles", NO_CRASH_METAL)
 def test_metal_species_do_not_crash(smiles):
     # default path: a string (never an exception)
-    out = name_compound(smiles)
+    out = name_compound(smiles, on_failure="label")
     assert isinstance(out, str) and out
     # opt-in path: a NAMED limit, never a raw AttributeError/NoneType crash
     try:

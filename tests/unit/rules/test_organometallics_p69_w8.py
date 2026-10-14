@@ -43,7 +43,7 @@ class TestTask91EtaCarveOut:
         # C6H10Ni constitution). The conservation veto declines -> abstain
         # (organometallics out of scope,. See _organometallic_conserves.
         assert (
-            Orthonym().name("[Ni].[CH2]=CC.[CH2]=CC")
+            Orthonym().name("[Ni].[CH2]=CC.[CH2]=CC", on_failure="label")
             == "nickel compound (not supported)"
         )
 
@@ -67,7 +67,7 @@ class TestTask91EtaCarveOut:
         # than ship a wrong structure (core principle 2).
         smi = "[Mn].c1cc[cH-]c1.[C-]#[O+].[C-]#[O+].[C-]#[O+]"
         assert Chem.GetFormalCharge(Chem.MolFromSmiles(smi)) == -1
-        assert Orthonym().name(smi) == "manganese compound (not supported)"
+        assert Orthonym().name(smi, on_failure="label") == "manganese compound (not supported)"
 
     def test_tricarbonyl_cycloheptatrienyl_molybdenum_abstains_lossy_ligand(self):
         # (item 4, PREP-T4): the LIGAND_ETA_DEFAULTS key 'C1=CC=CC=CC=1'
@@ -75,7 +75,7 @@ class TestTask91EtaCarveOut:
         # name over-claims 1 H, so the emitted constitution is wrong. The
         # conservation veto declines -> abstain (organometallics out of scope).
         assert (
-            Orthonym().name("[Mo].C1=CC=CC=CC=1.[C-]#[O+].[C-]#[O+].[C-]#[O+]")
+            Orthonym().name("[Mo].C1=CC=CC=CC=1.[C-]#[O+].[C-]#[O+].[C-]#[O+]", on_failure="label")
             == "molybdenum compound (not supported)"
         )
 
@@ -288,7 +288,7 @@ class TestTask96DimetalClass1Class2:
         construct -- explicitly deferred (design-contract). Must fail
         closed, never guess a partial/atom-dropping name."""
         smi = "c1cc(sc1[Hg]O)[Hg]c1ccncc1[As](C)C"
-        name = Orthonym().name(smi)
+        name = Orthonym().name(smi, on_failure="label")
         assert name.endswith("(not supported)")
 
     def test_class1_class2_dimetal_p6952_built(self):
@@ -372,7 +372,7 @@ class TestSigmaLigandNamerFailsClosed:
     def test_wrong_constitution_witnesses_abstain_raw(self, smi):
         # Even gate-off (no OPSIN), the producer declines rather than fabricate
         # a wrong-constitution additive name.
-        assert _raw().name(smi).endswith("(not supported)")
+        assert _raw().name(smi, on_failure="label").endswith("(not supported)")
 
     def test_correct_sigma_alkyls_still_ship_raw(self):
         # The clean terminal σ-alkyls remain the standard additive PINs
@@ -411,7 +411,7 @@ class TestSigmaAdditiveConservationCertificate:
         ("C[TiH2]Cl",              "W4 two metal-bound H dropped"),
     ])
     def test_wrong_constitution_classes_abstain_raw(self, smi, why):
-        assert _raw().name(smi).endswith("(not supported)"), (smi, why)
+        assert _raw().name(smi, on_failure="label").endswith("(not supported)"), (smi, why)
 
     def test_correct_additive_names_still_ship_raw(self):
         # Neutral, monodentate, radical-free σ-ligands on a neutral metal with no

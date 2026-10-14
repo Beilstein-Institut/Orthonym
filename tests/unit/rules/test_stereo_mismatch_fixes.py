@@ -75,7 +75,7 @@ class TestSM40:
         """Gate off (the raw generator): never the over-specified benchmark-family
         steroid name; whatever ships must denote itself."""
         from tests.support.rt_assert import name_is_rt_exact
-        name = name_compound(SM_40_SMILES)
+        name = name_compound(SM_40_SMILES, on_failure="label")
         assert name != self._BENCHMARK
         assert "cholest" not in name, name
         assert name == "unknown organic compound" or name_is_rt_exact(name, SM_40_SMILES), name

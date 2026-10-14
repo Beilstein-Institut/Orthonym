@@ -80,7 +80,7 @@ def _fake_name_with_primary_offer(source, name, offer_tier, *, gate_outcome=None
     and the inline engine lane)."""
     from orthonym.assembly.offer_pool import Offer
 
-    def _fake(self, smiles):
+    def _fake(self, smiles, **_kwargs):
         if source != "pin_path":
             pv.record_source(source)
         if non_pin_fragment:
@@ -187,7 +187,7 @@ def test_no_pin_status_element_name_verified_by_the_shipped_name_check_is_system
 def test_last_resort_floor_offer_stays_best_effort(monkeypatch):
     from orthonym.assembly.offer_pool import Offer
 
-    def _fake(self, smiles):
+    def _fake(self, smiles, **_kwargs):
         pv.record_gate_outcome(pv.GATE_OUTCOME_SELF01, "ethanol")
         primary = Offer(name="wrong-name", result_obj=None, is_pin=True,
                         tier="pin_verified", source="pin_path", complete=True)

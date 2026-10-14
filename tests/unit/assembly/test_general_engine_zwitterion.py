@@ -75,7 +75,7 @@ def _name(smiles, tier="best-effort"):
     """Name ``smiles`` at ``tier`` using the CLI's own tier->flag contract."""
     from orthonym.cli import _emit_tier_flags
 
-    return Orthonym(style="pin", **_emit_tier_flags(tier)).name(smiles)
+    return Orthonym(style="pin", **_emit_tier_flags(tier)).name(smiles, on_failure="label")
 
 
 # --------------------------------------------------------------------------

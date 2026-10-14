@@ -201,7 +201,7 @@ class TestNoPartialShip:
         ids=["gpi_mannoside", "lipopeptide", "small_amide", "triacetin"],
     )
     def test_never_ships_a_smaller_molecule_name(self, smiles):
-        result = name_compound(smiles)
+        result = name_compound(smiles, on_failure="label")
         assert result, f"name_compound returned falsy for {smiles}"
 
         if is_failure_name(result):
@@ -224,7 +224,7 @@ class TestNoPartialShip:
         ships an ATOM-COMPLETE candidate or the molecule abstains cleanly --
         it must never again reach a partial-ship shape.
         """
-        result = name_compound(GPI_MANNOSIDE)
+        result = name_compound(GPI_MANNOSIDE, on_failure="label")
         assert result
         assert is_failure_name(result) or not _is_strict_subset_name(
             GPI_MANNOSIDE, result
@@ -235,7 +235,7 @@ class TestNoPartialShip:
         `_try_multi_bond_decompose` (amide). Must never ship a name for a
         subset of its 74 heavy atoms.
         """
-        result = name_compound(LIPOPEPTIDE)
+        result = name_compound(LIPOPEPTIDE, on_failure="label")
         assert result
         assert is_failure_name(result) or not _is_strict_subset_name(
             LIPOPEPTIDE, result

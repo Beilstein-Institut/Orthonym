@@ -148,7 +148,7 @@ def test_integration_failclosed_never_wrong_organic(namer):
     # (the dodecyl chain), so the B3 carbon-free honesty floor
     # (errors.py::classify_failure_limit) does not apply here -- this stays
     # the pre-existing organic-unnameable sentinel.
-    out = namer.name("CCCCCCCCCCCCOP(=S)([O-])[O-]")
+    out = namer.name("CCCCCCCCCCCCOP(=S)([O-])[O-]", on_failure="label")
     assert out == "unknown organic compound"
 
 
@@ -166,5 +166,5 @@ def test_integration_failclosed_never_wrong_inorganic(namer):
     # fragment must never surface the organic sentinel. 0-wrong is
     # unaffected either way (both strings are abstentions, never a shipped
     # name); only the honesty of the abstention message changed.
-    out = namer.name("OP(=O)([O-])OP(=O)([O-])[O-]")
+    out = namer.name("OP(=O)([O-])OP(=O)([O-])[O-]", on_failure="label")
     assert out == "inorganic compound (not supported)"

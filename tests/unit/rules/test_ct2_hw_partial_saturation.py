@@ -40,7 +40,7 @@ def _jvm_slot():
 def _name(smiles):
     from orthonym import name_compound
     with wall_clock_limit(60):
-        return name_compound(smiles)
+        return name_compound(smiles, on_failure="label")
 
 
 def _rt(smiles, name):

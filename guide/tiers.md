@@ -48,8 +48,11 @@ At `valid` that name does not pass the full round trip, and no general-engine na
 
 ```console
 $ orthonym "C1CC[C@H]2CCCC[C@H]2C1" --emit-tier valid
-(no name — UNNAMEABLE)
+
+C1CC[C@H]2CCCC[C@H]2C1	UNNAMEABLE: unknown organic compound
 ```
+
+The first line is the empty name, the second the reason on the error stream (see [Declines](declines.md)).
 
 At `best-effort` a last-resort producer builds a name that OPSIN reads back to the same molecule, stereochemistry included:
 
@@ -60,7 +63,7 @@ $ orthonym "C1CC[C@H]2CCCC[C@H]2C1" --emit-tier best-effort --provenance
 
 The `producer` shows the change: `inner:tier_a_ring` built the default-tier name, and the last-resort namer (`engine:t4`) built the `best-effort` one.
 
-At a tier other than `pin`, a decline prints `(no name — CODE)` on the command line, and the provenance row has `"name": null`.
+At a tier other than `pin`, the provenance row of a decline has `"name": null`, and `--on-failure label` prints `(no name — CODE)` on the command line.
 
 ## In Python
 

@@ -331,7 +331,7 @@ def test_no_sentinel_or_malformed_names():
 
 def _name(smiles: str) -> str:
     from orthonym import Orthonym
-    return Orthonym().name(smiles)
+    return Orthonym().name(smiles, on_failure="label")
 
 
 _BY_CHEBI = {f["chebi"]: f for f in FIXTURES}

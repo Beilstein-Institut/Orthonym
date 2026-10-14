@@ -66,4 +66,4 @@ ACYL_OWNER_ABSTAINS = [
 def test_sulfate_ester_acyl_owner_abstains(smiles):
     """An acyl (carbonyl-carbon) owner is out of the sulfate-ester class —
     the namer must decline it, not mis-name it as a sulfate ester."""
-    assert name_compound(smiles) == "unknown organic compound"
+    assert name_compound(smiles, on_failure="label") == "unknown organic compound"

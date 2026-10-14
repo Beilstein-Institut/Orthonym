@@ -31,7 +31,7 @@ def gated(monkeypatch):
 
 
 def _name(smiles):
-    return name_compound(Chem.CanonSmiles(smiles))
+    return name_compound(Chem.CanonSmiles(smiles), on_failure="label")
 
 
 class TestItem8BranchNitro:

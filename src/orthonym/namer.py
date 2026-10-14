@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from rdkit import Chem
 
+from . import failure_mode as _failure_mode
 from . import input_mol as _input_mol
 from .data import (
     RETAINED_NAMES,  # noqa: F401 re-exported: imported FROM this module by tests/unit/data/test_opsin_merge_layer.py
@@ -4604,7 +4605,7 @@ class Orthonym:
         Returns
         -------
         NamingResult
-            ``name`` is the same string:meth:`name` returns; ``tree`` is the
+            ``name`` is what:meth:`name` returns with ``on_failure="label"``; ``tree`` is the
             :class:`NameTreeNode` of its parts (a single coarse node when the part of
             the engine that built the name records no finer structure);
             ``atom_to_locant_hint`` maps atom indices to locants where one was
@@ -4659,7 +4660,7 @@ class Orthonym:
         token = _name_with_tree_capture.set({"naming": None})
         try:
             try:
-                name = self.name(smiles)
+                name = self.name(smiles, on_failure="label")
             except ValueError:
                 raise  # invalid SMILES — propagate (matches name contract)
             except (TypeError, KeyError, IndexError, AttributeError) as _e:
@@ -4803,6 +4804,7 @@ class Orthonym:
                 return _gated_cand
         return gated
 
+    @_failure_mode.failure_mode_scope
     @_form_choice_scope
     @_book_retry_scope
     @_budget_scope
@@ -4816,28 +4818,28 @@ class Orthonym:
             named through RDKit's SMILES of it, after a check that this SMILES
             holds the same molecule and stereo (see:ref:`python-input`).
         raise_on_limit: bool, default False
-            Raise:class:`OrthonymLimitError` for a structure the engine cannot
-            handle, instead of returning a label.
+            The same as ``on_failure="raise"``, and it wins over ``on_failure``.
+        on_failure: {"empty", "label", "raise"}, default "empty"
+            What a structure with no name gets: ``""`` and a warning on the logger ``orthonym``,
+            the label, or:class:`OrthonymLimitError`. See:func:`name_compound`.
 
         Returns
         -------
         str
-            The name, or a label that says why no name was given (see
-            :func:`orthonym.errors.is_failure_name`).
+            The name, or what ``on_failure`` gives for a structure with no name.
 
         Raises
         ------
         ValueError
-            If RDKit cannot read the SMILES, ``smiles`` is ``None``, or a Mol fails
+            If RDKit cannot read the SMILES, ``smiles`` is ``None``, a Mol fails
             the check (RDKit cannot sanitize it, or its SMILES does not hold the
-            same molecule and stereo).
+            same molecule and stereo), or ``on_failure`` is not one of its values.
         TypeError
             If ``smiles`` is neither a string nor a ``Chem.Mol``.
         OrthonymLimitError
-            If ``raise_on_limit`` is true and the structure is out of scope. For a
-            ring system the engine cannot name yet the code is
-            ``UNSUPPORTED_RING_SYSTEM``; when that happens inside a part of the
-            molecule, the code reported can be the more general ``UNNAMEABLE``.
+            If ``on_failure`` is ``"raise"`` and the structure is out of scope. For a ring system
+            the engine cannot name yet the code is ``UNSUPPORTED_RING_SYSTEM``; when that happens
+            inside a part of the molecule, the code can be the more general ``UNNAMEABLE``.
 
         Examples
         --------
@@ -5548,8 +5550,9 @@ class Orthonym:
         # therefore requires that the default tier emits the same string.
         _wrapped = _PIN_PROMOTION_WRAPPED.set(True)
         try:
+            # Read as a string below, so it gets the label, not the caller's blank + warning.
             with _suspended():
-                return tw.name(smiles)
+                return tw.name(smiles, on_failure="label")
         except Exception:
             # A twin failure must never break tier reporting; treat as "strict
             # did not produce this name" (conservative -> demote), never a crash.
@@ -5742,7 +5745,7 @@ class Orthonym:
         self._default_tier_row = None
         token = open_trail(smiles)
         try:
-            name = self.name(smiles)
+            name = self.name(smiles, on_failure="label")
             # The default tier's emission rule already derived this call's row (the
             # emitted name's, or the decline's): the same row, not a second derivation.
             stash = getattr(self, "_default_tier_row", None)
@@ -8790,7 +8793,7 @@ class Orthonym:
         )
         from .metrics.abstention import abstention_code_for, peek_abstention
         try:
-            name = self.name(smiles)
+            name = self.name(smiles, on_failure="label")
             _probe = Chem.MolFromSmiles(smiles)
             # Wave-0 D1: a wildcard input is declined before any producer runs, and
             # its record says so (the honest unmeasured record, handler 'fallback',
@@ -10978,7 +10981,7 @@ def name_with_tree(smiles: Union[str, Chem.Mol], style: str = "pin"):
     Returns
     -------
     NamingResult
-        The name (the same string:func:`name_compound` returns), the tree of its
+        The name (what:func:`name_compound` returns with ``on_failure="label"``), the tree of its
         parts as a:class:`NameTreeNode`, and a map from atom index to locant
         where one was recorded.
 
@@ -11016,7 +11019,8 @@ def name_compound(smiles: Union[str, Chem.Mol], style: str = "pin",
                    allow_aromatic_general: Optional[bool] = None,
                    full_coverage: Optional[bool] = None,
                    raise_on_limit: bool = False,
-                   binding_proof: str = "off"):
+                   binding_proof: str = "off",
+                   on_failure: str = "empty"):
     """Name one molecule.
 
     Reads a structure, written as SMILES or given as an RDKit molecule, and returns
@@ -11024,11 +11028,10 @@ def name_compound(smiles: Union[str, Chem.Mol], style: str = "pin",
     At the default settings a name is returned only when the strict path for the
     Preferred IUPAC Name built it and verified it, or when it is one of the default
     tier's exceptions (the exact-match list names, the few name formats OPSIN cannot
-    read, a PIN whose stereodescriptors OPSIN cannot read); otherwise, and where no
-    name passes, it is a label such as ``'unknown organic compound'`` or
-    ``'inorganic compound (not supported)'``. The wider tiers (``general_fallback``
-    and the options below) also return names that are not the preferred name. Use
-    :func:`orthonym.errors.is_failure_name` to tell a label from a name, and
+    read, a PIN whose stereodescriptors OPSIN cannot read). Where no name passes, the
+    result is the empty string, and one warning on the logger ``orthonym`` says why
+    (``on_failure`` below). The wider tiers (``general_fallback`` and the options
+    below) also return names that are not the preferred name. Use
     :meth:`Orthonym.name_tiered` to learn which tier a name earned.
 
     Parameters
@@ -11087,30 +11090,39 @@ def name_compound(smiles: Union[str, Chem.Mol], style: str = "pin",
         complexes (the ``full-coverage`` tier). It builds a name or declines.
         ``None`` as for ``general_fallback``.
     raise_on_limit: bool, default False
-        Raise:class:`OrthonymLimitError` for a structure the engine cannot
-        handle, instead of returning a label.
+        The same as ``on_failure="raise"``, and it wins over ``on_failure``.
     binding_proof: {"off", "audit", "enforce"}, default "off"
         An extra check that every part of a general-engine name still maps onto
         the atoms it names in the final string. ``"audit"`` records the result
         and never changes the name; ``"enforce"`` also declines when the check
         fails.
+    on_failure: {"empty", "label", "raise"}, default "empty"
+        What the call gives for a structure that gets no name. ``"empty"``: the
+        empty string, with one warning on the logger ``orthonym`` that holds the
+        SMILES, the limit code and the label. ``"label"``: the label, such as
+        ``'unknown organic compound'`` (the result before this option). ``"raise"``:
+        :class:`OrthonymLimitError`. With ``include_confidence`` the ``"name"`` of
+        the dictionary follows it. The limit codes are stable, the texts of labels
+        are not. The choice is the caller's; the engine's own calls get labels.
 
     Returns
     -------
     str or dict
-        The name, or a label that says why no name was given. A dictionary when
-        ``include_confidence`` is true.
+        The name, or what ``on_failure`` says for a structure with no name. A
+        dictionary when ``include_confidence`` is true.
 
     Raises
     ------
     ValueError
         If RDKit cannot read the SMILES, ``smiles`` is ``None``, a Mol fails the
         check (RDKit cannot sanitize it, or its SMILES does not hold the same
-        molecule and stereo), or ``binding_proof`` is not one of the three values.
+        molecule and stereo), or ``binding_proof`` or ``on_failure`` is not one of
+        its values.
     TypeError
         If ``smiles`` is neither a string nor a ``Chem.Mol``.
     OrthonymLimitError
-        If ``raise_on_limit`` is true and the structure is out of scope.
+        If ``on_failure`` is ``"raise"`` (or ``raise_on_limit`` is true) and the
+        structure is out of scope.
 
     Examples
     --------
@@ -11118,8 +11130,11 @@ def name_compound(smiles: Union[str, Chem.Mol], style: str = "pin",
     >>> name_compound("CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O")
     '(2R)-2-[4-(2-methylpropyl)phenyl]propanoic acid'
     >>> name_compound("O=[U](=O)=O")
+    ''
+    >>> name_compound("O=[U](=O)=O", on_failure="label")
     'inorganic compound (not supported)'
     """
+    mode = _failure_mode.resolve(on_failure, raise_on_limit)
     if not isinstance(smiles, str) and _input_mol.handles(smiles):
         # A Mol is named as RDKit's SMILES of it (orthonym.input_mol).
         smiles = _input_mol.smiles_for(smiles)
@@ -11134,7 +11149,7 @@ def name_compound(smiles: Union[str, Chem.Mol], style: str = "pin",
             # (routing.dispatch_table._handle_peptide opens it), so it is a key part.
             _key = (smiles, style, enable_triviality_controller, enable_group_splitting,
                     trivial_fallback, general_fallback, general_fallback_unverified,
-                    allow_aromatic_general, full_coverage, raise_on_limit, binding_proof,
+                    allow_aromatic_general, full_coverage, mode, binding_proof,
                     general_fallback_ctx.get(), best_effort_ctx.get(),
                     allow_aromatic_general_ctx.get(), full_coverage_ctx.get(),
                     nacyl_float_refusing())
@@ -11144,14 +11159,14 @@ def name_compound(smiles: Union[str, Chem.Mol], style: str = "pin",
                 enable_group_splitting=enable_group_splitting, trivial_fallback=trivial_fallback,
                 general_fallback=general_fallback, general_fallback_unverified=general_fallback_unverified,
                 allow_aromatic_general=allow_aromatic_general, full_coverage=full_coverage,
-                raise_on_limit=raise_on_limit, binding_proof=binding_proof))
+                raise_on_limit=mode == "raise", binding_proof=binding_proof, on_failure=mode))
     return _name_compound_impl(
         smiles, style, include_confidence,
         enable_triviality_controller=enable_triviality_controller,
         enable_group_splitting=enable_group_splitting, trivial_fallback=trivial_fallback,
         general_fallback=general_fallback, general_fallback_unverified=general_fallback_unverified,
         allow_aromatic_general=allow_aromatic_general, full_coverage=full_coverage,
-        raise_on_limit=raise_on_limit, binding_proof=binding_proof)
+        raise_on_limit=mode == "raise", binding_proof=binding_proof, on_failure=mode)
 
 
 def _name_compound_impl(smiles: str, style: str = "pin",
@@ -11165,38 +11180,14 @@ def _name_compound_impl(smiles: str, style: str = "pin",
                    allow_aromatic_general: Optional[bool] = None,
                    full_coverage: Optional[bool] = None,
                    raise_on_limit: bool = False,
-                   binding_proof: str = "off"):
-    """
-    Convenience function to generate IUPAC name from SMILES.
+                   binding_proof: str = "off",
+                   on_failure: str = "label"):
+    """The body of:func:`name_compound`, for a SMILES string.
 
-    Args:
-        smiles: SMILES string
-        style: Naming style, "pin" (the default), "general" or "cas"; see
-            :func:`name_compound`.
-        include_confidence: If True, return dict with confidence metadata
-            instead of plain str
-        binding_proof: proof mode forwarded to ``Orthonym`` -- see
-            that constructor. Default "off" keeps every existing caller
-            byte-identical; an invalid value raises ValueError there.
-
-    Returns:
-        str: IUPAC systematic name (default)
-        dict: {'name': str, 'confidence': float, 'factors': dict, 'handler': str}
-              when include_confidence=True
-
-    Example:
-        >>> name_compound("CCO")
-        'ethanol'
-        >>> name_compound("CC(=O)O")
-        'acetic acid'
-        >>> name_compound("c1ccccc1")
-        'benzene'
-        >>> name_compound("C=CCO")
-        'prop-2-en-1-ol'
-        >>> name_compound("C=CCO", trivial_fallback=True)
-        'prop-2-en-1-ol'
-        >>> name_compound("CCO", include_confidence=True)
-        {'name': 'ethanol', 'confidence': 1.0,...}
+    ``on_failure`` is the mode:func:`orthonym.failure_mode.resolve` gave the call:
+    ``"empty"`` only for the caller's own call (a failure is then blanked and logged
+    here, in the dict of ``include_confidence`` too), a nested call always ``"label"``.
+    The arguments are those of:func:`name_compound`.
     """
     #: inherit the engine flag from the propagation ctx when the
     # caller didn't say — fragment/component recursion re-enters through
@@ -11249,7 +11240,14 @@ def _name_compound_impl(smiles: str, style: str = "pin",
         full_coverage=full_coverage,
         binding_proof=binding_proof,
     )
+    produced = _name_with_namer(namer, smiles, include_confidence, raise_on_limit)
+    if include_confidence:
+        return _failure_mode.settle_confidence(on_failure, produced, smiles)
+    return _failure_mode.blank(namer, smiles, produced) if on_failure == "empty" else produced
 
+
+def _name_with_namer(namer, smiles: str, include_confidence: bool, raise_on_limit: bool):
+    """The name (or the confidence dict) ``namer`` gives ``smiles``; a failure is its label."""
     if include_confidence:
         try:
             return namer.name_with_confidence(smiles)
@@ -11270,7 +11268,7 @@ def _name_compound_impl(smiles: str, style: str = "pin",
             return _md
 
     try:
-        result = namer.name(smiles, raise_on_limit=raise_on_limit)
+        result = namer.name(smiles, raise_on_limit=raise_on_limit, on_failure="label")
         if result:
             # Check if result contains 'unknown' as a component (partial failure)
             if 'unknown' in result.lower():
@@ -11485,7 +11483,7 @@ def classify_limit(smiles: Union[str, Chem.Mol]) -> Optional[OrthonymLimitError]
         return scope
     namer = Orthonym()
     try:
-        produced = namer.name(smiles)
+        produced = namer.name(smiles, on_failure="label")
     except Exception:
         produced = None
     if is_failure_name(produced):

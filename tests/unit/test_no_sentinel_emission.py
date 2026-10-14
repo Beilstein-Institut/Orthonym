@@ -146,7 +146,7 @@ def test_name_exit_never_ships_a_welded_sentinel(welded, monkeypatch):
     monkeypatch.setattr(Orthonym, "_name_impl", lambda self, smiles, *a, **k: welded)
     smi = "CCCCC(=O)O"
     for label, name in (
-        ("name", _namer("pin").name(smi)),
+        ("name", _namer("pin").name(smi, on_failure="label")),
         ("name_tiered", _namer("pin").name_tiered(smi).get("name")),
     ):
         assert name in _DESCRIPTIVE_FALLBACK_NAMES, (label, name)

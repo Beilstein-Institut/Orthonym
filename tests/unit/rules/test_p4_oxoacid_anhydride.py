@@ -92,7 +92,7 @@ class TestAtomDropSafetyFloor:
         ("COS(=O)(=O)OS(=O)(=O)SCC", "1-methanoic anhydridylethanoic anhydride"),  # partial ester
     ])
     def test_leak_fails_closed_raw(self, smi, old_wrong):
-        result = RAW.name(smi)
+        result = RAW.name(smi, on_failure="label")
         assert result != old_wrong
         assert result is None or result.startswith("unknown")
 
@@ -106,7 +106,7 @@ class TestAtomDropSafetyFloor:
         "COS(=O)(=O)OS(=O)(=O)SCC",
     ])
     def test_leak_fails_closed_gated(self, smi):
-        result = name_compound(smi)
+        result = name_compound(smi, on_failure="label")
         assert result is None or result.startswith("unknown")
 
     def test_gated_matches_raw_for_gated_vetoes(self):

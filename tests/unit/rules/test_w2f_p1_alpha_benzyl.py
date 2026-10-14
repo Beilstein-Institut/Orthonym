@@ -128,7 +128,7 @@ class TestAlphaBenzylFailClosedAndGuards:
         # is RT-valid but non-PIN (PIN = multiplicative
         # 1,1'-(dichloromethylene)dibenzene, not yet buildable). The
         # in-builder identical-units decline must keep this refused.
-        assert name_compound("ClC(Cl)(c1ccccc1)c1ccccc1") == UNKNOWN
+        assert name_compound("ClC(Cl)(c1ccccc1)c1ccccc1", on_failure="label") == UNKNOWN
 
     def test_identical_units_sibling_multiplicative_untouched(self):
         #: identical units -> multiplicative@900 stays senior
@@ -179,7 +179,7 @@ class TestAlphaBenzylDeterminism:
     def test_random_spellings_byte_identical(self, smi, expected):
         mol = Chem.MolFromSmiles(smi)
         outs = {
-            name_compound(Chem.MolToSmiles(mol, doRandom=True, canonical=False))
+            name_compound(Chem.MolToSmiles(mol, doRandom=True, canonical=False), on_failure="label")
             for _ in range(12)
         }
         assert outs == {expected}

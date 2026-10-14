@@ -97,7 +97,7 @@ def test_witness_wrong_molecule_no_longer_ships():
     _prev = _nm._DISABLE_VALIDITY_GATE
     _nm._DISABLE_VALIDITY_GATE = False
     try:
-        out = Orthonym().name(WITNESS_SMILES)
+        out = Orthonym().name(WITNESS_SMILES, on_failure="label")
     finally:
         _nm._DISABLE_VALIDITY_GATE = _prev
     assert out != WITNESS_BAD_NAME, "the wrong-molecule name still ships"

@@ -37,7 +37,7 @@
   <g transform="translate(48.0,1020.0) scale(1.556)"><g class=""><circle fill="none" stroke="#556b2f" cx="9" cy="9" r="7" stroke-width="1.75" stroke-dasharray="3.23 2.27"/><circle cx="9" cy="9" r="3" fill="#556b2f"/></g></g>
   <text class="mono" x="90" y="1042" font-size="22" fill="#666666">pin_unverified</text>
 </g><g class="rise" style="animation-delay:1.55s">
-  <text class="mono" x="48" y="1126.0" font-size="22" fill="#000000" xml:space="preserve"><tspan fill="#666666">$</tspan> orthonym "O=[U](=O)=O"</text>
+  <text class="mono" x="48" y="1126.0" font-size="22" fill="#000000" xml:space="preserve"><tspan fill="#666666">$</tspan> orthonym --on-failure label "O=[U](=O)=O"</text>
   <text class="body" x="48" y="1184" font-size="34" fill="#666666">inorganic compound (not supported)</text>
   <line x1="48" y1="1206" x2="621.6" y2="1206" stroke="#d9d9d9" stroke-width="1.6"/>
   <g transform="translate(48.0,1230.0) scale(1.556)"><g class=""><circle fill="none" stroke="#666666" cx="9" cy="9" r="7" stroke-width="1"/></g></g>

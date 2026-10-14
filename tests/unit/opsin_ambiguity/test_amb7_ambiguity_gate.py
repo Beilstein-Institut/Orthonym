@@ -186,7 +186,7 @@ def test_default_tier_declines_the_name_that_opsin_reads_as_ambiguous():
 def test_a_name_kept_as_the_last_resort_is_checked_like_any_name():
     #: the name kept for the molecule is not withdrawn again by the exit of the call
     eng = _general_engine()
-    assert eng.name(LABELLED_ESTER) == eng.name_with_confidence(LABELLED_ESTER)["name"]
+    assert eng.name(LABELLED_ESTER, on_failure="label") == eng.name_with_confidence(LABELLED_ESTER)["name"]
 
 
 def test_a_withdrawn_name_is_restored_only_for_a_molecule_without_a_name():

@@ -56,8 +56,8 @@ def test_a_name_the_code_records_as_not_the_pin_is_declined_everywhere():
     assert row["source"] == "abstain" and row["gate_outcome"] == "suppressed", row
     assert row["formula"] == "C5H11NO2", row
     # the plain call, name_compound, raise_on_limit, classify_limit, confidence
-    assert is_failure_name(Orthonym().name(BETAINE))
-    assert name_compound(BETAINE) == row["name"]
+    assert is_failure_name(Orthonym().name(BETAINE, on_failure="label"))
+    assert name_compound(BETAINE, on_failure="label") == row["name"]
     with pytest.raises(OrthonymLimitError) as err:
         Orthonym().name(BETAINE, raise_on_limit=True)
     assert err.value.code == "NO_VERIFIED_PIN"
@@ -207,16 +207,16 @@ def test_a_declined_metal_compound_does_not_say_its_element_is_unsupported(capsy
     label = "unknown organic compound"
     row = assert_default_tier_declines(ETHENYLSODIUM)
     assert row["name"] == label, row
-    assert Orthonym().name(ETHENYLSODIUM) == label
-    assert name_compound(ETHENYLSODIUM) == label
-    assert name_compound(ETHENYLSODIUM, include_confidence=True)["name"] == label
+    assert Orthonym().name(ETHENYLSODIUM, on_failure="label") == label
+    assert name_compound(ETHENYLSODIUM, on_failure="label") == label
+    assert name_compound(ETHENYLSODIUM, include_confidence=True, on_failure="label")["name"] == label
     assert name_with_tree(ETHENYLSODIUM).name == label
     with pytest.raises(OrthonymLimitError) as err:
         Orthonym().name(ETHENYLSODIUM, raise_on_limit=True)
     assert (err.value.code, err.value.message) == ("NO_VERIFIED_PIN", label)
     lim = classify_limit(ETHENYLSODIUM)
     assert (lim.code, lim.message) == ("NO_VERIFIED_PIN", label)
-    assert main([ETHENYLSODIUM]) == 0
+    assert main([ETHENYLSODIUM, "--on-failure", "label"]) == 0
     assert capsys.readouterr().out.strip() == label
     # the wider tiers keep the name
     assert_best_effort_gives(ETHENYLSODIUM, "ethenylsodium")
@@ -227,7 +227,7 @@ def test_a_true_unsupported_element_decline_keeps_its_own_text():
     row = Orthonym().name_tiered("[Na]Cl")
     assert row["limit_code"] == "UNSUPPORTED_ELEMENT", row
     assert row["name"] == "sodium compound (not supported)", row
-    assert name_compound("[Na]Cl") == "sodium compound (not supported)"
+    assert name_compound("[Na]Cl", on_failure="label") == "sodium compound (not supported)"
 
 
 # --- review fixes (delta review of the default-tier rule) -------------------------

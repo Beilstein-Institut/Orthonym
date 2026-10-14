@@ -1,18 +1,19 @@
 """Named limit/error catalog for out-of-scope inputs (, a phase).
 
-Orthonym's default posture is *always-emit*: it returns a name (or a
-descriptive fallback string) for every input. That reaches inputs a
-refuse-when-unsure system would decline, but it cannot tell a caller whether a
-result is a confident name or a plausible-but-wrong guess for something
-Orthonym genuinely cannot handle (the C failure mode — e.g. a bare atom or
-a wildcard structure named as if it were a real molecule).
+Inside the engine, a structure that gets no name has a *label* in place of a name
+(``unknown organic compound``, ``cobalt compound (not supported)``), because the
+engine reads the result of its own nested naming calls as a string. A label is a
+reason, not a name, so the public calls do not return it by default: the caller's
+own ``name_compound(...)`` or ``Orthonym.name(...)`` returns ``""`` and logs the
+reason (``failure_mode``); ``on_failure="label"`` returns the label and
+``on_failure="raise"`` raises the limit.
 
 This module adds AUTONOM-style *named limit codes* so a caller can distinguish
-**"can't handle"** from **"got it wrong"** WITHOUT changing the default
-always-emit behaviour. The structured `OrthonymLimitError` is surfaced only via
-opt-in paths (`Orthonym.name(..., raise_on_limit=True)`,
-`name_with_confidence['limit']`, and `classify_limit`); the default string
-path is byte-identical to before.
+**"can't handle"** from **"got it wrong"**. The codes (the keys of
+``LIMIT_CATALOG``) are the stable contract; the texts of the labels are not. The
+structured `OrthonymLimitError` is surfaced by `on_failure="raise"` (or
+`Orthonym.name(..., raise_on_limit=True)`), `name_with_confidence['limit']`,
+`classify_limit` and the warning that the empty result logs.
 
 Provenance (each code cites the AUTONOM analog it mirrors):
 internal notes `
@@ -149,8 +150,8 @@ class OrthonymLimitError(Exception):
     """The reason a structure is out of scope.
 
     Returned by:func:`orthonym.classify_limit`, and raised when you ask for it
-    with ``raise_on_limit=True``. It tells "cannot handle this structure" apart
-    from a name.
+    with ``on_failure="raise"`` (or ``raise_on_limit=True``). It tells "cannot
+    handle this structure" apart from a name.
 
     Attributes
     ----------
@@ -160,7 +161,7 @@ class OrthonymLimitError(Exception):
         ``UNNAMEABLE`` or ``NO_VERIFIED_PIN`` (the default tier built a name but
         not a verified preferred IUPAC name; a wider tier returns it).
     message: str
-        The label the plain call returns in place of a name.
+        The label that ``on_failure="label"`` returns in place of a name.
     design_note_ref: str or None
         A reference to the design note the code follows.
     smiles: str or None
@@ -170,7 +171,7 @@ class OrthonymLimitError(Exception):
     --------
     >>> from orthonym import Orthonym, OrthonymLimitError
     >>> try:
-    ... Orthonym.name("O=[U](=O)=O", raise_on_limit=True)
+    ... Orthonym.name("O=[U](=O)=O", on_failure="raise")
     ... except OrthonymLimitError as err:
     ... print(err.code, "|", err.message)
     UNSUPPORTED_ELEMENT | inorganic compound (not supported)
@@ -244,12 +245,15 @@ def unsupported_element_branch(symbol: str,
 
 
 def is_failure_name(name: Optional[str]) -> bool:
-    """Tell a label from a name.
+    """Tell a label, or no name, from a name.
 
-    When the engine cannot name a structure, the plain call returns a label in
-    place of a name, such as ``'inorganic compound (not supported)'`` or
-    ``'unknown organic compound'``. This function is true for those labels and for
-    an empty result, and false for a real name.
+    When the engine cannot name a structure, the plain call returns the empty
+    string, and with ``on_failure="label"`` a label in place of a name, such as
+    ``'inorganic compound (not supported)'`` or ``'unknown organic compound'``.
+    This function is true for those labels and for an empty result, and false for
+    a real name. The default result is ``""``; the limit codes (the keys of
+    ``LIMIT_CATALOG``) are the stable contract, and the texts of labels are not, so
+    test for a code, not for a label.
 
     Parameters
     ----------
@@ -267,6 +271,8 @@ def is_failure_name(name: Optional[str]) -> bool:
     >>> from orthonym import name_compound
     >>> from orthonym.errors import is_failure_name
     >>> is_failure_name(name_compound("O=[U](=O)=O"))
+    True
+    >>> is_failure_name(name_compound("O=[U](=O)=O", on_failure="label"))
     True
     >>> is_failure_name(name_compound("CCO"))
     False

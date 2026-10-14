@@ -204,7 +204,7 @@ class TestInositol:
         # The chiral chiro pair is refused to a DETERMINISTIC unknown (RDKit
         # perceives its absolute config non-deterministically).
         m = Chem.MolFromSmiles(smiles)
-        out = {name_compound(Chem.MolToSmiles(m, doRandom=True)) for _ in range(10)}
+        out = {name_compound(Chem.MolToSmiles(m, doRandom=True), on_failure="label") for _ in range(10)}
         assert len(out) == 1, f"chiro not deterministic: {out}"
         assert out.pop().startswith("unknown")
 

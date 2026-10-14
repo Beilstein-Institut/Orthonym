@@ -29,7 +29,7 @@ def test_pyridothiazine_lambda_fails_closed():
     # BB example 3lambda4-pyrido[3,2-d][1,3]thiazine: the [1,3]thiazine fusion
     # component is unbuilt -> must stay refused, NEVER the one-ring
     # structure-loss name ('1,3-thiazine') the raw pipeline emits today.
-    assert "unknown" in name_compound("N1=CS=CC2=C1C=CC=N2").lower()
+    assert "unknown" in name_compound("N1=CS=CC2=C1C=CC=N2", on_failure="label").lower()
 
 
 @pytest.mark.unit

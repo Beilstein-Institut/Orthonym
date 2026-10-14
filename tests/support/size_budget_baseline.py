@@ -55,7 +55,7 @@ FUNCTIONS = {
     "src/orthonym/assembly/substituent_prefix_forms.py::get_alkoxy_prefix#1": 206,
     "src/orthonym/assembly/t4_coverage.py::_best_effort_candidate#1": 239,
     "src/orthonym/assembly/universal_substituent.py::_name_component#1": 365,
-    "src/orthonym/cli.py::main#1": 489,
+    "src/orthonym/cli.py::main#1": 461,
     "src/orthonym/data/sugar_names.py::name_monosaccharide_systematic#1": 300,
     "src/orthonym/decomposition/bond_cleavage.py::find_cleavable_bonds#1": 421,
     "src/orthonym/decomposition/engine.py::_name_quality_is_acceptable#1": 390,

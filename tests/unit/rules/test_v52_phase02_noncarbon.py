@@ -140,4 +140,4 @@ def test_phase02_n_hydroxy_prefix_order(smiles, expected):
 def test_phase02_n_hydroxy_leading_stereo_fails_closed(smiles):
     # Leading stereodescriptor on the base amine -> no malformed / unparseable /
     # double-descriptor name may ship; the handler abstains.
-    assert name_compound(smiles) == "unknown organic compound"
+    assert name_compound(smiles, on_failure="label") == "unknown organic compound"

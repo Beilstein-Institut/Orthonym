@@ -429,7 +429,7 @@ class TestW6bUlosonicAcid:
     def test_uncataloged_ulosonic_fails_closed(self):
         from orthonym import name_compound
         # an uncataloged 2-ulosonic stereoisomer must NOT ship a stereo-dropped name.
-        got = name_compound("C([C@@]1(O)C[C@H](O)[C@@H](O)[C@@H](O1)[C@H](O)[C@@H](O)CO)(=O)O")
+        got = name_compound("C([C@@]1(O)C[C@H](O)[C@@H](O)[C@@H](O1)[C@H](O)[C@@H](O)CO)(=O)O", on_failure="label")
         assert got == "unknown organic compound"
 
     def test_ordinary_oxane_carboxylic_unaffected(self):

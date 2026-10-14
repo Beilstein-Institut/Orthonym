@@ -332,7 +332,7 @@ def test_a_decline_keeps_its_reason_and_is_never_certified_for_either_drawing(sm
     # shares the memo of ``name_tiered``'s scope unless it has one of its own)
     row = Orthonym(style="pin").name_tiered(smiles)
     assert (row["tier"], row["limit_code"], row["is_pin"]) == ("abstain", "NO_VERIFIED_PIN", False), row
-    assert Orthonym(style="pin").name(smiles) == row["name"]
+    assert Orthonym(style="pin").name(smiles, on_failure="label") == row["name"]
 
 
 @pytest.mark.parametrize("tier", WIDER)

@@ -126,8 +126,8 @@ class _TierRow:
         assert (row["name"], row["tier"], row["limit_code"]) == (
             self.name, "abstain", self.code,
         ), row
-        assert name_compound(smiles) == self.name, self._regression(
-            smiles, name_compound(smiles))
+        assert name_compound(smiles, on_failure="label") == self.name, self._regression(
+            smiles, name_compound(smiles, on_failure="label"))
         # no tier names it; a wider tier that ever does must not be wrong
         be = name_best_effort(smiles)
         if be.get("name") and be.get("source") != "abstain":

@@ -499,7 +499,7 @@ class TestDepthLimitCompounds:
         emitted, abstained, wrong = [], [], []
         for param in DEPTH_LIMIT_COMPOUNDS:
             smiles = param.values[0]
-            name = name_compound(smiles)
+            name = name_compound(smiles, on_failure="label")
             assert name is not None, f"name_compound returned None for {smiles}"
             if "unknown" in name.lower():
                 abstained.append(param.id)

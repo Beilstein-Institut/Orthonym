@@ -58,7 +58,7 @@ field, how it was checked.
 
 <picture>
   <source media="(max-width: 700px)" srcset="assets/readme-specimen-narrow.svg">
-  <img src="assets/readme-specimen.svg" alt="Five commands and what they print. orthonym CCO prints ethanol, tier pin_verified. Ibuprofen prints (2R)-2-[4-(2-methylpropyl)phenyl]propanoic acid, pin_verified. With --emit-tier valid, sphingosine prints (2S,3R,4E)-2-aminooctadec-4-ene-1,3-diol, pin_unverified, and retinol prints (2E,4E,6E,8E)-3,7-dimethyl-9-(2,6,6-trimethylcyclohex-1-en-1-yl)nona-2,4,6,8-tetraen-1-ol, pin_unverified. Uranium trioxide prints inorganic compound (not supported), abstain." width="100%">
+  <img src="assets/readme-specimen.svg" alt="Five commands and what they print. orthonym CCO prints ethanol, tier pin_verified. Ibuprofen prints (2R)-2-[4-(2-methylpropyl)phenyl]propanoic acid, pin_verified. With --emit-tier valid, sphingosine prints (2S,3R,4E)-2-aminooctadec-4-ene-1,3-diol, pin_unverified, and retinol prints (2E,4E,6E,8E)-3,7-dimethyl-9-(2,6,6-trimethylcyclohex-1-en-1-yl)nona-2,4,6,8-tetraen-1-ol, pin_unverified. Uranium trioxide, with --on-failure label, prints inorganic compound (not supported), abstain." width="100%">
 </picture>
 
 <sub>Real output. The command line prints the plain line; the mark under it and the tier at its right
@@ -178,9 +178,11 @@ descriptor was checked against its CIP label), `identity` (a name from an exact-
 metal-complex name found by your structure's exact InChIKey, or a natural-product parent name found
 by its exact structure; OPSIN cannot read these names) or `unverified`.
 
-When Orthonym cannot name a molecule, the plain call returns a label in place of a name, such as
-`inorganic compound (not supported)`, and `--provenance` marks the row `abstain` with a reason code.
-[More on declines](guide/declines.md).
+When Orthonym cannot name a molecule, the plain call returns the empty string and logs the reason
+(a limit code and a label) on the `orthonym` logger; the command line prints an empty name and the
+reason on the error stream. `on_failure="label"` (`--on-failure label`) returns the label instead, such
+as `inorganic compound (not supported)`, and `--provenance` marks the row `abstain` with a reason
+code. [More on declines](guide/declines.md).
 
 ## More
 

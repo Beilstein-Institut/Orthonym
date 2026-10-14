@@ -102,5 +102,5 @@ def test_pin_tier_still_abstains_on_the_best_effort_skeleton(smiles, expected):
     proving the flag propagation — not some other change — is what enables the reclaim.
     PIN output is byte-identical (the flags are False)."""
     with jvm_slots(1, purpose="p4-isotope-reclaim-test"):
-        name = Orthonym(style="pin").name(smiles)
+        name = Orthonym(style="pin").name(smiles, on_failure="label")
     assert "unknown" in name.lower()
