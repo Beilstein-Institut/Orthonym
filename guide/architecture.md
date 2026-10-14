@@ -111,11 +111,11 @@ Every way out of `name` goes through `_finish`; a test parses the code to keep i
 
 - the exact-match list for metal tetrapyrrole complexes can replace the name (`_coordination_retained_name`);
 - a coverage audit records a verdict, and in its `veto` mode declines an incomplete name (the default is `shadow`, which only records);
-- the winner becomes one `Offer` (`assembly/offer_pool.py`); at `best-effort`, if the winner does not already read back exactly, `_maybe_append_t4_floor_offer` adds the output of the last-resort namer as a second offer; `_select_rt_passing_offer_name` returns the first offer that is complete and reads back;
+- the winner becomes one `Offer` (`assembly/offer_pool.py`); at `best-effort`, if the winner does not already read back exactly, `_maybe_append_t4_floor_offer` adds the output of the last-resort namer as a second offer, and `_maybe_append_relative_stereo_offer` adds, when the gate withdrew a name with lowercase `r` and `s` for the whole molecule, its `cis`/`trans` form for a monocycle's pair of stereocentres as a third (`rules/relative_stereo.py`); `_select_rt_passing_offer_name` returns the first offer that is complete and reads back;
 - `_exit_round_trip_check` checks the name once more, and `_maybe_prefix_order_fallback` is the last resort of the best-effort tier;
 - with `binding_proof` set to `audit` or `enforce`, a proof that every part of the name maps onto atoms is checked.
 
-The pool of offers holds the winner and at most one more name, the floor. `assembly/candidate_pool.py` is a different thing; see the [glossary](#names-that-mislead).
+The pool of offers holds the winner and at most two more names, the floor and the `cis`/`trans` offer. `assembly/candidate_pool.py` is a different thing; see the [glossary](#names-that-mislead).
 
 ### 8. The row: `name_tiered`
 
@@ -218,7 +218,7 @@ The three vocabularies below are easy to confuse.
 | `polycyclic` and `polycyclics` | `rules/polycyclic.py` generates von Baeyer descriptors (P-23). `rules/polycyclics.py` names polycyclic aromatic hydrocarbons. |
 | `bicyclo`, `tricyclo`, `vonbaeyer_universal` | Von Baeyer namers for two rings, for three rings, and the general analysis of a cage. Several modules use each of them, `polycyclic.py` among them. |
 | `T4`, `t4_floor`, `t4_coverage` | The universal namer of the `best-effort` tier. "T1" to "T5" in older comments are the tier ids: T1 `pin_verified`, T2 `pin_unverified`, T3 `systematic_verified`, T4 `best_effort`, T5 `abstain`. |
-| `pin_path` | A `source` value for the strict path: class handlers, composer and inner handlers. It is not a module boundary, and not a promise that the name is a PIN. |
+| `pin_path` | A `source` value for the strict path: class handlers, composer and inner handlers. It is not a module boundary, and not a promise that the name is a PIN. The `cis`/`trans` offer of a monocycle's pair at `best-effort` carries it too. |
 | `source` | Coarse. It records the last producer that wrote a value, and on a decline it can name a producer that ran and failed. Do not use it to count producers. |
 | `candidate_pool`, `CandidatePool`, `HANDLER_POLICIES` | The candidate names of one naming call. `add` scores a name and voids it when its length ratio is below the floor or, for the handlers of the `ring_b` tier in `HANDLER_POLICIES`, when its confidence is below the gate. `best` returns the first candidate whose handler returns directly, or else the first one added. The pool almost always holds a single candidate, because the first inner handler that succeeds returns its own name; the Tier-A ring handler is the exception and picks among its own candidates with `select_best_candidate`. The pool does not rank parents: the parent is chosen in `_classify`, by `select_parent`, and the P-44 ranking of parent candidates is `rules/p44_scorer.py`. The real source of alternatives is the routing: a rejected class is excluded and the next one is tried. Ranking of finished names is `offer_pool`. |
 | `Offer`, `offer_pool` | Whole finished names that compete in `_finish`. Not the same as `candidate_pool`. |

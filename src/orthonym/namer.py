@@ -38,6 +38,10 @@ from .errors import (
 )
 from .gate_retry import gate_candidate, name_with_forced_locants
 from .validation.opsin_ambiguity import reject_ambiguous, restore_withdrawn, withdrawn_name
+from .validation.stereo_descriptors import (  # noqa: F401 both names are imported FROM this module (tests, spies); callers resolve them here at call time
+    stereo_block_units as _stereo_block_units,
+    stereo_descriptors_verified as _stereo_descriptors_verified,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1291,202 +1295,6 @@ def _pseudo_locants_map_to_centres(reduced: str, mol, tokens, pseudo_codes) -> b
     return False
 
 
-#: One CIP descriptor of a stereodescriptor block: an optional locant (digits, an
-#: optional letter like '4a', primes) and the code. The locant is absent only
-#: where the stereogenic unit has none: "preceded by a numerical or letter
-#: locant... when such locants are present"), e.g. the sulfur of
-#: 'ethyl (R)-4-nitrobenzene-1-sulfinate'.
-_CIP_DESCRIPTOR_TOKEN_RE = re.compile(r"^(\d+[a-z]?['′]*)?([RSrsEZ])$")
-
-
-def _cip_descriptor_tokens(blocks) -> Optional[list]:
-    """Every ``(locant, code)`` of the descriptor ``blocks`` that
-    ``rules.stereochemistry.strip_stereo_blocks`` removed, primes dropped from the
-    locant (``None`` for a locant-free code); ``None`` when a block holds anything
-    else (a relative-configuration word such as 'rel' / 'cis', 'R*', 'RS',...):
-    such a descriptor does not assert one configuration of one stereogenic unit,
-    so it cannot be checked."""
-    tokens = []
-    for block in blocks:
-        if not (block.startswith("(") and block.endswith(")")):
-            return None
-        for tok in block[1:-1].split(","):
-            m = _CIP_DESCRIPTOR_TOKEN_RE.match(tok.strip())
-            if not m:
-                return None
-            loc = m.group(1)
-            tokens.append((loc.replace("'", "").replace("′", "") if loc else None,
-                           m.group(2)))
-    return tokens
-
-
-def _bare_skeleton(mol):
-    """A copy of ``mol`` with the same atom and bond indices, every bond single and
-    every atom neutral, non-aromatic and hydrogen-free: the graph two tautomers,
-    two Kekulé structures or two charge forms of one constitution share."""
-    rw = Chem.RWMol(mol)
-    for a in rw.GetAtoms():
-        a.SetIsAromatic(False)
-        a.SetFormalCharge(0)
-        a.SetNoImplicit(True)
-        a.SetNumExplicitHs(0)
-        a.SetChiralTag(Chem.ChiralType.CHI_UNSPECIFIED)
-    for b in rw.GetBonds():
-        b.SetBondType(Chem.BondType.SINGLE)
-        b.SetIsAromatic(False)
-        b.SetStereo(Chem.BondStereo.STEREONONE)
-    rw.UpdatePropertyCache(strict=False)
-    return rw
-
-
-def _stereo_descriptors_verified(name: str, smiles: Optional[str],
-                                 reduced: str) -> bool:
-    """critic-1 / R63 (claims conformance, 2026-09-27): is every stereodescriptor
-    of ``name`` right, for a name OPSIN rejects only for its stereo layer?
-
-    The stereo-layer carve-out of the validity gate ships such a name after
-    judged the stereo-STRIPPED parse (``reduced``,:func:`strip_stereo`), so the
-    constitution is OPSIN-checked and the descriptors are not. They were shipped
-    unchecked, and some were wrong: '(7R,8S)-7-chloro-1-(3,5-dihydroxyphenyl)-2-
-    methylundecyl acetate' for an input whose stereocentres are the name's C1 and C2
-    (C7 is unspecified, C8 is a CH2), and '(2S,3R)-3-oxoestr-4-en-17β-yl
-    3-phenylpropanoate', whose C2 is a CH2 and C3 the ketone carbon.
-    "NAMING OF STEREOISOMERS" (the Blue Book): "They are preceded by a
-    numerical or letter locant to describe the position of the stereogenic unit
-    when such locants are present" -- a descriptor asserts the configuration of the
-    unit at its locant, so a descriptor on a CH2 is a wrong name, not a narrower
-    OPSIN grammar.
-
-    Generalises:func:`_pseudoasymmetric_name_verified` (r/s only) to every CIP
-    descriptor. True iff, for some reading of ``reduced`` onto the input:
-
-    1. every descriptor block is a list of CIP code tokens (R, S, r, s, E, Z),
-       each with its locant where the unit has one; anything else (``rel``,
-       ``cis``, ``RS``, ``R*``) is not verifiable;
-    2. every token lands on a DISTINCT stereogenic unit of the input whose CIP
-       label (``perception.stereo.assign_stereochemistry``, the centres engine) is
-       that code -- a stereocentre for R/S/r/s, a double bond at that atom for
-       E/Z. A located token is read in OPSIN's own numbering of ``reduced`` (the
-       ``$_AV`` atom labels of ``-o extendedsmi``), so a locant on a CH2, a
-       heteroatom or out of range finds no such unit; a locant-free token may be
-       any unit with its code (step 3 still has to hold);
-    3. the input with exactly those units made unspecified has the FULL InChIKey
-       of ``reduced``'s OPSIN parse -- so every OTHER stereo unit of the input is
-       exactly what the rest of the name says (the retained parent's implied
-       configuration, a 17β,...), and none is omitted or contradicted. A token
-       that restates a unit the parent already fixes (tropane's 1R,5S) is kept
-       specified on both sides.
-
-    With (3) fixing every other unit, the code fixes each token's unit, so the name
-    denotes the input. Fails closed (False) on anything it cannot establish.
-    """
-    if not name or not smiles or not reduced:
-        return False
-    try:
-        import itertools
-        from .rules.stereochemistry import strip_stereo_blocks
-        stripped, blocks = strip_stereo_blocks(name)
-        if stripped != reduced:
-            return False
-        tokens = _cip_descriptor_tokens(blocks)
-        if not tokens:
-            return False
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            return False
-        from .perception.stereo import assign_stereochemistry
-        assign_stereochemistry(mol)
-        atom_code = {a.GetIdx(): a.GetProp('_CIPCode') for a in mol.GetAtoms()
-                     if a.HasProp('_CIPCode')
-                     and a.GetProp('_CIPCode') in ('R', 'S', 'r', 's')}
-        bond_code = {b.GetIdx(): b.GetProp('_CIPCode') for b in mol.GetBonds()
-                     if b.GetBondType() == Chem.BondType.DOUBLE
-                     and b.HasProp('_CIPCode') and b.GetProp('_CIPCode') in ('E', 'Z')}
-        from .validation.opsin_roundtrip import _AV_LINE_RE, _extended_smiles
-        ext = _extended_smiles(reduced)
-        if not ext:
-            return False
-        m = _AV_LINE_RE.match(ext.strip())
-        if not m:
-            return False
-        labels = [t.strip().replace("'", "").replace('′', '')
-                  for t in m.group(2).split(';')]
-        omol = Chem.MolFromSmiles(m.group(1))
-        if (omol is None or omol.GetNumAtoms() != len(labels)
-                or omol.GetNumAtoms() != mol.GetNumAtoms()):
-            return False
-        reduced_key = _self_consistency_full_key(m.group(1))
-        if not reduced_key:
-            return False
-        n = omol.GetNumAtoms()
-        matches = [mt for mt in mol.GetSubstructMatches(
-            omol, useChirality=False, uniquify=False, maxMatches=10_000)
-            if len(mt) == n]
-        if not matches:
-            # A tautomer, Kekulé or charge-form difference between the parse and
-            # the input (the constitution itself is already verified): map the
-            # bare graphs, which keep the atom indices.
-            matches = [mt for mt in _bare_skeleton(mol).GetSubstructMatches(
-                _bare_skeleton(omol), useChirality=False, uniquify=False,
-                maxMatches=10_000) if len(mt) == n]
-        by_label: Dict[str, List[int]] = {}
-        for oi, lab in enumerate(labels):
-            by_label.setdefault(lab, []).append(oi)
-        tried: Dict[frozenset, bool] = {}
-        for mt in matches:
-            inv = {mi: oi for oi, mi in enumerate(mt)}
-            cands = []
-            for loc, code in tokens:
-                c = []
-                for oi in (by_label.get(loc, ()) if loc is not None
-                           else range(n)):
-                    mi = mt[oi]
-                    if code in ('E', 'Z'):
-                        c.extend(('b', b.GetIdx())
-                                 for b in mol.GetAtomWithIdx(mi).GetBonds()
-                                 if bond_code.get(b.GetIdx()) == code)
-                    elif atom_code.get(mi) == code:
-                        c.append(('a', mi))
-                if not c:
-                    break
-                cands.append(c)
-            else:
-                for combo in itertools.islice(itertools.product(*cands), 64):
-                    if len(set(combo)) != len(combo):
-                        continue
-                    unspecify = []
-                    for kind, idx in combo:
-                        if kind == 'a':
-                            if (omol.GetAtomWithIdx(inv[idx]).GetChiralTag()
-                                    == Chem.ChiralType.CHI_UNSPECIFIED):
-                                unspecify.append((kind, idx))
-                        else:
-                            b = mol.GetBondWithIdx(idx)
-                            ob = omol.GetBondBetweenAtoms(
-                                inv[b.GetBeginAtomIdx()], inv[b.GetEndAtomIdx()])
-                            if ob is None or ob.GetStereo() == Chem.BondStereo.STEREONONE:
-                                unspecify.append((kind, idx))
-                    key = frozenset(unspecify)
-                    if key not in tried:
-                        if len(tried) >= 128:
-                            return False
-                        rw = Chem.RWMol(mol)
-                        for kind, idx in unspecify:
-                            if kind == 'a':
-                                rw.GetAtomWithIdx(idx).SetChiralTag(
-                                    Chem.ChiralType.CHI_UNSPECIFIED)
-                            else:
-                                rw.GetBondWithIdx(idx).SetStereo(
-                                    Chem.BondStereo.STEREONONE)
-                        tried[key] = (_self_consistency_full_key(
-                            Chem.MolToSmiles(rw)) == reduced_key)
-                    if tried[key]:
-                        return True
-        return False
-    except Exception:
-        return False
-
-
 def _cip_labels_match_input_as_written(smiles: Optional[str]) -> bool:
     """D3 guard: are the engine's CIP labels of ``smiles`` those of the input string
     AS WRITTEN?
@@ -2666,6 +2474,18 @@ def _ship_grammar_gap_carveout(name: str, slug: str) -> str:
     return name
 
 
+def _record_unparseable_general_fallback(name: str, smiles: Optional[str]) -> None:
+    """The best-effort tier withdraws ``name``, which OPSIN cannot read: record the
+    suppression, and keep a lowercase r/s name as the starting point of the cis/trans
+    offer, ``Orthonym._maybe_append_relative_stereo_offer``)."""
+    from .metrics.abstention import AbstentionCode, record_suppression
+    from .rules.relative_stereo import note_withdrawn_name
+    note_withdrawn_name(name, smiles, _caller_input())
+    record_suppression(
+        AbstentionCode.GATE_SUPPRESSED,
+        detail='opsin_unparseable_general_fallback', candidate=name)
+
+
 def _final_opsin_validity_gate(name: str, smiles: Optional[str],
                                stats: Optional[Dict[str, int]] = None,
                                *, besteffort_unverified: bool = False,
@@ -2909,10 +2729,7 @@ def _final_opsin_validity_gate(name: str, smiles: Optional[str],
         except Exception:
             _np_exact_hit = False
         if not _np_exact_hit:
-            from .metrics.abstention import AbstentionCode, record_suppression
-            record_suppression(
-                AbstentionCode.GATE_SUPPRESSED,
-                detail='opsin_unparseable_general_fallback', candidate=name)
+            _record_unparseable_general_fallback(name, smiles)
             _suppressed_to = _descriptive_fallback(smiles)
             _record_gate_outcome(_pv.GATE_OUTCOME_SUPPRESSED, _suppressed_to)
             return _suppressed_to
@@ -4346,6 +4163,8 @@ def _budget_scope(fn):
                     else:
                         kwargs['smiles'] = _spelled
                 _CALLER_INPUT.smiles = _spelled
+                from .rules.relative_stereo import clear_withdrawn_names
+                clear_withdrawn_names()
                 # The default tier's emission rule applies to the caller's call
                 # only; the provenance it reads is this call's own.
                 _policy = self._default_tier_policy_applies()
@@ -4426,6 +4245,8 @@ def _budget_scope(fn):
             exit_name_scope()
             if depth == 1:
                 _CALLER_INPUT.smiles = None
+                from .rules.relative_stereo import clear_withdrawn_names as _clear_withdrawn
+                _clear_withdrawn()
             if _request_token is not None:
                 best_effort_request_ctx.reset(_request_token)
             _lone_pair_input_exit(_lp_opened)
@@ -7794,7 +7615,7 @@ class Orthonym:
                         # reaches this line at all).
                         if (self._general_fallback_unverified
                                 and not getattr(self, '_suppress_floor_offer', False)):
-                            self._maybe_append_t4_floor_offer(
+                            self._maybe_append_floor_offers(
                                 _cov_mol, smiles, name,
                                 primary_is_failure=False)
                         name = self._select_rt_passing_offer_name(name, smiles)
@@ -7816,7 +7637,7 @@ class Orthonym:
                     _cov_mol = Chem.MolFromSmiles(smiles) if smiles else None
                     if _cov_mol is not None:
                         self._offers = []
-                        self._maybe_append_t4_floor_offer(
+                        self._maybe_append_floor_offers(
                             _cov_mol, smiles, name, primary_is_failure=True)
                         if self._offers:
                             name = self._select_rt_passing_offer_name(
@@ -8041,6 +7862,34 @@ class Orthonym:
             logger.info(
                 "t4 floor offer computation failed (kept existing offers): %s",
                 _fe)
+
+    def _maybe_append_floor_offers(self, mol, smiles: str, primary_name: str,
+                                   primary_is_failure: bool) -> None:
+        """The offers the best-effort tier adds above the abstention, in this order: the
+        systematic floor (:meth:`_maybe_append_t4_floor_offer`), then the cis/trans name of
+        a ring pair (:meth:`_maybe_append_relative_stereo_offer`)."""
+        self._maybe_append_t4_floor_offer(
+            mol, smiles, primary_name, primary_is_failure=primary_is_failure)
+        self._maybe_append_relative_stereo_offer(
+            mol, smiles, primary_name, primary_is_failure=primary_is_failure)
+
+    def _maybe_append_relative_stereo_offer(self, mol, smiles: str,
+                                            primary_name: str,
+                                            primary_is_failure: bool) -> None:
+        """: append the ``cis``/``trans`` name of a ring pair to ``self._offers``
+        as a systematic_verified ``Offer``, IF the primary winner does not already
+        full-RT-pass. The eligibility, the conversion and the audits are
+        ``rules.relative_stereo.append_relative_stereo_offer``; this method holds the
+        gate: nothing is built with the OPSIN validity gate off or without its jar (no
+        candidate could be checked). Best-effort ONLY, like the floor."""
+        if mol is None:
+            return
+        if self._disable_opsin_validity_gate or not _validity_gate_jar_present():
+            return
+        from .rules.relative_stereo import append_relative_stereo_offer
+        append_relative_stereo_offer(
+            self._offers, mol, smiles, primary_name, primary_is_failure,
+            rt_ok=_offer_rt_ok, self01_lookup=_self01_lookup)
 
     def _maybe_prefix_order_fallback(self, name: str, smiles: str) -> str:
         """D3 (user decision 2026-09-28): the best-effort tier's last resort for a

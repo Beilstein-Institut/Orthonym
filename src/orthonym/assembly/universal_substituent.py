@@ -164,6 +164,7 @@ from ..perception.rings import get_ring_systems
 from ..perception.stereo import assign_stereochemistry
 from ..rules.polycyclic import _build_parent_with_unsaturation
 from ..rules.skeletal_replacement import _A_CITATION_ORDER, REPLACEMENT_TERMS
+from ..rules.stereochemistry import _ring_cistrans_is_complete, _rings_jointly_complete
 from ..rules.vonbaeyer_universal import (
     analyze_cage_universal,
     analyze_spiro_universal,
@@ -1003,82 +1004,6 @@ def _prefix_order_fallback(ctx: "_Ctx", mol, heavy: FrozenSet[int],
         except Exception:
             continue
     return None
-
-
-def _ring_cistrans_is_complete(mol, a: int, b: int) -> bool:
-    """True iff a relative ``cis``/``trans`` descriptor is a COMPLETE, enantiospecific
-    label for the ring stereocentres ``a`` and ``b`` -- i.e. flipping BOTH of them
-    yields the SAME molecule, ``(up,up) ≅ (down,down)``. Then the ring carries no
-    independent absolute handedness and ``cis``/``trans`` loses nothing.
-    When they are DISTINCT the ring is a true chiral pair (e.g. 1,2-cyclohexane, or
-    a ring bearing opposite-sense pendant stereo on mirror-paired arc atoms) whose
-    absolute ``(R,S)`` block ``cis``/``trans`` cannot express -- excluded here,
-    kept on rung 1's ``full`` candidate.
-
-    Stereo-AWARE by construction (unlike a stereo-blind arc-rank test, which is a
-    local invariant, not a 3D automorphism, and admits the diazinane leak). Uses
-    the full stereo InChIKey; no OPSIN. Failure direction is safe: a
-    canonicalisation glitch can only make this REJECT (lost breadth), never admit
-    (a wrong emission). Both centres must be defined stereocentres (they carry
-    ``_CIPCode``); an undefined tag returns False (cannot certify -> keep absolute).
-    """
-    m = Chem.RWMol(mol)
-    for idx in (a, b):
-        at = m.GetAtomWithIdx(idx)
-        t = at.GetChiralTag()
-        if t == Chem.ChiralType.CHI_TETRAHEDRAL_CW:
-            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CCW)
-        elif t == Chem.ChiralType.CHI_TETRAHEDRAL_CCW:
-            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CW)
-        else:
-            return False
-    try:
-        orig = inchi.MolToInchiKey(mol)
-        flipped = inchi.MolToInchiKey(m.GetMol())
-    except Exception:
-        return False  # InChI failure -> cannot certify -> keep absolute (safe)
-    return bool(orig) and orig == flipped
-
-
-def _rings_jointly_complete(mol, rings: List[FrozenSet[int]]) -> bool:
-    """True iff a SINGLE relative name over ALL ``rings`` is complete -- i.e.
-    flipping EVERY ring stereocentre of EVERY ring at once yields the SAME
-    molecule.
-
-    Rung 1c can emit up to TWO relative rings in one name. Such a name denotes
-    the set ``{X, fb1(X), fb2(X), fb1fb2(X)}`` (each ``fb_i`` flips ring i's two
-    centres). ``_ring_cistrans_is_complete`` certifies each ring individually
-    (``fb_i(X) ≅ X``), but a two-descriptor name is 0-wrong only if the COMBINED
-    flip also holds (``fb1fb2(X) ≅ X``) -- per-ring symmetry does not formally
-    imply joint symmetry when a molecular automorphism couples the two rings, and
-    the OPSIN round-trip gate cannot backstop a relative descriptor (it
-    false-confirms one member). This checks the joint condition directly: flip
-    all centres of all rings on one copy, require the full-stereo InChIKey to be
-    unchanged. Same reject-safe failure directions as
-    ``_ring_cistrans_is_complete`` (undefined tag / InChI failure / empty key ->
-    False -> keep absolute). Belt-and-suspenders: empirically unreached on the
-     cluster (dominantly single-ring), but 0-wrong is ABSOLUTE.
-    """
-    centres = [a for rs in rings
-               for a in rs if mol.GetAtomWithIdx(a).HasProp("_CIPCode")]
-    if not centres:
-        return False
-    m = Chem.RWMol(mol)
-    for idx in centres:
-        at = m.GetAtomWithIdx(idx)
-        t = at.GetChiralTag()
-        if t == Chem.ChiralType.CHI_TETRAHEDRAL_CW:
-            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CCW)
-        elif t == Chem.ChiralType.CHI_TETRAHEDRAL_CCW:
-            at.SetChiralTag(Chem.ChiralType.CHI_TETRAHEDRAL_CW)
-        else:
-            return False
-    try:
-        orig = inchi.MolToInchiKey(mol)
-        flipped = inchi.MolToInchiKey(m.GetMol())
-    except Exception:
-        return False
-    return bool(orig) and orig == flipped
 
 
 def _detect_relative_substituent_rings(

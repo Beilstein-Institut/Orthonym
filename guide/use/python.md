@@ -55,7 +55,7 @@ ValueError: Invalid SMILES: C1CC
 ...                        general_fallback_unverified=True)
 >>> row = best_effort.name_tiered("C1CC[C@H]2CCCC[C@H]2C1")
 >>> row["name"], row["tier"], row["verified"]
-('cis-bicyclo[4.4.0]decane', 'best_effort', 'opsin')
+('cis-decahydronaphthalene', 'best_effort', 'opsin')
 ```
 
 Each key is explained on [The provenance row](provenance.md).
