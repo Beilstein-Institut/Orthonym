@@ -26,6 +26,14 @@ component ring or ring system (the parent component) designations of the other c
    '6H-dibenzo[b,d]pyran (PIN) (not 6H-benzo[c][1]benzopyran...)'. A whole skeleton made of
    one benzene ring and one heteromonocycle of five or more members is a benzo name.
 
+A tetravalent fusion atom (an atom with four ring bonds in three rings, one of which shares a bond with
+each of the others) is named as an ordinary ortho-fusion: (:14007) "Both terminal fusion atom
+locants for ortho-fusion must be cited even if one is a fusion atom" ('naphtho[1,8a-b]azirine (PIN)'
+:14011), so the saxitoxin skeleton is 'pyrrolo[1,2-c]purine' (``fusion_components.ortho_rings``; the
+pyrrole is fused on side c, N3-C4, of purine, whose C4 is a fusion atom). Its numbering is OPSIN's, as
+every numbering here, and ``fusion_components.periphery_numbering_ok`` is the one check the engine
+makes on it (``compute_fused_numbering`` has no tetravalent atom in its grid).
+
 Declined (other slices): multiparent names;:13453 'benzo[1,2-b:4,5-c']difuran
 (PIN) (not furo[3,4-f][1]benzofuran...)',:41087 'benzo[1,2-c:4,5-c']dipyrrole (not
 pyrrolo[3,4-f]isoindole...)'), multiplied attached components:13467), three or

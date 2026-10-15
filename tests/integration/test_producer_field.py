@@ -251,6 +251,30 @@ def test_the_stereo_composition_of_the_emit_decision_invents_no_label(monkeypatc
     assert out == (False, False, None) and (was, now) == ("engine:t4", None), (out, was, now)
 
 
+def test_the_relative_stereo_offer_names_the_producer_of_its_source():
+    # (the Blue Book): at best-effort the name with lowercase r/s that a producer built
+    # is converted into the cis/trans name (rules/relative_stereo.py), a new string that offers itself
+    # in place of an abstention; the string has the producer of the name it was made from
+    from orthonym.rules import relative_stereo as rs
+    smiles, strict = "O[C@H]1CC[C@H](O)CC1", "(1r,4r)-cyclohexane-1,4-diol"
+    mol = Chem.MolFromSmiles(smiles)
+    engine = _best_effort_engine()
+    for labelled in (True, False):
+        rs.clear_withdrawn_names()
+        rs.note_withdrawn_name(strict, smiles, smiles)
+        engine._offers = []
+        token = pt.open_trail(smiles)
+        try:
+            if labelled:
+                pt.noted("inner:general_acyclic", strict, mol)
+            engine._maybe_append_relative_stereo_offer(mol, smiles, FAILURE, primary_is_failure=True)
+            assert [o.name for o in engine._offers] == ["trans-cyclohexane-1,4-diol"], engine._offers
+            assert pt.lookup("trans-cyclohexane-1,4-diol") == ("inner:general_acyclic" if labelled else None)
+        finally:
+            pt.close_trail(token)
+            rs.clear_withdrawn_names()
+
+
 def test_restore_withdrawn_keeps_the_producer(monkeypatch):
     # The isotope decorator names the labelled ester; OPSIN reads the name as ambiguous and the gate
     # withdraws it; the last step of name gives the withdrawn name back. The name is the one the

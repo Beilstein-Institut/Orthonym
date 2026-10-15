@@ -271,29 +271,38 @@ ASSEMBLY_POSITIVES = [
     ("CC1CCCC(O)/C=C/C2C(O)CC(O)CC2/C=C/C=C\\C/C=C/C=C\\C(=O)O1",
      "(2E,11Z,13E,16Z,18E)-4,22,24-trihydroxy-8-methyl-10-oxo-9-oxabicyclo"
      "[18.4.0]tetracosa-2,11,13,16,18-pentaene"),
-    # enclosing-mark nesting: the compound prefix already contains
-    # parentheses (the (1Z) descriptor), so its own enclosure escalates to
-    # brackets -- '3-[(1Z)-...]', not the doubled-parens '3-((1Z)-...)'.
-    # Golden updated (change-asserted-value: RT-verified by this test's own
-    # InChIKey assertion above).
+    # The row that stood here, a 2,8-dioxabicyclo[4.3.0]nonane (the (1Z)-3,5-dimethylhept-1-en-1-yl
+    # one, 'CCC(C)CC(C)/C=C\[C@@H]1O[C@H]2[C@H](C(=O)O[C@H]2C)[C@H](O)[C@H]1O'), is named by fusion
+    # nomenclature at both tiers now and left this list: FUSED_NAMED_ROW below pins it.
     #
-    # D3: the ring/chain methyls now spell as the retained short prefix
-    # 'methyl'/'dimethyl', not the mechanical 'methan-1-yl'/'di(methan-1-yl)'.
-    # The compound substituent is therefore '3,5-dimethylhept-1-en-1-yl'; by
-    # (the Blue Book) it is alphabetized at the first letter of its
-    # COMPLETE name -- 'd' (dimethyl...), which precedes 'h'(ydroxy), 'm'(ethyl)
-    # and 'o'(xo). The BB gives this verbatim: '7-(2,4-dimethylpentyl)-5-
-    # ethyltridecane (PIN)' (:3491, "'dimethylpentyl' begins with 'd'") and
-    # '7-(1,2-difluorobutyl)-5-ethyltridecane (PIN)' (:3483). The prior golden's
-    # order (compound cited last) was non-conformant; corrected to lead with it.
-    ("CCC(C)CC(C)/C=C\\[C@@H]1O[C@H]2[C@H](C(=O)O[C@H]2C)[C@H](O)[C@H]1O",
-     "(1S,3S,4R,5S,6R,9S)-3-[(1Z)-3,5-dimethylhept-1-en-1-yl]-4,5-"
-     "dihydroxy-9-methyl-7-oxo-2,8-dioxabicyclo[4.3.0]nonane"),
+    # enclosing-mark nesting: the compound prefix already contains parentheses (the (1E,3R,4R,5S)
+    # descriptor), so its own enclosure escalates to brackets -- '11-[(1E,...)-...-yl]', not the
+    # doubled-parens '11-((1E,...)-...-yl)'. By (the Blue Book, "The name of a prefix for a
+    # substituent is considered to begin with the first letter of its complete name", under
+    # ALPHANUMERICAL ORDER,:3436) the compound substituent is alphabetized at the first letter of
+    # its COMPLETE name -- 'd' (dihydroxy...), which follows 'a'(cetyl) and precedes 'm'(ethyl) and
+    # 'o'(xo). The BB gives this verbatim: '7-(2,4-dimethylpentyl)-5-ethyltridecane (PIN)' (:3491,
+    # "'dimethylpentyl' begins with 'd'") and '7-(1,2-difluorobutyl)-5-ethyltridecane (PIN)' (:3483).
+    # An azaphilone (a 5,12-dioxatricyclo[7.4.0.0^2,6]trideca-1(13),8,10-triene) found by scanning a dev split
+    # for rows this tier emits, identical at 0c529ca8d and after the LO fix round: no fusion builder
+    # names it at either tree, this site emits it with the von Baeyer basis, OPSIN full-key exact.
+    ("CC[C@H](C)[C@@H](O)[C@](C)(O)/C=C/C1=CC2=CC(=O)[C@]3(C)OC(=O)[C@@H](C(C)=O)[C@@H]3C2=CO1",
+     "(2R,3R,6R)-3-acetyl-11-[(1E,3R,4R,5S)-3,4-dihydroxy-3,5-dimethylhept-1-en-1-yl]-6-methyl-"
+     "4,7-dioxo-5,12-dioxatricyclo[7.4.0.0^2,6]trideca-1(13),8,10-triene"),
     # quick-wins F-Q1: '0^4,9' before '0^10,15',:9685); was '(7R)-7-benzyl-
     # 5-ethyl-3,6,9,17-tetraoxo-8-oxa-2,5,16-triazatricyclo[16.4.0.0^10,15]docosa-...'
     ("CCN1CC(=O)Nc2ccccc2C(=O)Nc2ccccc2C(=O)O[C@H](Cc2ccccc2)C1=O",
      "(15R)-15-benzyl-13-ethyl-3,11,14,17-tetraoxo-16-oxa-2,10,13-triazatricyclo"
      "[16.4.0.0^4,9]docosa-1(22),4,6,8,18,20-hexaene"),
+    # A bridged tetracyclic oxirane/ether cage (4,8,11-trioxatetracyclo[7.4.1.0^3,5.0^6,14]tetradecane),
+    # which no fusion builder names at either tree. The compound prefix
+    # '[(S)-1,3-bis(acetyloxy)propyl]' is enclosed in brackets, its descriptor and its own
+    # 'bis(acetyloxy)' carry parentheses) and alphabetized at 'b',:3477): before
+    # 'methyl' and 'prop-2-yn-1-yl'. Found by scanning pubchem_2000 for rows this tier emits; identical
+    # at 0c529ca8d and after the LO fix round; OPSIN full-key exact.
+    ("C[C@@H]1CO[C@]([C@H]2[C@@H]3[C@@H]1C[C@H]4[C@@]([C@@H]3[C@H](O2)CC#C)(O4)C)(C)[C@H](CCOC(=O)C)OC(=O)C",
+     "(1R,3S,5R,6S,7R,9R,10R,13S,14R)-10-[(S)-1,3-bis(acetyloxy)propyl]-5,10,13-trimethyl-7-"
+     "(prop-2-yn-1-yl)-4,8,11-trioxatetracyclo[7.4.1.0^3,5.0^6,14]tetradecane"),
 ]
 
 
@@ -318,6 +327,55 @@ def test_decorated_ring_assembles_a_round_tripping_name(
     assert _rt_inchikey(emitted) == _inchikey(smiles), (
         f"{smiles} -> {emitted!r} does not round-trip to the input")
     assert emitted == expected, f"spelling changed: {emitted!r}"
+
+
+#: The row that left ASSEMBLY_POSITIVES (see the comment there): a pyran-fused lactone. Its best-effort
+#: name used to be this tier's von Baeyer name
+#: '(1S,3S,4R,5S,6R,9S)-3-[(1Z)-3,5-dimethylhept-1-en-1-yl]-4,5-dihydroxy-9-methyl-7-oxo-2,8-dioxabicyclo[4.3.0]nonane'
+#: and the PIN tier abstained; both tiers name it by fusion nomenclature now.
+FUSED_NAMED_ROW = (
+    "CCC(C)CC(C)/C=C\\[C@@H]1O[C@H]2[C@H](C(=O)O[C@H]2C)[C@H](O)[C@H]1O",
+    "(2S,3R,4S,4aR,7S,7aS)-2-[(1Z)-3,5-dimethylhept-1-en-1-yl]-3,4-dihydroxy-7-methylhexahydro-"
+    "5H-furo[3,4-b]pyran-5-one",
+)
+
+
+@pytest.mark.opsin_gate
+@pytest.mark.parametrize("tier", ["pin", "best-effort"])
+def test_the_row_that_left_the_list_is_named_by_fusion_at_both_tiers(tier, opsin_gate):
+    """A gain, pinned for what it is now rather than dropped with the row.
+
+    The ring system is furo[3,4-b]pyran (a 5- and a 6-membered ring), the lactone is cited as the
+    heterocyclic pseudoketone '-one', and the name round-trips to the full InChIKey, stereo included.
+    It is built by the PIN path (inner:tier_a_ring), so this tier's site never produces it.
+
+    Governing text. "Five-membered ring requirement" (the Blue Book): "Fusion
+    nomenclature gives preferred IUPAC names only to compounds having at least two rings of at least
+    five or more members" (:23710); the furan and pyran rings qualify.
+     "Lactones" (:32084): lactones are named "as heterocyclic pseudoketones by adding the
+    suffix 'one'... to the name of the heterocyclic parent hydride", and "Method (1) gives preferred
+    IUPAC names" (:32092). The ring system 'furo[3,4-b]pyran' is the fused parent of the book's
+    '2H-3,5-(epoxymethano)furo[3,4-b]pyran (PIN)' (:14207, "Polyvalent and composite
+    bridges"). The hydro prefix carries no locants because the ring is fully saturated:
+     "Cyclic anhydrides" gives '1,3-dioxooctahydro-2-benzofuran-4,5-dicarboxylic acid (PIN)'
+    (:32502), a fully hydrogenated fused ring whose substituents sit on hydro positions and whose
+    'octahydro' has no locants. (The book has no example of this exact ring system, so the spelling of
+    this name rests on that precedent and on the OPSIN read-back.)"""
+    from orthonym.assembly.general_engine import TERMINAL_RING_ASSEMBLY_SITE
+    from orthonym.metrics import candidate_ledger as cl
+
+    smiles, expected = FUSED_NAMED_ROW
+    cl.enable()
+    try:
+        row = _namer(tier).name_tiered(smiles)
+        sites = [e.site for e in cl.read_ledger()]
+    finally:
+        cl.disable()
+    assert row["name"] == expected, f"{tier}: {row['name']!r}"
+    assert row["tier"] == "pin_verified", f"{tier}: {row['tier']}"
+    assert _rt_inchikey(row["name"]) == _inchikey(smiles), (
+        f"{tier}: {row['name']!r} does not round-trip to the input")
+    assert TERMINAL_RING_ASSEMBLY_SITE not in sites
 
 
 @pytest.mark.opsin_gate

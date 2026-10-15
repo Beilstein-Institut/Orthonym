@@ -663,18 +663,41 @@ CI_BENCHMARK = [
         _declined(),
         marks=_GATE,
     ),
+    # LO fix round, A (2): before LO3/LO4 the builder named neither ring system and the default tier
+    # declined both. Both names are PINs by the book's own pattern, so the default tier ships them
+    # (OPSIN 2.9.0 reads each to the input's full InChIKey, ``assert_tier_contract``).
+    # (1) '...cyclopropa[c][1]benzofuran-4(3aH)-one': (:23710) a fusion name needs two rings of
+    # five or more members (6 + 5, the cyclopropane is the attached component,:14007
+    # 'naphtho[1,8a-b]azirine (PIN)':14011 is the same topology: a ring fused on a bond that ends at a
+    # fusion atom). The ring system needs two indicated hydrogens ('2H,5H-pyrano[2,3-b]pyran (PIN)',
+    #:24649: here 1H,5H, the lowest nonfusion pair, an independent perfect-matching count leaves
+    # {1|2} x {3a|5|7} and no set with C4); the 4-one cannot sit on an indicated hydrogen (4H leaves C3a
+    # without a partner), so it takes 'added indicated hydrogen':24841 -> (3)
+    #:24806;:24689, '4,4a-dihydro-2H,5H-...-5,6(6aH)-dione (PIN)':24854); the four hydro
+    # prefixes complete the total hydrogenation, whose locants are omitted:17026,
+    #:3007; 'hexahydro-1H-2-benzopyran-1,3(4H)-dithione (PIN)':32551, 'hexahydro-1H-isoindole-1,3(2H)-dione
+    # (PIN)':33849). ASSUMED (the book gives no numbering rule for an atom with four ring bonds): the
+    # numbering of the ring system is OPSIN's (LO4b record, Left 4).
     pytest.param(
         "C[C@H](O)/C=C1\\C[C@H](O)[C@]23C[C@H]2C(C)(C)O[C@]3(O)C1=O",
-        _declined_at_default(
-            "(1S,3R,6S,8E,10S)-6,10-dihydroxy-8-[(2S)-2-hydroxypropylidene]-4,4-dimethyl-"
-            "5-oxatricyclo[4.4.0.0^1,3]decan-7-one"
+        _ships(
+            "(1aR,3aS,5E,7S,7aS)-3a,7-dihydroxy-5-[(2S)-2-hydroxypropylidene]-2,2-dimethyl"
+            "tetrahydro-1H,5H-cyclopropa[c][1]benzofuran-4(3aH)-one"
         ),
         marks=_GATE,
     ),
+    # (2) the steroid skeleton keeps its fixed numbering (a):3227). The 14-ol sits on a fusion atom, which has no
+    # hydrogen in the mancude parent: the one indicated hydrogen accommodates it and the other three
+    # ols stay on hydro positions, as in '1,3b,4,5,6,6a,7,7a-octahydro-3aH-cyclopenta[a]pentalene-3a,4-diol
+    # (PIN)':24768,:24790) and '1,4-dihydro-3aH-indene-3a-carboxylic acid (PIN)' (:24778).
     pytest.param(
         "C=C1[C@@H](O)CC[C@]2(C)C3=C(CC[C@@H]12)[C@]1(O)[C@@H](O)"
         "C[C@H]([C@H](C)CC[C@H](CC)C(C)C)[C@@]1(C)C[C@@H]3O",
-        _declined(),
+        _ships(
+            "(3S,5R,10S,11S,13R,14S,15S,17R)-17-[(2R,5S)-5-ethyl-6-methylheptan-2-yl]-10,13-dimethyl-"
+            "4-methylidene-1,2,3,4,5,6,7,10,11,12,13,15,16,17-tetradecahydro-14H-"
+            "cyclopenta[a]phenanthrene-3,11,14,15-tetrol"
+        ),
         marks=_GATE,
     ),
     # (the Blue Book) '=S: -thione and sulfanylidene';

@@ -2197,6 +2197,11 @@ def _orient_carbocycle(mol, ring_order, sub_positions, pg_ring_atoms, ionic=Fals
     principal characteristic group: NUMBERING (the Blue Book), criterion (c)
     "principal characteristic groups and free valences (suffixes)" (:3256).
 
+    A tie of those goes to NUMBERING (the Blue Book), criterion "(g) lowest locants for
+    the substituent cited first as a prefix in the name" (:3307): the keys of the prefixes the ring
+    carries are asked of ``heterocycles._ring_prefix_names``, as the heteromonocycle numbering does;
+    when one cannot be named (g) is skipped.
+
     The canonical-rank final tier is a deterministic symmetry-breaker; among
     orientations that tie on every IUPAC criterion the choice is round-trip
     equivalent (is the downstream authority for the emitted string)."""
@@ -2206,7 +2211,7 @@ def _orient_carbocycle(mol, ring_order, sub_positions, pg_ring_atoms, ionic=Fals
         pg_ring_atoms = pg_ring_atoms | _ionic_centre_atoms(mol, ring_list)
     canon = list(Chem.CanonicalRankAtoms(mol, breakTies=True))
     best_key = None
-    best_oriented = None
+    tied = []
     for start in range(n):
         for direction in (1, -1):
             oriented = [ring_list[(start + direction * k) % n] for k in range(n)]
@@ -2234,10 +2239,23 @@ def _orient_carbocycle(mol, ring_order, sub_positions, pg_ring_atoms, ionic=Fals
             # cycloicos-1-en-3-yne, NOT cycloicos-3-en-1-yne. This mirrors
             # `orient_chain` criteria (b) [combined] -> (c) [doubles only]. As a
             # pure tie-break it is inert whenever `uns` already differs.
-            key = (pg, uns, dbl, sub, [canon[a] for a in oriented])
+            key = (pg, uns, dbl, sub)
             if best_key is None or key < best_key:
-                best_key = key
-                best_oriented = oriented
+                best_key, tied = key, []
+            if key == best_key:
+                tied.append(oriented)
+    names = None
+    if len(tied) > 1:
+        from ..rules.heterocycles import _ring_prefix_names
+        names = _ring_prefix_names(mol, set(ring_list), sub_positions, pg_ring_atoms)
+
+    def _tie_key(oriented):
+        loc = {a: i + 1 for i, a in enumerate(oriented)}
+        g_key = tuple(sorted((name, loc[a]) for a, lst in (names or {}).items()
+                             if a in loc for name in lst))
+        return (g_key, [canon[a] for a in oriented])
+
+    best_oriented = min(tied, key=_tie_key)
     return best_oriented, {a: i + 1 for i, a in enumerate(best_oriented)}
 
 

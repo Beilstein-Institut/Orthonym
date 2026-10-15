@@ -43,6 +43,20 @@ STEREO_COMPOSED = [
     ("C1O[C@H]1[C@H]1CO1", "best-effort", "inner:ring_assembly"),
 ]
 
+# Rows whose shipped name is the cis/trans name of a ring pair (rules/relative_stereo.py,,
+# the Blue Book "Relative configuration: the stereodescriptors 'cis' and 'trans'"). OPSIN reads no
+# lowercase r/s, so at best-effort the name with r/s that a producer built for the whole molecule
+#,:48103) is converted, and the row names that producer: the string the conversion
+# started from was returned by the seam named here. The last two rows hold the pair in a prefix and
+# two pairs in one name, where the conversion also re-derives the enclosing marks.
+RELATIVE_STEREO = [
+    ("O[C@H]1CC[C@@H](O)CC1", "best-effort", "inner:general_acyclic"),
+    ("O[C@H]1CC[C@H](O)CC1", "best-effort", "inner:general_acyclic"),
+    ("N[C@H]1CC[C@@H](C(=O)O)CC1", "best-effort", "inner:ester_family"),
+    ("OC(=O)C[C@H]1CC[C@H](C)CC1", "best-effort", "inner:general_acyclic"),
+    ("O[C@H]1CC[C@H](CC[C@H]2CC[C@H](O)CC2)CC1", "best-effort", "inner:general_acyclic"),
+]
+
 # The zinc rows of the metal lane (ZN). The producers it added sit under the seams of the outer classes:
 # the class METAL_ATOM (the atom, an ion), the organometallic and salt classes (the drawing as written, and
 # the other drawing that ``assembly/metal_offer.py`` offers: the ionic drawing of a bonded one, the bonded

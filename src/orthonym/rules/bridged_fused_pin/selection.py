@@ -362,7 +362,8 @@ def _cuts_a_crossed_mancude_system(mol, split: Split) -> bool:
 
 def _on_a_produced_parent(mol, split: Split) -> bool:
     """True when the fused parent of ``split`` comes from the two-component producer of slice
-    S2c-1 (``hetero_fusion``, source 'hetero_fusion_name+opsin'), a parent no Blue Book row
+    S2c-1 (``hetero_fusion``, source 'hetero_fusion_name+opsin', and its first-order polycomponent
+    extension ``poly_fusion``), a parent no Blue Book row
     reads as a bridged fused PIN. The boundary rows of ``phane_reading`` below are the book's
     and hold for the table parents; on a produced parent the literal reading of (1)
     applies (``_cuts_a_crossed_mancude_system``) until a cyclophane namer decides the class."""
@@ -371,7 +372,7 @@ def _on_a_produced_parent(mol, split: Split) -> bool:
         got = fused_parent(mol, set(split.residual))
     except Exception:
         return False
-    return got is not None and got.source == "hetero_fusion_name+opsin"
+    return got is not None and got.source in ("hetero_fusion_name+opsin", "poly_fusion_name+opsin")
 
 
 def phane_reading(mol, split: Split) -> bool:

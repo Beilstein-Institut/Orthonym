@@ -33,6 +33,13 @@ PIN_ROWS = [
     ("N1=C2C(=CC=C1)CCCCCC2", "5,6,7,8,9,10-hexahydrocycloocta[b]pyridine"),
     ("N1N=CC2=C1CCCCCC2", "4,5,6,7,8,9-hexahydro-1H-cycloocta[c]pyrazole"),
     ("N1=C2C(=CC=C1)CC=CC=C2", "5H-cyclohepta[b]pyridine"),
+    # (the Blue Book): "The names 'isothiazole', 'isoxazole', 'thiazole', and 'oxazole',
+    # although permitted in general nomenclature, are not recommended for the names of components in
+    # preferred IUPAC fusion names. The Hantzsch-Widman names 1,2-thiazole, 1,2-oxazole, 1,3- thiazole,
+    # and 1,3-oxazole, respectively, must be used; the locants are enclosed in square brackets in the
+    # completed fusion name" -- LO3: the fused namer's '...cyclohepta[d]thiazole' (recorded as not a PIN)
+    # gave way to the builder's bracketed form (OPSIN 2.9.0 reads both back to the input).
+    ("S1C=NC2=C1CCCCC2", "5,6,7,8-tetrahydro-4H-cyclohepta[d][1,3]thiazole"),
 ]
 
 
@@ -44,14 +51,16 @@ def test_seven_and_eight_membered_fused_hydro_pins(smiles, pin):
 
 @pytest.mark.opsin_gate
 def test_an_unbracketed_azole_component_is_not_a_pin():
+    """The unbracketed '...cyclohepta[d]thiazole' still reads back to the input but is shipped by
+    neither tier (the bracketed PIN is a row of ``PIN_ROWS``)."""
     from orthonym import Orthonym
     from orthonym.cli import _emit_tier_flags
-    smiles = "S1C=NC2=C1CCCCC2"
+    from tests.support.rt_assert import name_is_rt_exact
+    smiles, unbracketed = "S1C=NC2=C1CCCCC2", "5,6,7,8-tetrahydro-4H-cyclohepta[d]thiazole"
+    assert name_is_rt_exact(unbracketed, smiles)
     be = Orthonym(style="pin", **_emit_tier_flags("best-effort")).name_tiered(smiles)
-    assert be["name"] == "5,6,7,8-tetrahydro-4H-cyclohepta[d]thiazole"
-    assert be["tier"] != "pin_verified" and be["is_pin"] is False
-    pin = Orthonym().name_tiered(smiles)
-    assert pin["tier"] != "pin_verified"
+    assert be["name"] != unbracketed
+    assert Orthonym().name_tiered(smiles)["name"] != unbracketed
 
 
 def _fmt(loc):

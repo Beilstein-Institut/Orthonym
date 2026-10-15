@@ -1474,7 +1474,7 @@ def _handle_natural_product(mol, smiles, canonical_smiles, features=None, *,
     carve-out, the paper's deliberate exception for list names (``namer._default_tier_emits``),
     not a Blue Book reading names no PIN for it). Every other natural-product name is
     returned as before."""
-    systematic = _systematic_pin_before_natural_product(mol)
+    systematic = _systematic_pin_before_natural_product(mol, canonical_smiles)
     if systematic is not None:
         return systematic
     name = _natural_product_name(mol)
@@ -1494,7 +1494,7 @@ def _handle_natural_product(mol, smiles, canonical_smiles, features=None, *,
     return name
 
 
-def _systematic_pin_before_natural_product(mol) -> Optional[str]:
+def _systematic_pin_before_natural_product(mol, canonical_smiles: Optional[str] = None) -> Optional[str]:
     """The bridged fused PIN of a molecule the natural-product route names, or
     None. (the Blue Book) "A bridged fused system (see Section
     is used to generate names for structures that cannot be named by normal fusion
@@ -1510,12 +1510,34 @@ def _systematic_pin_before_natural_product(mol) -> Optional[str]:
     error of the builder is a decline (``name_bridged_fused_pin`` runs it under
     ``bridged_fused.builder_declining_on_error``), and one of the caller's class check
     ``has_bridged_fused_reading`` answers False under the same guard: either way the route
-    returns its natural-product name, never an exception."""
+    returns its natural-product name, never an exception. A Table 10.1 parent of the exact-match
+    list whose builder name rests on a numbering OPSIN alone gives keeps its list name
+    (``_keeps_list_parent_name``)."""
     from orthonym.rules.bridged_fused import name_bridged_fused_pin
     got = name_bridged_fused_pin(mol)
     if not got or not got[0]:
         return None
+    if _keeps_list_parent_name(mol, canonical_smiles or Chem.MolToSmiles(mol)):
+        return None
     return got[0] if _rt_full_match(got[0], mol) else None
+
+
+def _keeps_list_parent_name(mol, canonical_smiles: str) -> bool:
+    """True when ``mol`` is exactly a parent of the exact-match list
+    (``NAME_EXACT_NP_PARENTS``) and the builder's reading of it rests on a parent whose numbering
+    nothing but OPSIN gives (``has_unchecked_parent_numbering``: a tetravalent fusion atom,
+    which ``compute_fused_numbering`` has no grid for). the Blue Book "
+    Semisystematic names of recommended parent structures are listed in Table 10.1": the list
+    name is the book's own string, and the book names no PIN for these compounds,
+    :50943), so a systematic name replaces it only where every part of that name, the
+    numbering included, is the engine's. 'lycopodane' keeps its name; the exact-list parents
+    named on a skeleton with no such parent (kaurane, sparteine, trichothecane) take theirs, as
+    before. A decorated parent is not a list name and is not asked. The general tiers read no
+    list name (``get_natural_product_name``), so the builder's name stands in their second run."""
+    from orthonym.data.natural_products import NAME_EXACT_NP_PARENTS, get_natural_product_name
+    from orthonym.rules.bridged_fused_pin import has_unchecked_parent_numbering
+    return (get_natural_product_name(canonical_smiles) in NAME_EXACT_NP_PARENTS
+            and has_unchecked_parent_numbering(mol))
 
 
 # Re-entrancy flag for _handle_peptide's substitutive sub-namer (see its body).

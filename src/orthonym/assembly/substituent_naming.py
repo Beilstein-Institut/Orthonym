@@ -31,6 +31,7 @@ from rdkit import Chem
 
 from ..data.multipliers import multiplier_table
 from ..perception.stereo import assign_stereochemistry
+from .acyl_prefix import acyl_prefix_text, is_acyl_prefix
 from .capped_name import carries_capped_locants, chain_stem_ending, terminal_yl_prefix
 from .fragment_naming import name_fragment_recursively
 from .naming_utils import SIMPLE_MULTIPLIERS, alpha_sort_key, get_alkyl_name, has_structural_hyphen, multiplied_component, simple_multiplier_word
@@ -2175,7 +2176,7 @@ def _name_polyfunctional_acyclic_substituent(
         _POLYFUNC_MEMO_CACHE[key] = (result, pos)
     if pos_out is not None and result is not None:
         pos_out.update(pos)
-    if result is not None and 'oxo' in result:
+    if result is not None and 'oxo' in result and not is_acyl_prefix(result):
         # Suite fix j6: an oxo on the FREE-VALENCE carbon together with another
         # group is an acyl group spelled '1-oxo...yl' / '...(oxo)methyl'
         # ('[(3-methylbutyl)amino]oxomethyl' for -C(=O)-NH-R). Valid and
@@ -3343,9 +3344,7 @@ def _name_polyfunctional_acyclic_substituent_impl(
     # group (-C(=O)-R): its PIN is the acyl prefix (acetyl / propanoyl / formyl,
     # /, NOT '1-oxoalkyl'. The single-FG path (fg_count == 1)
     # would otherwise mis-name a bare acyl substituent, so fail-closed and let the
-    # retained / acyl tier own it. (The >=2-FG behaviour shipped in a8dd06ff is
-    # left untouched: an acyl bearing a second detachable group is a rare edge that
-    # those golds do not exercise -> follow-on.)
+    # retained / acyl tier own it. (>=2 FG: the acyl name, ``acyl_prefix.acyl_prefix_text``.)
     if fg_count == 1 and _POLYFUNC_OXO_PREFIX in prefix_on.get(attach_idx, []):
         # tail: a bare acyl -C(=O)-R (the sole FG is the oxo on the
         # free-valence carbon) is the acyl PREFIX -- 'acetyl'/'propanoyl'/... --
@@ -3503,7 +3502,8 @@ def _name_polyfunctional_acyclic_substituent_impl(
         if pos_out is not None:
             pos_out.update(pos)
         from .prefix_derivation import built
-        _whole = f"{joined}{stem}yl"
+        _whole = (acyl_prefix_text(mol, attach_idx, sub_set, prefix_on, groups, backbone)
+                  or f"{joined}{stem}yl")
         # properfix a performance pass : a ONE-CARBON core bearing an ylidene-type
         # chalcogen decoration (oxo/sulfanylidene/selanylidene/tellanylidene)
         # alongside at least one more substituent is an ACYL-group carbon

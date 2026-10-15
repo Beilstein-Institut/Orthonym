@@ -45,7 +45,8 @@ from tests.support.default_tier import (  # noqa: E402
 # molecules below the test asserts that decline, the strict path's name and label,
 # and the same name at the best-effort tier (tests/support/default_tier.py).
 DEFAULT_TIER_DECLINES = frozenset({
-    "CC12CCCCN1CCCC2",
+    # ('CC12CCCCN1CCCC2' left this set in LO3: the default tier names it '9a-methyloctahydro-2H-quinolizine',
+    # the PIN, see PIN_CONTROLS)
 })
 #... whose best-effort name is another one (it reads back exactly)
 BEST_EFFORT_NAMES_IT_OTHERWISE = frozenset()
@@ -170,7 +171,10 @@ PIN_CONTROLS = {
     # (alphanumerical order), (the Blue Book)
     "CC12CCCCC2CCC2(N1)OC2": "8a'-methyl-3',4',4'a,5',6',7',8',8'a-octahydro-1'H-spiro[oxirane-2,2'-quinoline]",
     # catalog fused heterocycle, plain substituent (not on a fusion atom):
-    "CC12CCCCN1CCCC2": "9a-methylquinolizidine",
+    # LO3: the builder's PIN replaces the catalogue name '9a-methylquinolizidine',
+    # the Blue Book;:17026 "Total hydrogenation is indicated by the appropriate
+    # multiplicative prefixes... but locants are omitted"); OPSIN 2.9.0 reads it back to the input
+    "CC12CCCCN1CCCC2": "9a-methyloctahydro-2H-quinolizine",
     # undecorated catalog-branch spiro core (SAME code path, no fusion decoration):
     # was "spiro[oxirane-2,3'-quinolizidine]", re-spelled as the witness above
     #, the Blue Book); now the default tier's PIN as well

@@ -130,6 +130,21 @@ def ring_numbering_tie_key(mol, tokens_at):
     return key
 
 
+def ring_cation_locants(mol, ring_system, centers, numbered=None, to_mol=None, subst_atoms=None):
+    """``ions._charged_ring_locants`` for a ring cation whose substituents ``ions._p74_ring_substituent_prefix`` cites,
+    with ``ring_numbering_tie_key`` after the criteria it ranks: a numbering that the heteroatoms, the cation and the
+    locants of the prefixes leave open is decided by (g) and (j), not by the order of the atoms of the input.
+    ``numbered`` is a bare copy of the ring that is numbered instead of ``mol`` and ``to_mol[k]`` the atom of ``mol``
+    that is atom ``k`` of it (the numbering of ``emit_ring_poly_cation_ium``)."""
+    from .ions import _charged_ring_locants, _p74_ring_substituent_groups
+    tie = ring_numbering_tie_key(mol, lambda: _p74_ring_substituent_groups(
+        mol, ring_system, {a: a for a in ring_system}, set()))
+    if to_mol is None:
+        return _charged_ring_locants(mol, ring_system, centers, tie_key=tie)
+    return _charged_ring_locants(numbered, list(range(len(to_mol))), centers, subst_atoms=subst_atoms,
+                                 tie_key=lambda loc: tie({to_mol[k]: v for k, v in loc.items()}))
+
+
 def neutralized_cation(mol, cation_idx: int):
     """``mol`` with the cation at ``cation_idx`` neutral, index-preserving: the neutral ring that
     the '-ium' is added to: the cation is the neutral parent plus a hydron). None for

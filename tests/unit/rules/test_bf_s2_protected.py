@@ -65,13 +65,15 @@ BOUNDARY_ROWS = [
     #:23895 3,7-dithia-1(1,7),5(7,1)-dinaphthalenacyclooctaphane (PIN); the bridged fused
     # name (II) '5,7,14,16-tetrahydro-1,17:8,10-diethenodibenzo[c,j][1,8]dithiacyclo-
     # tetradecine' reads back but is not the PIN (:23897 "A phane name is senior to a
-    # bridged fused ring name"). The builder computes no phane seniority: it declines
-    # because that one fused reading's parent (rings 14, 6, 6) is not a PIN parent name
-    # in its table, whose largest ring has eight members; since S2c-1 the readings with
-    # three bridges have a parent (2,11-benzodithiacyclohexadecine), but (a)
-    # (most rings) ranks the two-bridge reading first, and its parent (three components,
-    # slice S2c-2) has no name
-    ("C12=CC=CC=3CSCC4=CC5=C(CSCC(=CC31)C=C2)C=CC=C5C=C4", "no parent name"),
+    # bridged fused ring name"). The builder computes no phane seniority. Until LO4c it
+    # declined because that one fused reading's parent (rings 14, 6, 6: three components,
+    # slice S2c-2) had no name; since S2c-1 the readings with three bridges have a parent
+    # (2,11-benzodithiacyclohexadecine), but (a) (most rings) ranks the
+    # two-bridge reading first. Since LO4c (``poly_fusion``, 'dibenzo') that
+    # parent is named as the book names it (:23897 'dibenzo[c,j][1,8]dithiacyclotetradecine')
+    # and the reading is declined as a cyclophane by ``selection.phane_reading``
+    # (1):23828, on a produced parent), the book's own reason (:23895 "A phane name is senior")
+    ("C12=CC=CC=3CSCC4=CC5=C(CSCC(=CC31)C=C2)C=CC=C5C=C4", "phane reading"),
 ]
 
 
@@ -123,6 +125,15 @@ def test_boundary_rows_get_no_bridged_fused_name(smiles, reason):
         assert all(selection._candidate(mol, system, unsat, c) is None for c, _, _ in fused)
     elif reason == "no fused reading":
         assert not fused
+    elif reason == "phane reading":
+        fewest = min(len(combo) for combo, _, _ in fused)
+        names = {selection._parent_name(mol, res) for combo, res, _ in fused if len(combo) == fewest}
+        assert names == {"dibenzo[c,j][1,8]dithiacyclotetradecine"}          #:23897 (II)
+        splits = selection.best_splits(mol, system)
+        assert splits and all(selection.phane_reading(mol, sp) for sp in splits)
+        assert build(mol) is None
+        assert name_bridged_fused_pin(mol) is None
+        return
     else:
         fewest = min(len(combo) for combo, _, _ in fused)
         assert fused and all(selection._parent_name(mol, res) is None

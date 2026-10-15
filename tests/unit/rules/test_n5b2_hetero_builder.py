@@ -43,6 +43,11 @@ NAMED = [
     ("O=C1OC=Cc2ccccc12", "1H-2-benzopyran-1-one", "2-benzopyran lactone"),
     ("O=C1OCc2ccccc12", "2-benzofuran-1(3H)-one", "five-membered lactone"),
     ("C1CCC2=C(C1)OC1=C2CCCC1", "1,2,3,4,6,7,8,9-octahydrodibenzo[b,d]furan", "retained dibenzofuran parent"),
+    # LO4c (``poly_fusion``): three components, two identical benzo prefixes on an oxepine parent, were
+    # declined as "three components, no parent from the tables"; (:13467) "Two or more
+    # components that are identical and both fused to a parent component are indicated by the use of
+    # multiplying prefixes", 'dibenzo[c,e]oxepine (PIN)' (:13481)
+    ("O=C1OC2=C(C=CC=C2)C(=O)c2ccccc12", "dibenzo[b,e]oxepine-6,11-dione", "dibenzo on an oxepine parent"),
 ]
 
 
@@ -62,7 +67,6 @@ DECLINED = [
     ("OC(=O)c1ccc2cc[n+]([O-])cc2c1", "ring N-oxide (charged atoms)"),
     ("Cc1cc[c]([Bi]2([Cl])([c]3ccc(C)cc3)[O]C(C(F)(F)F)(C(F)(F)F)c3cccc[c]32)cc1",
      "ring Bi with bonding number 5: the book's name carries 2,1lambda5"),
-    ("O=C1OC2=C(C=CC=C2)C(=O)c2ccccc12", "three components, no parent from the tables"),
     ("C1CCC2(C1)OCCc1ccccc12", "spiro"),
 ]
 

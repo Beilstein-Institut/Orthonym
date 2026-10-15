@@ -74,13 +74,18 @@ def test_a_senior_group_keeps_the_ring_as_the_parent_at_best_effort(smiles, expe
 
 
 @pytest.mark.opsin_gate
-def test_the_guanidinyl_prefix_is_never_a_pin_beside_a_senior_group():
-    from orthonym.metrics import provenance
+def test_the_guanidine_beside_a_senior_group_is_cited_as_carbamimidoylamino():
+    """LO4a: the builder used to spell the prefix with the fragment namer's 'guanidinyl' (recorded as a
+    non-PIN fragment, so the default tier declined). A substituted amino group is spelled by the
+    enumerator's namer now (``polycyclics.exocyclic_substituent_name``):
+    (the Blue Book) "In the presence of a characteristic group having seniority over guanidine (see
+    item 11 in, the following prefixes are used", ':34268 carbamimidoylamino (preferred prefix)'."""
     smiles = "OC(=O)c1ccc2c(c1)CCC2NC(N)=N"
     got = build_fused(Chem.MolFromSmiles(smiles))
-    assert got is not None and got[0] == "1-guanidinyl-2,3-dihydro-1H-indene-5-carboxylic acid", got
-    assert "guanidinyl" in provenance._NON_PIN_FRAGMENTS.get()
-    assert default_tier_row(smiles)["tier"] != "pin_verified"
+    name = "1-(carbamimidoylamino)-2,3-dihydro-1H-indene-5-carboxylic acid"
+    assert got is not None and got[0] == name, got
+    assert default_tier_row(smiles)["tier"] == "pin_verified"
+    assert_full_rt(name, smiles)
 
 
 def test_a_cyanamide_beside_a_senior_group_declines():

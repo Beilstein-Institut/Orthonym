@@ -13,8 +13,10 @@ catalogue spells pyrrolizine with its indicated hydrogen; at both tiers.
 - (:28410) a ketone is named from a MANCUDE parent: '4H-quinolizin-4-one', not
   the saturated catalogue entry's 'quinolizidin-4-one'.
 - (:11628) "pyrrolizine (1H-isomer shown; the PIN is 1H-pyrrolizine)"; a fusion
-  descriptor of that skeleton ('pyrrolo[1,2-a]pyrrole') is not the PIN, so a ketone the
-  fusion producer names on it stays below the PIN label.
+  descriptor of that skeleton ('pyrrolo[1,2-a]pyrrole') is not the PIN. LO3
+  (rules/fused_pin_offer.py): the fusion producer's name, recorded as not a PIN, gives way to
+  the builder's '1H-pyrrolizin-2(3H)-one' (added hydrogen,:24689), which ships as
+  the PIN at both tiers (it stayed below the PIN label before, the builder never being asked).
 Every expected name reads back to the input's full InChIKey with OPSIN 2.9.0 (so do the old
 spellings: only the rule tells them apart)."""
 import pytest
@@ -34,6 +36,7 @@ PIN_ROWS = [
     ("O=C1C=Cc2cccn21", "3H-pyrrolizin-3-one"),
     ("C1=Cn2cccc2C1", "1H-pyrrolizine"),                                          #:11628
     ("CC1=Cn2cccc2C1", "2-methyl-1H-pyrrolizine"),
+    ("O=C1Cc2cccn2C1", "1H-pyrrolizin-2(3H)-one"),                                # LO3, was 1H-pyrrolo[1,2-a]pyrrol-2(3H)-one
 ]
 
 #: names the producer already gave right
@@ -63,14 +66,17 @@ def test_the_oxo_producer_places_hydrogen_only_where_it_can_sit(smiles, name, ti
 
 
 @pytest.mark.opsin_gate
-def test_a_fusion_descriptor_of_a_retained_skeleton_stays_below_the_pin():
-    """'1H-pyrrolizin-2(3H)-one' is the rule's spelling; the fusion producer spells the
-    parent 'pyrrolo[1,2-a]pyrrole', so the default tier declines and best-effort keeps it."""
-    smiles = "O=C1Cc2cccn2C1"
-    assert _row(smiles, "pin")["tier"] == "abstain"
-    best = _row(smiles, "best-effort")
-    assert (best.get("name"), best["tier"]) == ("1H-pyrrolo[1,2-a]pyrrol-2(3H)-one",
-                                                "systematic_verified"), best
+def test_a_fusion_descriptor_of_a_retained_skeleton_is_not_the_pin_name():
+    """'1H-pyrrolizin-2(3H)-one' is the rule's spelling; the fusion producer spells the parent
+    'pyrrolo[1,2-a]pyrrole', which OPSIN reads back to the same molecule but which is no PIN. Since
+    LO3 the builder's name replaces it at both tiers (``PIN_ROWS``); the descriptor name is never
+    labelled a PIN."""
+    from tests.support.rt_assert import name_is_rt_exact
+    smiles, descriptor = "O=C1Cc2cccn2C1", "1H-pyrrolo[1,2-a]pyrrol-2(3H)-one"
+    assert name_is_rt_exact(descriptor, smiles)
+    for tier in ("pin", "best-effort"):
+        row = _row(smiles, tier)
+        assert row.get("name") != descriptor and row["tier"] == "pin_verified", row
 
 
 @pytest.mark.opsin_gate
@@ -125,21 +131,25 @@ def test_the_catalogue_mancude_test_is_the_engine_mancude_predicate(smiles, manc
     assert partial_saturation._catalog_entry_is_mancude(smiles) is mancude
 
 
-#: a descriptor of a skeleton the catalogue holds under a retained name, with no =X group
-#: (a tautomer the catalogue does not hold): not the PIN:11628 "the PIN is
-#: 1H-pyrrolizine"; the PIN is '3H-purine', read back FULL by OPSIN 2.9.0); the default tier
-#: declines, best-effort keeps it.
+#: a skeleton the catalogue holds under a retained name, with no =X group (a tautomer the catalogue does not hold).
+#: (16) (:11595): purine, "special numbering, 7H-isomer shown; the PIN is 7H-purine"; the 3H
+#: tautomer is the retained name with its indicated hydrogen, '3H-purine', not the descriptor
+#: '4H-imidazo[4,5-d]pyrimidine' (OPSIN 2.9.0 reads both back to the input's full InChIKey). Until LO4b the builder
+#: had no purine parent (``TRADITIONAL_NUMBERING``: (a),:3227, purine keeps its numbering), so the default tier
+#: declined this row and best-effort kept the descriptor; both tiers now ship '3H-purine'.
 RETAINED_SKELETON_DESCRIPTORS = [
-    ("c1nc2cnc[nH]c2n1", "4H-imidazo[4,5-d]pyrimidine"),
+    ("c1nc2cnc[nH]c2n1", "4H-imidazo[4,5-d]pyrimidine", "3H-purine"),
 ]
 
 
 @pytest.mark.opsin_gate
-@pytest.mark.parametrize("smiles,name", RETAINED_SKELETON_DESCRIPTORS)
-def test_a_descriptor_of_a_retained_skeleton_without_a_group_stays_below_the_pin(smiles, name):
-    assert _row(smiles, "pin")["tier"] == "abstain"
-    best = _row(smiles, "best-effort")
-    assert (best.get("name"), best["tier"]) == (name, "systematic_verified"), best
+@pytest.mark.parametrize("smiles,descriptor,pin", RETAINED_SKELETON_DESCRIPTORS)
+def test_a_descriptor_of_a_retained_skeleton_without_a_group_is_replaced_by_the_retained_name(smiles, descriptor, pin):
+    from tests.support.rt_assert import name_is_rt_exact
+    assert name_is_rt_exact(descriptor, smiles) and name_is_rt_exact(pin, smiles)
+    for tier in ("pin", "best-effort"):
+        row = _row(smiles, tier)
+        assert (row.get("name"), row["tier"]) == (pin, "pin_verified"), row
 
 
 #: the 3H tautomer of pyrrolizine is held by the catalogue ('3H-pyrrolizine', with OPSIN

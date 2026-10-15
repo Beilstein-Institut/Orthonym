@@ -38,7 +38,7 @@ from ..perception.molcache import atoms_of  # audit 2026-09-03 (S2): per-call at
 from ..perception.molcache import inchikey_of
 from .ion_locants import cites_a_locant, name_neutral_ring_for_ion
 from .ring_cation_hydro import (hydro_ring_cation_name, hydro_ring_zwitterion_name, neutralized_cation,
-                                ring_numbering_tie_key, ring_stereo_prefix)
+                                ring_cation_locants, ring_numbering_tie_key, ring_stereo_prefix)
 
 # F- (DD3,: skeletal heteroatom-hydride anions named with the
 # -anide ending on the parent hydride. element -> the neutral parent-hydride
@@ -4472,7 +4472,7 @@ def _emit_ring_cumulative_suffix(mol, center_idx: int, suffix: str,
     # severs the centre's exocyclic bond(s) first (index-preserving via the
     # fragment's original-atom-index list) -- matching what the prior DEMOTE
     # code already proved for a BARE fused ring cation (1-methylquinolin-1-ium).
-    locants, _indicated_h = _charged_ring_locants(mol, ring_system, center_idx)
+    locants, _indicated_h = ring_cation_locants(mol, ring_system, center_idx)
     if locants is None:
         # (the Blue Book): the general/von-Baeyer supplier is blind to the
         # charge, so on a SYMMETRIC parent (both bridgehead N of
@@ -4674,27 +4674,21 @@ def _ring_cation_hydron_site_name(mol, center_idx: int, demoted: str) -> str:
     carries no hydrogen (``C[N+]1=CNc2ccccc21``) is the neutral N-substituted
     parent (1-methyl-1H-benzimidazole) plus a hydron at the ring NH (N-3):
     '1-methyl-1H-benzimidazol-3-ium'. The DEMOTE branch cites the '-ium' at the
-    drawn centre ('1-methyl-1H-benzimidazol-1-ium'), which puts the hydron on the
-    substituted N-1 -- a different cation, whose standard InChIKey is the same.
+    drawn centre ('1-methyl-1H-benzimidazol-1-ium'), a different cation with the same key.
 
-    Numbering, (the Blue Book): with the indicated hydrogen (b,:3246) and the
-    '-ium' suffix (c,:3256) at locants 1 and 3 either way, (f) (:3301,
-    "detachable alphabetized prefixes, all considered together") puts the
-    N-substituent at 1: '1-methyl-1H-imidazol-3-ium', not '3-methyl-1H-
-    imidazol-3-ium'; (:42219) on cation locants: "This is consistent
-    with the choice of lowest locants for corresponding neutral compounds (see
-    ." That is the numbering of the neutral parent, whose substituted ring
-    N is the indicated-hydrogen position.
+    Numbering, (the Blue Book): the indicated hydrogen (b,:3246) and the '-ium' (c,:3256)
+    are at locants 1 and 3 either way, (f) (:3301, "detachable alphabetized prefixes, all
+    considered together") puts the N-substituent at 1: '1-methyl-1H-imidazol-3-ium', not
+    '3-methyl-1H-imidazol-3-ium'; (:42219): "This is consistent with the choice of
+    lowest locants for corresponding neutral compounds (see."
 
-    When a ring atom other than the drawn centre carries the added hydron, the
-    candidates are, in order: the neutral parent with the '-ium' at each ring
-    locant (``_neutral_parent_ium_names``), the in-place composition at the
-    hydron's atom, the DEMOTE composition with the '-ium' at that atom's locant
-    (it keeps the substituent prefixes of a ring whose other groups are not
-    suffixes), and ``demoted`` itself; the first that reads back to ``mol`` with
-    the hydrons on the same atoms (``_cation_name_rt_ok``, fixed-H layer) is
-    returned, '' (decline) when none does. Without such an atom ``demoted`` is
-    returned unchanged."""
+    When another ring atom carries the added hydron, the candidates are, in order: the neutral
+    parent with the '-ium' at each ring locant (``_neutral_parent_ium_names``),
+    ``azolium_hydron_site_name`` (a ring with a principal group has no neutral-parent name), the
+    in-place composition at the hydron's atom, the DEMOTE composition with the '-ium' at that atom's
+    locant, and ``demoted``; the first that reads back to ``mol`` with the hydrons on the same atoms
+    (``_cation_name_rt_ok``, fixed-H layer) is returned, '' (decline) when none does. Without such
+    an atom ``demoted`` is returned unchanged."""
     ring_system = _ring_system_of(mol, center_idx)
     if ring_system is None:
         return demoted
@@ -4706,7 +4700,9 @@ def _ring_cation_hydron_site_name(mol, center_idx: int, demoted: str) -> str:
         return azolium_demote_name(mol, ring_system, center_idx) or demoted
     from .charged_router import _cation_name_rt_ok
     res, x = site
+    from .azolium_cations import azolium_hydron_site_name
     candidates = list(_neutral_parent_ium_names(res, x, ring_system))
+    candidates.append(azolium_hydron_site_name(res, ring_system, x))    # a ring with a principal group (LO9)
     in_place = _emit_ring_cumulative_suffix(res, x, 'ium')
     if in_place:
         candidates.append(in_place)
@@ -4727,8 +4723,8 @@ def _ring_cation_in_place_name(mol, center_idx: int, in_place: str) -> str:
     exocyclic substituent the in-place composition reads the '-ium' locant from
     another numbering than the parent name's ('1-methyl-1H-imidazol-1-ium'); when
     it does not read back to ``mol`` exactly, the neutral parent with the '-ium'
-    at each ring locant is tried ('1-methyl-1H-imidazol-3-ium'). ``in_place`` is
-    returned unchanged when it reads back exactly or no candidate does."""
+    at each ring locant is tried ('1-methyl-1H-imidazol-3-ium'), then ``azolium_hydron_site_name`` (a
+    ring with a principal group). ``in_place`` is returned when it reads back or no candidate does."""
     ring_system = _ring_system_of(mol, center_idx)
     from .azolium_cations import ring_has_other_nh_heteroatom
     if ring_system is None or not (_ring_has_off_ring_substituent(mol, ring_system)
@@ -4740,7 +4736,8 @@ def _ring_cation_in_place_name(mol, center_idx: int, in_place: str) -> str:
     for cand in _neutral_parent_ium_names(mol, center_idx, ring_system):
         if _cation_name_rt_ok(cand, mol):
             return cand
-    return in_place
+    from .azolium_cations import azolium_hydron_site_name       # a ring with a principal group (LO9)
+    return azolium_hydron_site_name(mol, ring_system, center_idx) or in_place
 
 
 def emit_ring_poly_cation_ium(mol, centers) -> str:
@@ -4821,8 +4818,7 @@ def emit_ring_poly_cation_ium(mol, centers) -> str:
     bare_rs = list(range(len(ring_sorted)))
     bare_centers = tuple(to_bare[c] for c in centers)
     bare_subst = {to_bare[i] for i in ring_system if exo[i]}
-    base, _ind = _charged_ring_locants(bare, bare_rs, bare_centers,
-                                       subst_atoms=bare_subst)
+    base, _ind = ring_cation_locants(mol, ring_system, bare_centers, bare, ring_sorted, bare_subst)
     if base is None:
         # Fused / bridged / spiro: the namer's own numbering of the bare parent,
         # then, among its automorphisms, the one giving the centres the lowest set.
@@ -4942,7 +4938,7 @@ def _p74_ring_substituent_groups(mol, ring_system, locants, skip_atoms):
     return groups
 
 
-def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms, p14_4_j_numbering=False):
+def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms):
     """Every exo substituent on ``ring_system``, locanted in the caller's ONE
     numbering, alphabetised into a ready-to-splice prefix string ('' when the ring
     is bare). Returns ``None`` to FAIL CLOSED.
@@ -4973,10 +4969,8 @@ def _p74_ring_substituent_prefix(mol, ring_system, locants, skip_atoms, p14_4_j_
     if not groups:
         return ''
     parts = []
-    # order; ``p14_4_j_numbering``: the numbering took (j) (``ring_numbering_tie_key``), so tokens of
-    # one key ('(1R)-1-hydroxyethyl', '(1S)-...') are cited R first; other callers keep atom order
-    tie = nu.prefix_citation_sort_key if p14_4_j_numbering else (lambda token: ())
-    for token in sorted(groups, key=lambda t: (nu.alpha_sort_key(t), tie(t))):
+    # order; tokens of one alphanumerical key ('(1R)-1-hydroxyethyl', '(1S)-...') are cited R first
+    for token in sorted(groups, key=lambda t: (nu.alpha_sort_key(t), nu.prefix_citation_sort_key(t))):
         locs = sorted(groups[token])
         parts.append(nu.format_substituent_prefix(token, locs, len(locs)))
     return '-'.join(parts)
@@ -5116,7 +5110,7 @@ def emit_zwitterion_ring_carboxylate(mol, cation_idx: int, anion_idx: int) -> st
     if cation_locant is None or carboxyl_locant is None:
         return ''
 
-    prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, carboxyl_atoms, p14_4_j_numbering=True)
+    prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, carboxyl_atoms)
     if prefix is None:
         return ''
     stem = _p74_bare_ring_stem(mol, ring_system, cation_idx)

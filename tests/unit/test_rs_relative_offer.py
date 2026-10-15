@@ -109,6 +109,46 @@ def test_labels_of_a_relative_name(smiles):
     assert row["source"] != "t4_floor", row
 
 
+@pytest.mark.parametrize("smiles,name,producer", [
+    ("O[C@H]1CC[C@@H](O)CC1", "cis-cyclohexane-1,4-diol", "inner:general_acyclic"),
+    ("O[C@H]1CC[C@H](O)CC1", "trans-cyclohexane-1,4-diol", "inner:general_acyclic"),
+    ("N[C@H]1CC[C@@H](C(=O)O)CC1", "cis-4-aminocyclohexane-1-carboxylic acid", "inner:ester_family"),
+])
+def test_a_relative_name_names_the_producer_of_the_name_it_was_made_from(smiles, name, producer):
+    # (the Blue Book): the cis/trans name is the conversion of the name with lowercase
+    # r/s that a producer built for the whole molecule,:48103), so the row names that
+    # producer (the per-call record, metrics/producer_trail). The default tier's row for the same
+    # molecule names the same producer: only the spelling of the stereodescriptor differs.
+    row = name_best_effort(smiles)
+    assert (row["name"], row["tier"], row["producer"]) == (name, "systematic_verified", producer), row
+    assert default_tier_row(smiles)["producer"] == producer
+
+
+def test_convert_pair_blocks_passes_the_producer_label_on():
+    # the conversion turns a name that a seam returned into another string: the label follows to
+    # every candidate (the senses of the block), and a name no seam returned gives no label
+    from orthonym.metrics import producer_trail as pt
+    from orthonym.rules.relative_stereo import convert_pair_blocks
+    name = "(1r,4r)-cyclohexane-1,4-diol"
+    smiles = "O[C@H]1CC[C@H](O)CC1"
+    mol = Chem.MolFromSmiles(smiles)
+    records = _records(name, smiles)
+    token = pt.open_trail(smiles)
+    try:
+        pt.noted("inner:general_acyclic", name, mol)
+        out = convert_pair_blocks(name, mol, records)
+        assert out == ["cis-cyclohexane-1,4-diol", "trans-cyclohexane-1,4-diol"], out
+        assert [pt.lookup(c) for c in out] == ["inner:general_acyclic"] * 2
+    finally:
+        pt.close_trail(token)
+    token = pt.open_trail(smiles)
+    try:
+        out = convert_pair_blocks(name, mol, records)              # no seam returned `name`
+        assert out and [pt.lookup(c) for c in out] == [None] * len(out)
+    finally:
+        pt.close_trail(token)
+
+
 def test_default_tier_keeps_its_r_s_name_and_label():
     # the default tier's emission rule is unchanged by the best-effort offer
     row = default_tier_row("O[C@H]1CC[C@H](O)CC1")

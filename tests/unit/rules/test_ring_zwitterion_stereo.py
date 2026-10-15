@@ -390,24 +390,22 @@ def test_prefixes_that_differ_only_in_a_descriptor_are_cited_r_first(smiles):
 
 
 @pytest.mark.parametrize("smiles,name", [
-    ("C[n+]1cc([C@H](C)O)cc([C@@H](C)O)c1", "3-[(1S)-1-hydroxyethyl]-5-[(1R)-1-hydroxyethyl]-1-methylpyridin-1-ium"),
-    ("C[n+]1cc([C@H](C)Cl)cc([C@@H](C)Cl)c1", "3-[(1S)-1-chloroethyl]-5-[(1R)-1-chloroethyl]-1-methylpyridin-1-ium"),
+    ("C[n+]1cc([C@H](C)O)cc([C@@H](C)O)c1", "3-[(1R)-1-hydroxyethyl]-5-[(1S)-1-hydroxyethyl]-1-methylpyridin-1-ium"),
+    ("C[n+]1cc([C@H](C)Cl)cc([C@@H](C)Cl)c1", "3-[(1R)-1-chloroethyl]-5-[(1S)-1-chloroethyl]-1-methylpyridin-1-ium"),
     ("C[C@H](O)C1CC([C@@H](C)O)C[N+](C)(C)C1",
-     "3-[(1S)-1-hydroxyethyl]-5-[(1R)-1-hydroxyethyl]-1,1-dimethylpiperidin-1-ium"),
+     "3-[(1R)-1-hydroxyethyl]-5-[(1S)-1-hydroxyethyl]-1,1-dimethylpiperidin-1-ium"),
     ("C[C@H](O)c1c([C@@H](C)O)[n+](C)cn1C",
-     "4-[(1S)-1-hydroxyethyl]-5-[(1R)-1-hydroxyethyl]-1,3-dimethyl-1H-imidazol-3-ium"),
-    ("C[C@H](O)c1sc[n+](C)c1[C@@H](C)O", "5-[(1S)-1-hydroxyethyl]-4-[(1R)-1-hydroxyethyl]-3-methyl-1,3-thiazol-3-ium"),
+     "4-[(1R)-1-hydroxyethyl]-5-[(1S)-1-hydroxyethyl]-1,3-dimethyl-1H-imidazol-3-ium"),
+    ("C[C@H](O)c1sc[n+](C)c1[C@@H](C)O", "4-[(1R)-1-hydroxyethyl]-5-[(1S)-1-hydroxyethyl]-3-methyl-1,3-thiazol-3-ium"),
     ("C[C@H](Cl)C1=C[NH+](C)CC([C@@H](C)Cl)=C1",
-     "5-[(1S)-1-chloroethyl]-3-[(1R)-1-chloroethyl]-1-methyl-1,2-dihydropyridin-1-ium"),
+     "3-[(1R)-1-chloroethyl]-5-[(1S)-1-chloroethyl]-1-methyl-1,2-dihydropyridin-1-ium"),
 ])
-def test_other_ring_cation_producers_keep_the_order_they_had(smiles, name):
-    """The citation order by / (j) (R first, the previous test) belongs to the zwitterion producer,
-    whose numbering applies (j) (``ring_numbering_tie_key``). The plain ring-cation, azolium and hydro-ring
-    cation producers share ``_p74_ring_substituent_prefix`` but number a tie by canonical rank or by their own
-    supplier, so citing R first put the prefix at the higher locant ('5-[(1R)-...]-3-[(1S)-...]') and the spelling
-    check refused it: 'prefix hydroxyethyl [5] > [3]'): the default tier lost a ``pin_verified`` name for the
-    first three rows, the best-effort tier fell to ``systematic_verified``, and the other rows changed spelling.
-    These producers keep the names they had, at every tier, read back exactly. The names are pinned as the
-    producers' unchanged output, NOT asserted to be the PIN: some of them cite the higher locant first or put S at
-    the lower locant, which (j) would number the other way (left, see the lane record)."""
+def test_other_ring_cation_producers_cite_r_first_and_number_by_p14_4_j(smiles, name):
+    """The plain ring-cation, azolium and hydro-ring cation producers share ``_p74_ring_substituent_prefix`` with the
+    zwitterion producer. They used to cite the tied tokens in the order of the atoms ('3-[(1S)-...]-5-[(1R)-...]' or
+    '5-[(1S)-...]-3-[(1R)-...]' by the way the SMILES was written) and to number a symmetric ring by the canonical
+    rank. Now the tokens are cited R first,:22603) and a ring whose numbering is open takes the R prefix
+    at the lower locant (j),:3346; '1-[(2R)-butan-2-yl]-3-[(2S)-butan-2-yl]benzene (PIN)',:3399), as the
+    zwitterion emitter does. Each name is ``pin_verified`` at every tier and read back exactly; the many-spelling and
+    many-ring evidence is in test_ring_cation_prefix_citation.py."""
     _named_at_both_tiers(smiles, name)
