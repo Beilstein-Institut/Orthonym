@@ -82,21 +82,44 @@ def test_is_refusal_sentinel_reuses_is_failure_name():
 
 
 @pytest.mark.parametrize("smiles", [
-    "CCS[Zn]SCC",     # the reported case: 'zinc compound (not supported)ylethane'
-    "CCS[Hg]SCC",
+    "CCS[Hg]SCC",     # the reported case with a metal that is not yet named: 'mercury compound (not supported)ylethane'
     "CCS[Cd]SCC",
-    "CCS[Zn]SC",
 ])
 def test_a_refusal_sentinel_is_never_welded_into_a_name(ungated_namer, smiles):
     """The reported defect: a refusal string given a '-yl' ending and consumed as
     a substituent prefix. Every "did I get a non-empty string?" caller read that
     as success.
+
+    The witnesses are the mercury and cadmium thiolates: zinc is named through its ionic
+    drawing (``test_a_zinc_thiolate_is_named_through_its_ionic_drawing``), so the molecules that
+    keep the refusal are those of the metals that are not admitted to the scope table yet
+    (``data/metal_scope.py``).
     """
-    out = ungated_namer.name(smiles)
+    out = ungated_namer.name(smiles, on_failure="label")
     assert is_refusal_sentinel(out), f"{smiles} must refuse, got {out!r}"
+    assert out, f"{smiles}: the label is asked for, an empty string would pass the checks below by itself"
     for token in _SENTINEL_SUBSTRINGS:
         assert not out.lower().endswith(f"{token}ylethane")
     assert "(not supported)yl" not in out
+
+
+@pytest.mark.parametrize("smiles, expected", [
+    ("CCS[Zn]SCC", "zinc diethanethiolate"),
+    ("CCS[Zn]SC", "zinc ethanethiolate methanethiolate"),
+])
+def test_a_zinc_thiolate_is_named_through_its_ionic_drawing(ungated_namer, smiles, expected):
+    """The molecule that was refused as 'zinc compound (not supported)ylethane' is a zinc
+    thiolate drawn with covalent bonds: it is named through its ionic drawing
+    (``assembly.metal_offer.metal_disconnected_spelling_and_order``), the name reads back to the standard
+    InChIKey of the drawing as given (an independent OPSIN call, because this namer has the gate
+    off) and no refusal sentinel is welded into it."""
+    from tests.support.rt_assert import assert_full_rt
+    out = ungated_namer.name(smiles)
+    assert out == expected
+    assert not is_refusal_sentinel(out)
+    for token in _SENTINEL_SUBSTRINGS:
+        assert token not in out.lower()
+    assert_full_rt(out, smiles)
 
 
 def test_the_refusal_is_not_replaced_by_a_structure_dropping_name(ungated_namer):
@@ -104,13 +127,13 @@ def test_the_refusal_is_not_replaced_by_a_structure_dropping_name(ungated_namer)
 
     Refusing the sentinel at the recursion chokepoint exposed THREE carbon-count
     fallbacks that name a fragment by counting its carbons and discarding
-    everything else, so CCS[Zn]SCC went from the visibly-broken
-    'zinc compound (not supported)ylethane' to 'ethane' — a name for a DIFFERENT
+    everything else, so CCS[Hg]SCC (then CCS[Zn]SCC) went from the visibly-broken
+    'mercury compound (not supported)ylethane' to 'ethane' — a name for a DIFFERENT
     molecule that no failure predicate can flag, i.e. strictly worse. The
     refusal must survive all the way out.
     """
-    out = ungated_namer.name("CCS[Zn]SCC", on_failure="label")
-    assert out == "zinc compound (not supported)"
+    out = ungated_namer.name("CCS[Hg]SCC", on_failure="label")
+    assert out == "mercury compound (not supported)"
     assert out not in ("ethane", "ethylethane", "diethyl sulfide")
 
 
@@ -136,7 +159,7 @@ def test_carbon_count_fallback_refuses_a_heteroatom_bearing_fragment():
 
 @pytest.mark.parametrize("smiles", [
     # broad invariant corpus: refusal-prone inputs mixed with ordinary ones
-    "CCS[Zn]SCC", "CCS[Hg]SCC", "CCO[Zn]OCC", "CCS[Cd]SCC", "CC[Ti](C)(C)C",
+    "CCS[Zn]SCC", "CCS[Zn]SC", "CCS[Hg]SCC", "CCO[Zn]OCC", "CCS[Cd]SCC", "CC[Ti](C)(C)C",
     "CCO", "CC(=O)O", "CCCCC", "c1ccccc1", "c1ccccc1CC", "CCOCC",
     "CC(=O)OCC", "CC(C)(C)c1ccccc1", "CC(C)(C)[Zn]C(C)(C)C", "C[Zn]C",
     "CC[Pb](CC)(CC)CC", "CC(C)(C)ONC", "CNOC", "[Na+].CC(=O)[O-]",

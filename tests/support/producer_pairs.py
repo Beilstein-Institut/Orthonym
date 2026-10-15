@@ -3,9 +3,11 @@
 Every pair is the first seam (deepest builder) that returned the shipped string, read from a trace
 in a fresh process with the OPSIN validity gate on (the shipped configuration).
 
-Rows owned by another lane (metals, carbon-free species and atoms, lowercase r/s centres) are not
-used: a lane that merges first could move such a row to another producer. One producer has no
-organic positive and keeps metal rows: table:coordination (the list is of metal complexes).
+Rows owned by another lane (carbon-free species of the other metals, lowercase r/s centres) are not
+used: a lane that merges first could move such a row to another producer. Two groups keep metal
+rows: table:coordination (the list is of metal complexes) and the zinc rows of the metal lane
+(``ZINC``): the lane's new producers (the metal atom class, the other drawing of a metal drawing, the
+dative split) report through the seams that call them, and a pair of each pins the id.
 """
 # 13C and 18O labels on an ester: the engine builds a name, OPSIN reads it as ambiguous, so the default
 # tier declines it (NO_VERIFIED_PIN; tests/unit/opsin_ambiguity/test_amb7_ambiguity_gate.py)
@@ -39,6 +41,27 @@ STEREO_COMPOSED = [
     ("O=C1Nc2ccccc2/C1=C1/Nc2ccccc2/C1=N\\O", "best-effort", "engine:t4"),
     ("O=C1N=C(O)/C(=C2\\C=C(O)C(=O)N=C2O)C=C1O", "best-effort", "engine:general"),
     ("C1O[C@H]1[C@H]1CO1", "best-effort", "inner:ring_assembly"),
+]
+
+# The zinc rows of the metal lane (ZN). The producers it added sit under the seams of the outer classes:
+# the class METAL_ATOM (the atom, an ion), the organometallic and salt classes (the drawing as written, and
+# the other drawing that ``assembly/metal_offer.py`` offers: the ionic drawing of a bonded one, the bonded
+# drawing of an organometallic cation beside its anion, the drawing of a dative one without its dative
+# bonds), the isotope step (a labelled atom) and the multi-component recovery (an ammine). Each id was
+# read from a trace of the panel ``tests/fixtures/zinc/panel_pairs.tsv`` with the gate on; a name that the
+# offer finds is the name of a string that the producer of that class built, so the id is the class's.
+ZINC = [
+    ("[Cl-].[Cl-].[Zn+2]", "pin", "outer:salt"),                    # the strict path names the ions
+    ("Cl[Zn]Cl", "best-effort", "outer:salt"),                       # the ionic drawing of a bonded one
+    ("CC[Zn]CC", "best-effort", "outer:organometallic"),
+    ("[Cl-].[Zn+]c1ccccc1", "best-effort", "outer:organometallic"),  # the bonded drawing of a cation beside its anion
+    ("[CH3-].[CH3-].[Zn+2]", "best-effort", "outer:salt"),           # a carbanion salt
+    ("[Zn]", "best-effort", "outer:metal_atom"),
+    ("[Zn+2]", "best-effort", "outer:metal_atom"),
+    ("[65Zn]", "best-effort", "isotope"),
+    ("C1=CC2=NC1=Cc1ccc3[n]1[Zn][n]1c(ccc1=CC1=NC(=C3)C=C1)=C2", "best-effort", "outer:salt"),  # dative porphyrin
+    ("[Zn+2].N.N.N.N", "best-effort", "multifragment"),               # the ammine
+    ("CC[Zn]CC.CN(C)CCN(C)C", "best-effort", "outer:multi_component_neutral"),
 ]
 
 PAIRS = [
@@ -105,4 +128,6 @@ PAIRS = [
     ("C[C@@H]1CCC2C(C)(C)[C@H](O)CC[C@]2(C)[C@@]12Cc1c(O)cc3c(c1O2)CNC3=O", "best-effort", "engine:t4"),
     # the stereo of the input composed onto the string of a producer
     *STEREO_COMPOSED,
+    # the zinc rows of the metal lane
+    *ZINC,
 ]

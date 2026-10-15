@@ -201,6 +201,32 @@ LIGAND_NAMES: Dict[str, str] = {
 }
 
 
+# === TERMINAL LIGAND PREFIXES (the ligands of a metal admitted to BONDED_NAMES) ===
+# (element symbol, order of the bond to the metal, number of hydrogens on the atom) -> the
+# substituent prefix that names a ligand that is one terminal atom: no other neighbour, no
+# charge, no radical, no isotope. Definitions of terms (the Blue Book): "Because
+# of a long established tradition, names for substituent groups as defined in Section
+# can also be used as ligand names." (the 'ido' names of the same section, 'hydroxido', 'oxido',
+# are not read by OPSIN 2.9.0). Compounds with at least one metal-carbon single bond
+# (:39785): "The presence of hydrogen attached to a metal atom must always be indicated by the
+# prefix 'hydrido'"; the hydrogens of the metal atom are counted by the producer, so the row
+# ('H', 1, 0) names a hydrogen atom that is a neighbour of its own.
+# hydroxy: Substitutive nomenclature, prefix mode (:27255), "Hydroxy groups are
+# indicated by the prefix 'hydroxy'"; sulfanyl: Sulfur, selenium, and tellurium
+# analogues of hydroxy compounds (:27274), preselected prefix,:7609); amino:
+# (:26298), "the prefix 'amino' is used in preferred IUPAC names"; oxo: INTRODUCTION
+# (:28234), "the prefix 'oxo'"; sulfanylidene: (:29504), "=S '-thione' and
+# 'sulfanylidene' (preferred to 'thioxo')".
+TERMINAL_LIGAND_PREFIXES: Dict[Tuple[str, int, int], str] = {
+    ('H', 1, 0): 'hydrido',
+    ('O', 1, 1): 'hydroxy',
+    ('S', 1, 1): 'sulfanyl',
+    ('N', 1, 2): 'amino',
+    ('O', 2, 0): 'oxo',
+    ('S', 2, 0): 'sulfanylidene',
+}
+
+
 # === LIGAND ETA DEFAULTS (per RESEARCH; AUDIT) ===
 # SMARTS-canonical-key → (default_hapticity, ligand_name) per Salzer 1999.
 LIGAND_ETA_DEFAULTS: Dict[str, Tuple[int, str]] = {
@@ -255,6 +281,7 @@ __all__ = [
     'METAL_NAMES',
     'METAL_HYDRIDE_PARENT_NAMES',
     'LIGAND_NAMES',
+    'TERMINAL_LIGAND_PREFIXES',
     'LIGAND_ETA_DEFAULTS',
     'METALLACYCLE_A_PREFIX',
     'get_retained_metallocene_name',

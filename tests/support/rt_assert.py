@@ -85,6 +85,35 @@ def _full_inchikey(smi):
     return inchi.MolToInchiKey(m) if m is not None else ""
 
 
+_DATIVE_TYPES = (Chem.BondType.DATIVE, Chem.BondType.DATIVEONE,
+                 Chem.BondType.DATIVEL, Chem.BondType.DATIVER)
+
+
+def smiles_without_dative_bonds(smiles: str):
+    """RDKit's SMILES of ``smiles`` with every dative bond removed (the donor keeps its lone pair
+    and its hydrogens, the acceptor its charge; no charge moves), or None when ``smiles`` has no
+    dative bond or does not parse. RDKit gives a drawing with dative bonds no InChIKey, so the
+    full key of this drawing is the reference key of the read-back of such an input. Written here
+    with RDKit alone: it shares no code with ``assembly.metal_offer``, whose split it checks."""
+    mol = Chem.MolFromSmiles(smiles) if smiles else None
+    if mol is None:
+        return None
+    dative = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in mol.GetBonds()
+              if b.GetBondType() in _DATIVE_TYPES]
+    if not dative:
+        return None
+    rw = Chem.RWMol(mol)
+    for idx in {i for pair in dative for i in pair}:
+        atom = rw.GetAtomWithIdx(idx)
+        atom.SetNumExplicitHs(atom.GetTotalNumHs())
+        atom.SetNoImplicit(True)
+    for a, b in dative:
+        rw.RemoveBond(a, b)
+    out = rw.GetMol()
+    Chem.SanitizeMol(out)
+    return Chem.MolToSmiles(out)
+
+
 def name_is_rt_exact(name: str, smiles: str) -> bool:
     """True iff OPSIN parses ``name`` back to the input's FULL standard InChIKey
     (constitution + stereo + charge + isotope layers) AND to the same radical graph.
@@ -98,13 +127,19 @@ def name_is_rt_exact(name: str, smiles: str) -> bool:
     mobile, so 'N-methyl-3-(methylamino)propanamidium' shares the key of the
     protonated amine C[NH2+]CCC(=O)NC. When both sides carry a protonated atom,
     ``protonation_site_verdict`` (validation/protonation_identity.py) compares
-    the fixed-H InChIs."""
+    the fixed-H InChIs. A drawing with dative bonds has no key: it is read back
+    against the key of the same drawing without those bonds."""
     from orthonym.validation.protonation_identity import protonation_site_verdict
     from orthonym.validation.radical_identity import radical_identity_verdict
     if not name:
         return False
     opsin_smi = _independent_parse(name)
     key = _full_inchikey(smiles)
+    if not key:
+        # a drawing with dative bonds has no key: the drawing without them has (decision 1 of
+        # the zinc plan, 2026-10-13); every other drawing without a key is never read back
+        smiles = smiles_without_dative_bonds(smiles) or smiles
+        key = _full_inchikey(smiles)
     if not (opsin_smi and key and _full_inchikey(opsin_smi) == key):
         return False
     return (radical_identity_verdict(smiles, opsin_smi) != "mismatch"

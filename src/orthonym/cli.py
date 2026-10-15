@@ -374,14 +374,14 @@ def main(args: List[str] = None) -> int:
             "stereodescriptors were not confirmed by OPSIN), identity (a name from "
             "an exact-match list: a metal-complex name found by the input's exact "
             "InChIKey, or a natural-product parent name found by its exact "
-            "structure; OPSIN cannot read these names) or unverified (no "
-            "read-back recorded). 'gate_outcome' says what the final OPSIN check "
-            "did, for example self_consistency_verified, suppressed, not_run or "
-            "carveout:<class>. 'spelling_failures' lists the spelling rules of the "
-            "PIN (rule id and detail) that a name in PIN form breaks, and the rule "
-            "of a recorded non-PIN part that lowered the name; such a name is "
-            "not labelled pin_verified, and pin declines it. One SMILES at a time; "
-            "not with --batch."
+            "structure; OPSIN cannot read these names), opsin_split (read back to the input "
+            "without its dative bonds, which the drawing as given has no key for) or unverified "
+            "(no read-back recorded). 'gate_outcome' says what the final OPSIN check did, for "
+            "example self_consistency_verified, suppressed, not_run or carveout:<class>. "
+            "'spelling_failures' lists the spelling rules of the PIN (rule id and detail) that a "
+            "name in PIN form breaks, and the rule of a recorded non-PIN part that lowered the "
+            "name; such a name is not labelled pin_verified, and pin declines it. One SMILES at a "
+            "time; not with --batch."
         ),
     )
     parser.add_argument(

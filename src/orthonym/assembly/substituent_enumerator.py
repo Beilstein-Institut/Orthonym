@@ -1048,10 +1048,15 @@ def _substituent_memo_key(mol, frag_atoms, attach_idx, allow_mancude,
        never a wrong-descriptor hit.
 
     Returns ``None`` to SKIP caching (fail-open -- a miss can never corrupt) when
-    the canonical atom output-order prop is unavailable; the caller treats a
-    raised exception the same way.
+    the canonical atom output-order prop is unavailable, or when the fragment is
+    rooted at an atom of a molecule that has more than one fragment (RDKit
+    refuses that, "rootedAtAtom can only be used with molecules that have a single
+    fragment", and logs the refusal on every call: the question is asked here, so
+    it is not put to RDKit); the caller treats a raised exception the same way.
     """
     attach_in_frag = attach_idx in frag_atoms
+    if attach_in_frag and len(Chem.GetMolFrags(mol)) > 1:
+        return None
     smi = Chem.MolFragmentToSmiles(
         mol, atomsToUse=sorted(frag_atoms),
         rootedAtAtom=(attach_idx if attach_in_frag else -1),

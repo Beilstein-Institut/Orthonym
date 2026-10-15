@@ -221,6 +221,12 @@ _NON_PIN_LABEL_RULES = contextvars.ContextVar(
 # rule as the labels above.
 _UNCERTIFIED_PIN_NAMES = contextvars.ContextVar(
     "orthonym_prov_uncertified_pin_names", default=())
+# ZN10: names that were read back to the drawing of the input without its dative bonds, not to the
+# drawing as written (``record_verified_through_split``): RDKit gives a drawing with dative bonds no
+# InChIKey, so the key of the drawing without them is the reference. A name-scoped tuple, like the
+# uncertified PIN names, with the same lifetime and roll-back rule.
+_SPLIT_VERIFIED_NAMES = contextvars.ContextVar(
+    "orthonym_prov_split_verified_names", default=())
 # Branch review fixes (2026-09-28): the shipped name was built by the PIN tier's
 # promotion re-run (``Orthonym._name_with_pin_promotion``), i.e. with a best-effort
 # composition producer admitted under the PIN-vocabulary guard. Such a name is not
@@ -322,7 +328,7 @@ def clear_provenance() -> None:
     _touch("source", "opsin", "stereo_unexpressed", "gate_outcome",
            "gate_outcome_name", "general_ring_prefix", "suffix_free_prefix_name",
            "non_pin_fragments", "pin_promotion_rerun", "non_pin_labels",
-           "non_pin_label_rules", "uncertified_pin_names")
+           "non_pin_label_rules", "uncertified_pin_names", "split_verified_names")
     _SOURCE.set(None)
     _OPSIN.set(None)
     _STEREO_UNEXPRESSED.set(False)
@@ -341,6 +347,7 @@ def clear_provenance() -> None:
     _NON_PIN_LABELS.set(())
     _NON_PIN_LABEL_RULES.set(())
     _UNCERTIFIED_PIN_NAMES.set(())
+    _SPLIT_VERIFIED_NAMES.set(())
 
 
 def restore_provenance(snapshot: dict) -> None:
@@ -386,10 +393,13 @@ def restore_provenance(snapshot: dict) -> None:
     _kept_unc = tuple(snapshot.get("uncertified_pin_names") or ())
     _UNCERTIFIED_PIN_NAMES.set(_kept_unc + tuple(
         f for f in _UNCERTIFIED_PIN_NAMES.get() if f not in _kept_unc))
+    _kept_split = tuple(snapshot.get("split_verified_names") or ())
+    _SPLIT_VERIFIED_NAMES.set(_kept_split + tuple(
+        f for f in _SPLIT_VERIFIED_NAMES.get() if f not in _kept_split))
     _touch("source", "opsin", "stereo_unexpressed", "gate_outcome",
            "gate_outcome_name", "general_ring_prefix", "suffix_free_prefix_name",
            "non_pin_fragments", "pin_promotion_rerun", "non_pin_labels",
-           "non_pin_label_rules", "uncertified_pin_names")
+           "non_pin_label_rules", "uncertified_pin_names", "split_verified_names")
 
 
 class isolated_provenance:
@@ -411,7 +421,7 @@ class isolated_provenance:
 
     _VARS = (_SOURCE, _OPSIN, _STEREO_UNEXPRESSED, _GATE_OUTCOME, _GATE_OUTCOME_NAME,
              _GENERAL_RING_PREFIX, _SUFFIX_FREE_PREFIX_NAME, _NON_PIN_FRAGMENTS,
-             _PIN_PROMOTION_RERUN, _NON_PIN_LABELS, _UNCERTIFIED_PIN_NAMES)
+             _PIN_PROMOTION_RERUN, _NON_PIN_LABELS, _UNCERTIFIED_PIN_NAMES, _SPLIT_VERIFIED_NAMES)
 
     def __enter__(self):
         self._values = [(var, var.get()) for var in self._VARS]
@@ -612,6 +622,29 @@ def record_uncertified_pin_name(name: str) -> None:
     _touch("uncertified_pin_names")
 
 
+def record_verified_through_split(name: str) -> None:
+    """Record that ``name`` was read back to the drawing of the input without its dative bonds
+    (``assembly.metal_offer``), not to the drawing as written. ``verified_field`` then reports
+    ``opsin_split`` for the name in place of ``opsin``."""
+    if not name:
+        return
+    cur = _SPLIT_VERIFIED_NAMES.get()
+    if name not in cur:
+        _SPLIT_VERIFIED_NAMES.set(cur + (name,))
+    _touch("split_verified_names")
+
+
+def verified_field(verified: str, prov: dict, name: Optional[str]) -> str:
+    """The ``verified`` field of a row: ``opsin`` becomes ``opsin_split`` for a name recorded by
+    :func:`record_verified_through_split` (OPSIN read the whole name back to the drawing of the
+    input without its dative bonds, whose standard InChIKey is the reference, and an independent
+    count of atoms and charges ties that drawing to the input); every other value is unchanged."""
+    _log_non_pin(PROVENANCE_READ)
+    if verified == "opsin" and name and name in (prov.get("split_verified_names") or ()):
+        return "opsin_split"
+    return verified
+
+
 def record_derived_uncertified_pin_name(source: str, derived: str) -> None:
     """Record ``derived`` as an uncertified PIN-form name when ``source`` contains a
     recorded one: a name built from ``source`` by a splice that leaves every locant of
@@ -688,4 +721,5 @@ def get_provenance() -> dict:
         "non_pin_labels": _NON_PIN_LABELS.get(),
         "non_pin_label_rules": _NON_PIN_LABEL_RULES.get(),
         "uncertified_pin_names": _UNCERTIFIED_PIN_NAMES.get(),
+        "split_verified_names": _SPLIT_VERIFIED_NAMES.get(),
     }

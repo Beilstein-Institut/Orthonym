@@ -1,0 +1,88 @@
+id	class	drawing	smiles	input_key	reference_name	family	metal
+A1	organozinc	bonded	CC[Zn]CC	HQWPLXHWEZZGKY-UHFFFAOYSA-N	diethylzinc	SUBST	Zn
+A1	organozinc	ionic	[CH2-]C.[CH2-]C.[Zn+2]	IPSRAFUHLHIWAR-UHFFFAOYSA-N	zinc diethanide	SALT	Zn
+A2	organozinc	bonded	c1ccccc1[Zn]c1ccccc1	MKRVHLWAVKJBFN-UHFFFAOYSA-N	diphenylzinc	SUBST	Zn
+A2	organozinc	ionic	[c-]1ccccc1.[c-]1ccccc1.[Zn+2]	BUNROVZNGITPIX-UHFFFAOYSA-N	zinc dibenzenide	SALT	Zn
+A3	organozinc	bonded	Cl[Zn]c1ccccc1	VFHDCDDYMMQCBF-UHFFFAOYSA-M	chloro(phenyl)zinc	SUBST	Zn
+A3	organozinc	ionic	[Cl-].[Zn+]c1ccccc1	VFHDCDDYMMQCBF-UHFFFAOYSA-M	chloro(phenyl)zinc	SUBST	Zn
+A4	organozinc	bonded	CCOC(=O)C[Zn]Br	JRTBZDWNNONAGI-UHFFFAOYSA-M	bromo(2-ethoxy-2-oxoethyl)zinc	SUBST	Zn
+A5	organozinc	bonded	I[Zn]CI	IVHZANOQGCIPSI-UHFFFAOYSA-M	iodo(iodomethyl)zinc	SUBST	Zn
+A6	organozinc	bonded	Fc1c(F)c(F)c([Zn]c2c(F)c(F)c(F)c(F)c2F)c(F)c1F	RKAUXNIMJYZJDE-UHFFFAOYSA-N	bis(pentafluorophenyl)zinc	SUBST	Zn
+A7	organozinc	bonded	C[Zn]C	AXAZMDOAUQTMOW-UHFFFAOYSA-N	dimethylzinc	SUBST	Zn
+A7	organozinc	ionic	[CH3-].[CH3-].[Zn+2]	JRPGMCRJPQJYPE-UHFFFAOYSA-N	zinc dimethanide	SALT	Zn
+A8	organozinc	two fragments	CC[Zn]CC.CN(C)CCN(C)C	WEJVDVKODNBLJX-UHFFFAOYSA-N	diethylzinc—N,N,N',N'-tetramethylethane-1,2-diamine (1/1)	ADD	Zn
+B1	halide	ionic	[Cl-].[Cl-].[Zn+2]	JIAARYAFYJHUJI-UHFFFAOYSA-L	zinc dichloride	SALT	Zn
+B1	halide	bonded	Cl[Zn]Cl	JIAARYAFYJHUJI-UHFFFAOYSA-L	zinc dichloride	SALT	Zn
+B1b	halide	ionic	[Br-].[Br-].[Zn+2]	VNDYJBBGRKZCSX-UHFFFAOYSA-L	zinc dibromide	SALT	Zn
+B2	oxide	ionic	[O-2].[Zn+2]	RNWHGQJWIACOKP-UHFFFAOYSA-N	zinc oxide	SALT	Zn
+B2	oxide	bonded	O=[Zn]	XLOMVQKBTHCTTD-UHFFFAOYSA-N	oxozinc	SUBST	Zn
+B3	hydroxide	ionic	[OH-].[OH-].[Zn+2]	UGZADUVQMDAIAO-UHFFFAOYSA-L	zinc dihydroxide	SALT	Zn
+B3	hydroxide	bonded	O[Zn]O	UGZADUVQMDAIAO-UHFFFAOYSA-L	zinc dihydroxide	SALT	Zn
+B4	sulfide	ionic	[S-2].[Zn+2]	DRDVZXDWVBGGMH-UHFFFAOYSA-N	zinc sulfide	SALT	Zn
+B4	sulfide	bonded	S=[Zn]	WGPCGCOKHWGKJJ-UHFFFAOYSA-N	sulfanylidenezinc	SUBST	Zn
+B5	sulfate	ionic	[O-]S(=O)(=O)[O-].[Zn+2]	NWONKYPBYAMBJT-UHFFFAOYSA-L	zinc sulfate	SALT	Zn
+B5	sulfate	bonded	O=S1(=O)O[Zn]O1	NWONKYPBYAMBJT-UHFFFAOYSA-L	zinc sulfate	SALT	Zn
+B6	nitrate	ionic	[O-][N+](=O)[O-].[O-][N+](=O)[O-].[Zn+2]	ONDPHDOFVYQSGI-UHFFFAOYSA-N	zinc dinitrate	SALT	Zn
+B6	nitrate	bonded	[O-][N+](=O)O[Zn]O[N+](=O)[O-]	ONDPHDOFVYQSGI-UHFFFAOYSA-N	zinc dinitrate	SALT	Zn
+B7	carbonate	ionic	[O-]C(=O)[O-].[Zn+2]	FMRLDPWIRHBCCC-UHFFFAOYSA-L	zinc carbonate	SALT	Zn
+B7	carbonate	bonded	O=C1O[Zn]O1	FMRLDPWIRHBCCC-UHFFFAOYSA-L	zinc carbonate	SALT	Zn
+B8	cyanide	ionic	[C-]#N.[C-]#N.[Zn+2]	GTLDTDOJJJZVBW-UHFFFAOYSA-N	zinc dicyanide	SALT	Zn
+B8	cyanide	bonded	N#C[Zn]C#N	VJHHEOJUJAQMPF-UHFFFAOYSA-N	dicyanozinc	SUBST	Zn
+B9	hydride	ionic	[H-].[H-].[Zn+2]	BSDVKYDHDPXIIG-UHFFFAOYSA-N	zinc dihydride	SALT	Zn
+B9	hydride	bonded	[ZnH2]	ZULTYUIALNTCSA-UHFFFAOYSA-N	dihydridozinc	RB	Zn
+B10	element	atom	[Zn]	HCHKCACWOHOZIP-UHFFFAOYSA-N	zinc	ION	Zn
+B10	cation	ion	[Zn+2]	PTFCDOFLOPIGGS-UHFFFAOYSA-N	zinc(2+)	ION	Zn
+B11	chlorozincate	ionic	[Na+].[Na+].[Cl-].[Cl-].[Cl-].[Cl-].[Zn+2]	BYDZLXHUMJSXCP-UHFFFAOYSA-J	disodium zinc tetrachloride	SALT	Zn
+B11	chlorozincate	bonded	[Na+].[Na+].Cl[Zn-2](Cl)(Cl)Cl	BYDZLXHUMJSXCP-UHFFFAOYSA-J	disodium zinc tetrachloride	SALT	Zn
+B11	chlorozincate	bare anion	Cl[Zn-2](Cl)(Cl)Cl	PZVVXRYHDITUNJ-UHFFFAOYSA-J	tetrachlorozinc(2-)	SUBST	Zn
+B12	hydrate	ionic	O.O.O.O.O.O.O.[O-]S(=O)(=O)[O-].[Zn+2]	RZLVQBNCHSJZPX-UHFFFAOYSA-L	zinc sulfate heptahydrate	HYD	Zn
+C1	carboxylate	ionic	CC(=O)[O-].CC(=O)[O-].[Zn+2]	DJWUNCQRNNEAKC-UHFFFAOYSA-L	zinc diacetate	SALT	Zn
+C1	carboxylate	bonded	CC(=O)O[Zn]OC(C)=O	DJWUNCQRNNEAKC-UHFFFAOYSA-L	zinc diacetate	SALT	Zn
+C2	carboxylate	ionic	[O-]C(=O)c1ccccc1.[O-]C(=O)c1ccccc1.[Zn+2]	JDLYKQWJXAQNNS-UHFFFAOYSA-L	zinc dibenzoate	SALT	Zn
+C3	carboxylate	ionic	CCCCC(CC)C(=O)[O-].CCCCC(CC)C(=O)[O-].[Zn+2]	IFNXAMCERSVZCV-UHFFFAOYSA-L	zinc bis(2-ethylhexanoate)	SALT	Zn
+C4	carboxylate	ionic	CCCCCCCCCCCCCCCCCC(=O)[O-].CCCCCCCCCCCCCCCCCC(=O)[O-].[Zn+2]	XOOUIPVCVHRTMJ-UHFFFAOYSA-L	zinc dioctadecanoate	SALT	Zn
+C5	carboxylate	ionic	C[C@H](O)C(=O)[O-].C[C@H](O)C(=O)[O-].[Zn+2]	CANRESZKMUPMAE-CEOVSRFSSA-L	zinc bis[(2S)-2-hydroxypropanoate]	SALT	Zn
+C6	carboxylate	ionic	OC(CC(=O)[O-])(CC(=O)[O-])C(=O)[O-].OC(CC(=O)[O-])(CC(=O)[O-])C(=O)[O-].[Zn+2].[Zn+2].[Zn+2]	WGIWBXUNRXCYRA-UHFFFAOYSA-H	trizinc bis(2-hydroxypropane-1,2,3-tricarboxylate)	SALT	Zn
+C7	alkoxide	ionic	CC[O-].CC[O-].[Zn+2]	WXKZSTUKHWTJCF-UHFFFAOYSA-N	zinc diethoxide	SALT	Zn
+C7	alkoxide	bonded	CCO[Zn]OCC	WXKZSTUKHWTJCF-UHFFFAOYSA-N	zinc diethoxide	SALT	Zn
+C8	thiolate	ionic	[S-]c1ccccc1.[S-]c1ccccc1.[Zn+2]	SCHDJHHECFNURF-UHFFFAOYSA-L	zinc bis(benzenethiolate)	SALT	Zn
+C8	thiolate	bonded	c1ccccc1S[Zn]Sc1ccccc1	SCHDJHHECFNURF-UHFFFAOYSA-L	zinc bis(benzenethiolate)	SALT	Zn
+C9	dithiocarbamate	ionic	CN(C)C(=S)[S-].CN(C)C(=S)[S-].[Zn+2]	DUBNHZYBDBBJHD-UHFFFAOYSA-L	zinc bis(dimethylcarbamodithioate)	SALT	Zn
+C9	dithiocarbamate	bonded	CN(C)C(=S)S[Zn]SC(=S)N(C)C	DUBNHZYBDBBJHD-UHFFFAOYSA-L	zinc bis(dimethylcarbamodithioate)	SALT	Zn
+C10	acac	ionic	CC(=CC(C)=O)[O-].CC(=CC(C)=O)[O-].[Zn+2]	CYDXJXDAFPJUQE-UHFFFAOYSA-L	zinc bis(4-oxopent-2-en-2-olate)	SALT	Zn
+C10	acac	bonded monodentate	CC(=CC(C)=O)O[Zn]OC(C)=CC(C)=O	CYDXJXDAFPJUQE-UHFFFAOYSA-L	zinc bis(4-oxopent-2-en-2-olate)	SALT	Zn
+C10	acac	bonded chelate	[Zn-2]12(OC(C)=CC(C)=[O+]1)OC(C)=CC(C)=[O+]2	CYDXJXDAFPJUQE-UHFFFAOYSA-L	zinc bis(4-oxopent-2-en-2-olate)	SALT	Zn
+C11	pyrithione	ionic	[O-][n+]1ccccc1[S-].[O-][n+]1ccccc1[S-].[Zn+2]	OTPSWLRZXRHDNX-UHFFFAOYSA-L	zinc bis(1-oxidopyridin-1-ium-2-thiolate)	SALT	Zn
+C11	pyrithione	bonded chelate	[Zn-2]12(Sc3cccc[n+]3O1)Sc1cccc[n+]1O2	OTPSWLRZXRHDNX-UHFFFAOYSA-L	zinc bis(1-oxidopyridin-1-ium-2-thiolate)	SALT	Zn
+C12	oxalate	ionic	[O-]C(=O)C(=O)[O-].[Zn+2]	ZPEJZWGMHAKWNL-UHFFFAOYSA-L	zinc oxalate	SALT	Zn
+D1	ammine	ionic	[Zn+2].N.N.N.N	LRKOEZOIYGZGRD-UHFFFAOYSA-N	zinc(2+)—azane (1/4)	ADD	Zn
+D1	ammine	bonded	[NH3+][Zn-2]([NH3+])([NH3+])[NH3+]	LRKOEZOIYGZGRD-UHFFFAOYSA-N	zinc(2+)—azane (1/4)	ADD	Zn
+D2	aqua	ionic	[Zn+2].O.O.O.O.O.O	YFGPKFSJDDFKQS-UHFFFAOYSA-N	zinc(2+)—water (1/6)	ADD	Zn
+D3	bipy	two fragments	Cl[Zn]Cl.c1ccc(nc1)-c1ccccn1	FEVLSPMTZATEGW-UHFFFAOYSA-L	2,2'-bipyridine—dichlorozinc (1/1)	ADD	Zn
+D3	bipy	bonded	Cl[Zn-2]1(Cl)[n+]2ccccc2-c2cccc[n+]12	FEVLSPMTZATEGW-UHFFFAOYSA-L	2,2'-bipyridine—dichlorozinc (1/1)	ADD	Zn
+D4	pyridine	two fragments	Cl[Zn]Cl.c1ccncc1.c1ccncc1	XNEFHLATHXWJNC-UHFFFAOYSA-L	dichlorozinc—pyridine (1/2)	ADD	Zn
+D4	pyridine	bonded	Cl[Zn-2](Cl)([n+]1ccccc1)[n+]1ccccc1	XNEFHLATHXWJNC-UHFFFAOYSA-L	dichlorozinc—pyridine (1/2)	ADD	Zn
+D5	glycinate	ionic	[Zn+2].NCC(=O)[O-].NCC(=O)[O-]	UOXSXMSTSYWNMH-UHFFFAOYSA-L	zinc bis(glycinate)	SALT	Zn
+D5	glycinate	bonded chelate	[NH2+]1CC(=O)O[Zn-2]12OC(=O)C[NH2+]2	UOXSXMSTSYWNMH-UHFFFAOYSA-L	zinc bis(glycinate)	SALT	Zn
+D6	quinolinolate	ionic	[Zn+2].[O-]c1cccc2cccnc12.[O-]c1cccc2cccnc12	HTPBWAPZAJWXKY-UHFFFAOYSA-L	zinc bis(quinolin-8-olate)	SALT	Zn
+D6	quinolinolate	bonded O,N chelate	[Zn-2]12(Oc3cccc4ccc[n+]1c34)Oc1cccc3ccc[n+]2c13	HTPBWAPZAJWXKY-UHFFFAOYSA-L	zinc bis(quinolin-8-olate)	SALT	Zn
+D7	edta	ionic	[Na+].[Na+].[Zn+2].[O-]C(=O)CN(CCN(CC([O-])=O)CC([O-])=O)CC([O-])=O	UBLOJEHIINPTTG-UHFFFAOYSA-J	disodium zinc(2+) 2,2',2'',2'''-(ethane-1,2-diyldinitrilo)tetraacetate	SALT	Zn
+E1	Zn-TPP	ionic	C1=Cc2nc1c(-c1ccccc1)c1ccc([n-]1)c(-c1ccccc1)c1nc(c(-c3ccccc3)c3ccc([n-]3)c2-c2ccccc2)C=C1.[Zn+2]	XPVVGUHKLPZAEN-UHFFFAOYSA-N	zinc(2+) 5,10,15,20-tetraphenylporphyrin-21,23-diide	SALT	Zn
+E1	Zn-TPP	bonded 2 Zn-N	C1=CC2=C(c3ccccc3)c3ccc4[n]3[Zn][n]3c(ccc3=C(c3ccccc3)C3=NC(=C4c4ccccc4)C=C3)=C(c3ccccc3)C1=N2	XPVVGUHKLPZAEN-UHFFFAOYSA-N	zinc(2+) 5,10,15,20-tetraphenylporphyrin-21,23-diide	SALT	Zn
+E1	Zn-TPP	bonded 4 Zn-N charged	C1=CC2=[N+]3C1=C(c1ccccc1)c1ccc4[n]1[Zn-2]31[n]3c(ccc3=C(c3ccccc3)C3=[N+]1C(=C4c1ccccc1)C=C3)=C2c1ccccc1	XPVVGUHKLPZAEN-UHFFFAOYSA-N	zinc(2+) 5,10,15,20-tetraphenylporphyrin-21,23-diide	SALT	Zn
+E1	Zn-TPP	free base + [Zn+2] (u2)	C1=Cc2nc1c(-c1ccccc1)c1ccc([nH]1)c(-c1ccccc1)c1nc(c(-c3ccccc3)c3ccc([nH]3)c2-c2ccccc2)C=C1.[Zn+2]	GAJNYDMQZMSRDH-UHFFFAOYSA-N	5,10,15,20-tetraphenyl-21H,23H-porphyrin—zinc(2+) (1/1)	ADD	Zn
+E2	Zn-porphine	ionic	C1=Cc2cc3ccc(cc4nc(cc5ccc(cc1n2)[n-]5)C=C4)[n-]3.[Zn+2]	AUIPNWPUEFZMSU-UHFFFAOYSA-N	zinc(2+) 21H,23H-porphyrin-21,23-diide	SALT	Zn
+E2	Zn-porphine	bonded 2 Zn-N	C1=CC2=NC1=Cc1ccc3[n]1[Zn][n]1c(ccc1=CC1=NC(=C3)C=C1)=C2	AUIPNWPUEFZMSU-UHFFFAOYSA-N	zinc(2+) 21H,23H-porphyrin-21,23-diide	SALT	Zn
+E2	Zn-porphine	free base + [Zn+2]	C1=Cc2cc3ccc(cc4nc(cc5ccc(cc1n2)[nH]5)C=C4)[nH]3.[Zn+2]	NJSORKGSYPMGEJ-UHFFFAOYSA-N	21H,23H-porphyrin—zinc(2+) (1/1)	ADD	Zn
+E3	ZnPc	ionic	C1=CC=C2C(=C1)C3=NC4=NC(=NC5=C6C=CC=CC6=C([N-]5)N=C7C8=CC=CC=C8C(=N7)N=C2[N-]3)C9=CC=CC=C94.[Zn+2]	PODBBOVVOGJETB-UHFFFAOYSA-N	2,11,20,29,37,38,39,40-octaazanonacyclo[28.6.1.1^3,10.1^12,19.1^21,28.0^4,9.0^13,18.0^22,27.0^31,36]tetraconta-1(36),2,4,6,8,10(40),11,13,15,17,19,21(38),22,24,26,28,30,32,34-nonadecaene-37,39-diide—zinc(2+) (1/1)	VB	Zn
+A9	organozincate	ionic	[Li+].[CH3-].[CH3-].[CH3-].[Zn+2]	NSEGEZFAMHCAFW-UHFFFAOYSA-N	lithium zinc(2+) trimethanide	SALT	Zn
+A9	organozincate	bonded	[Li+].C[Zn-](C)C	OFSDDTSJDXUONV-UHFFFAOYSA-N	lithium trimethylzinc(1-)	RB	Zn
+A10	organozinc hydroxide	bonded	CC[Zn]O	AEFODBXJWNOTNB-UHFFFAOYSA-M	ethyl(hydroxy)zinc	SUBST	Zn
+A10	organozinc hydroxide	ionic	CC[Zn+].[OH-]	AEFODBXJWNOTNB-UHFFFAOYSA-M	ethyl(hydroxy)zinc	SUBST	Zn
+A11	zinca-ring (metallacycle)	bonded	[Zn]1CCCC1	HNKKTKAGSCEQGX-UHFFFAOYSA-N	1-zincacyclopentane	SKEL	Zn
+A12	zinc silylamide	ionic	[Zn+2].C[Si](C)(C)[N-][Si](C)(C)C.C[Si](C)(C)[N-][Si](C)(C)C	ZCCUYQBZUVUONI-UHFFFAOYSA-N	zinc bis[bis(trimethylsilyl)azanide]	SALT	Zn
+A12	zinc silylamide	bonded	C[Si](C)(C)N([Si](C)(C)C)[Zn]N([Si](C)(C)C)[Si](C)(C)C	ZCCUYQBZUVUONI-UHFFFAOYSA-N	zinc bis[bis(trimethylsilyl)azanide]	SALT	Zn
+B13	halide cation	bonded	Cl[Zn+]	JBKRJKYJNCJEOT-UHFFFAOYSA-M	chlorozinc(1+)	SUBST	Zn
+B13	halide cation	ionic	[Zn+2].[Cl-]	JBKRJKYJNCJEOT-UHFFFAOYSA-M	chlorozinc(1+)	SUBST	Zn
+B14	phosphate	ionic	[Zn+2].[Zn+2].[Zn+2].[O-]P([O-])([O-])=O.[O-]P([O-])([O-])=O	LRXTYHSAJDENHV-UHFFFAOYSA-H	trizinc bis(phosphate)	SALT	Zn
+D8	bipyridine cation salt	ionic	[Zn+2].c1ccnc(c1)-c1ccccn1.c1ccnc(c1)-c1ccccn1.c1ccnc(c1)-c1ccccn1.[O-]Cl(=O)(=O)=O.[O-]Cl(=O)(=O)=O	ASQKQKHMKJKSAS-UHFFFAOYSA-L	2,2'-bipyridine—zinc(2+) perchlorate (3/1/2)	ADD	Zn

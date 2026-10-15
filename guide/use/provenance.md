@@ -50,10 +50,11 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
   `opsin` (OPSIN read the name back to the same molecule),
   `opsin_constitution` (OPSIN read it back with the same constitution; the stereodescriptors were not confirmed by OPSIN),
   `identity` (a name from an exact-match list: a metal-complex name found by your structure's exact InChIKey, or a natural-product parent name found by its exact structure; OPSIN cannot read these names),
+  `opsin_split` (OPSIN read the name back to your structure drawn without its dative bonds, because RDKit gives a drawing with dative bonds no standard InChIKey to read a name back against; a count of atoms and charges ties the two drawings),
   or `unverified` (no read-back recorded).
 
 `spelling_failures`
-: The spelling rules of the Preferred IUPAC Name that a name in preferred-name form breaks, as a list of `{"rule": ..., "detail": ...}` entries, and the rule of a part of the name that the engine records as not the preferred form. OPSIN cannot see these: a name can read back to your structure and still break one. Such a name is {tier}`systematic_verified` at most; the default tier declines it with `NO_VERIFIED_PIN` and keeps the entries as the reason. The list is empty otherwise.
+: The spelling rules of the Preferred IUPAC Name that a name in preferred-name form breaks, as a list of `{"rule": ..., "detail": ...}` entries, and the rule of a part of the name that the engine records as not the preferred form. A name reached through another drawing of the same compound is listed here too, and the `detail` says so. OPSIN cannot see these: a name can read back to your structure and still break one. Such a name is {tier}`systematic_verified` at most; the default tier declines it with `NO_VERIFIED_PIN` and keeps the entries as the reason. The list is empty otherwise.
 
 `producer`
 : The code that built the name that ships, for example `inner:tier_a_ring` or `engine:general`; `null` when no name ships, a default-tier `NO_VERIFIED_PIN` decline included. See [Which code built the name](#which-code-built-the-name).
@@ -63,6 +64,7 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
 `source` has five values and records the last producer that wrote it. `producer` is the finer field: the id of the code that built the name that ships. Use it to find the code to look at before you change a rule ([Architecture](../architecture.md#before-you-edit-a-function)), or to count which producers name a set of molecules.
 
 - **The deepest builder.** `producer` names the code that built the string, not the class that passed the molecule on. A peptide whose name an inner handler composed shows that handler, not `outer:peptide`. When two codes return the same name, the first one to return it is reported, which is the innermost.
+- **Another drawing of a metal compound.** A metal compound that is named through another drawing of it ([Metal compounds](../tiers.md#metal-compounds)) shows the code that built the name of that drawing: `Cl[Zn]Cl` is named through its ionic drawing and gives `outer:salt`, a bare zinc atom gives `outer:metal_atom`.
 - **`null` when no name ships.** The default tier can build a name and withhold it (`NO_VERIFIED_PIN`, see [Declines](../declines.md)). Nothing ships then, so no code is named; a wider tier returns the name, and its row names the code.
 - **A diagnostic, not a contract.** The ids follow the code's class and handler ids and can change in any release: count with them, do not parse them.
 - **Only the row has it.** `Orthonym.name_tiered` and `--provenance` return the key; `name_compound` returns the bare name.

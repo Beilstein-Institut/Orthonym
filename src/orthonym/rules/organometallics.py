@@ -33,10 +33,12 @@ from ..assembly.name_tree import NameTreeNode
 # Import from data layer only; forbids cross-contamination with
 # the seniority cascade (no import of rules dot seniority).
 from ..data.multipliers import multiplier_table
+from ..data.metal_scope import BONDED_NAMES, has_mechanism
 from ..data.organometallics import (
     LIGAND_ETA_DEFAULTS,
     LIGAND_NAMES,
     METAL_NAMES,
+    TERMINAL_LIGAND_PREFIXES,
 )
 from ..data.organometallics import RETAINED_METALLOCENES  # noqa: F401 re-exported: imported FROM this module by assembly/handlers/organometallic.py, scripts/verify_orgm_canary.py
 
@@ -227,6 +229,9 @@ _GROUP14_SUFFIX_ELEMENTS = frozenset({'Si', 'Ge', 'Sn', 'Pb'})
 # ligand namer's older ``name.endswith('oxy')`` blanket-wrapped these simple
 # alkoxy names too; this whitelist restores (simple alkoxy = no marks).
 _SIMPLE_ALKOXY_PREFIXES = frozenset({'methoxy', 'ethoxy', 'propoxy', 'butoxy'})
+# 'hydroxy' ends in 'oxy' too and is a simple prefix of its own, the Blue Book),
+# a ligand of a metal (``_assemble_bonded_metal_name``): never enclosed as the first prefix.
+_SIMPLE_OXY_PREFIXES = _SIMPLE_ALKOXY_PREFIXES | {'hydroxy'}
 
 
 def _is_complex_ligand_oxy(name: str) -> bool:
@@ -234,7 +239,7 @@ def _is_complex_ligand_oxy(name: str) -> bool:
     : ends in 'oxy' but is not one of the simple contracted alkoxy names
     (methoxy/ethoxy/propoxy/butoxy). 'acetyloxy'/'phenoxy'/'oxiranylmethoxy' ->
     True; 'methoxy'/'ethoxy' -> False."""
-    return name.endswith('oxy') and name.lower() not in _SIMPLE_ALKOXY_PREFIXES
+    return name.endswith('oxy') and name.lower() not in _SIMPLE_OXY_PREFIXES
 
 
 def _principal_suffix_for_ligand(mol: Any, lg: Any) -> Optional[str]:
@@ -639,6 +644,232 @@ def _sigma_additive_ligands_certified(metal_complex: Any, mol: Any,
     return True
 
 
+# Identify organic ligand names from atom indices. Wave-2 C2
+# extensions (hydride-parent Group-14 scope only, fail-closed):
+# (a) an O-attached ligand (R-O-[Si], NOT bare -OH — the G2
+# silanol suffix diversion above keeps priority) names as R-oxy
+# via the substituent chokepoint ('methoxy', 'oxiranylmethoxy');
+# (b) an all-C ligand the simple table rejects (tert-butyl) falls
+# back to the same chokepoint. Anything unresolvable stays None.
+def _extended_ligand_name(mol: Any, metal_complex: Any, lg: Any, *, is_group14: bool,
+                          naming_system: str, metal_symbol: str) -> Optional[str]:
+    """The name of one organic sigma-ligand of a metal, or ``None`` (fail closed).
+
+    ``is_group14`` and ``naming_system`` are those of the metal (``METAL_NAMES``)."""
+    simple = _ligand_name_from_atoms(mol, lg.ligand_atom_indices)
+    if simple is not None:
+        return simple
+    atoms = list(lg.ligand_atom_indices)
+    if not atoms:
+        return None
+    # find the ligand atom sigma-bonded to the central metal atom
+    _central = set(metal_complex.metal_atom_indices)
+    attach_idx = None
+    for a in atoms:
+        if any(nb.GetIdx() in _central
+               for nb in mol.GetAtomWithIdx(a).GetNeighbors()):
+            attach_idx = a
+            break
+    if attach_idx is None:
+        return None
+    from ..assembly.substituent_enumerator import name_substituent
+    a0 = mol.GetAtomWithIdx(attach_idx)
+    # (a) Group-14 hydride-parent R-O-[Si] -> R-oxy (unchanged scope).
+    if (is_group14 and naming_system == 'hydride_parent'
+            and a0.GetSymbol() == 'O' and a0.GetFormalCharge() == 0
+            and a0.GetTotalNumHs() == 0):
+        inner = [i for i in atoms if i != attach_idx]
+        c_start = [n.GetIdx() for n in a0.GetNeighbors()
+                   if n.GetIdx() in inner]
+        if len(c_start) != 1 or mol.GetAtomWithIdx(
+                c_start[0]).GetSymbol() != 'C':
+            return None
+        nm = name_substituent(mol, set(inner), c_start[0])
+        if not nm or nm == 'substituent' or not nm.endswith('yl'):
+            return None
+        # (the Blue Book): only methoxy, ethoxy, propoxy,
+        # butoxy, phenoxy and tert-butoxy contract; every other R-O- keeps
+        # the whole organyl name, enclosed when it is compound:
+        # '(propan-2-yl)oxy (preferred prefix)' (:27683), '(benzyloxy)
+        # carbonyl' (:18116), '(cyclohexyloxy)benzene (PIN)' (:27768). The
+        # bare 'yl' -> 'oxy' swap made 'propan-2-oxy' and 'benzoxy'. The
+        # shared converter spells every alkoxy prefix.
+        from ..assembly.substituent_enumerator import alkoxy_prefix_from_substituent
+        return alkoxy_prefix_from_substituent(nm)
+    # (b) a carbon-attached ligand the simple table rejects -> the general
+    # substituent composer. TWO distinct scopes, deliberately asymmetric:
+    # - Group-14 hydride-parent (Si/Ge/Sn/Pb): require the WHOLE ligand to
+    # be all-carbon (tert-butyl). This is the ORIGINAL guard, restored:
+    # a ligand carrying a heteroatom senior group (e.g. -CH2-COOH on Si)
+    # must NOT be claimed here — the senior carboxylic acid parent wins
+    # (protect: (trimethylsilyl)acetic acid, NOT carboxymethyl...silane).
+    # - Group-12 metal-direct (Zn/Cd/Hg): the mixed-class ligand
+    # may contain a WALKED-THROUGH class-2 metalloid (the Sb of a
+    # 4-(diphenylstibanyl)phenyl ligand), so allow non-carbon atoms ONLY
+    # when every one is itself a metal/metalloid (never an O/N/S senior
+    # heteroatom). Gate on the sigma-attach atom being carbon.
+    from ..perception.metals import is_metal_element
+    _syms = [mol.GetAtomWithIdx(a).GetSymbol() for a in atoms]
+    _g14_allcarbon = (
+        is_group14 and naming_system == 'hydride_parent'
+        and all(s == 'C' for s in _syms))
+    _g12_metalloid_ok = (
+        naming_system == 'metal_direct'
+        and metal_symbol in ('Zn', 'Cd', 'Hg')
+        and all(s == 'C' or is_metal_element(s) for s in _syms))
+    # Breadth Job 2 (best-effort tier only): a Group-12 metal is the
+    # central atom of an additive name whatever its organyl ligand
+    # carries, the Blue Book: coordination nomenclature is
+    # the primary method for Groups 3-12;,:39735: no PIN), so a
+    # functionalised ligand ('2-oxocyclohexyl' in
+    # '(2-oxocyclohexyl)mercury chloride') is named by the same
+    # substituent composer. The Group-14 guard above is different: there
+    # a senior characteristic group outranks the parent hydride.
+    from ..metrics.provenance import best_effort_ctx
+    _g12_functional_ok = (
+        naming_system == 'metal_direct'
+        and metal_symbol in ('Zn', 'Cd', 'Hg')
+        and best_effort_ctx.get())
+    if a0.GetSymbol() == 'C' and (_g14_allcarbon or _g12_metalloid_ok
+                                  or _g12_functional_ok):
+        nm = name_substituent(mol, set(atoms), attach_idx)
+        if not nm or nm == 'substituent':
+            return None
+        return nm
+    return None
+
+
+# Wave-2 C2: a COMPOUND ligand name (compound R-oxy,
+# tert-, or ring-yl forms) takes enclosing marks at the join so
+# the boundary is unambiguous ('tert-butyl(dimethyl)[(oxiran-2-
+# yl)methoxy]silane' BB-style); simple methyl/ethyl stay bare
+# unless multiplied next to a compound neighbour.
+def _ligand_token(count: int, name: str, first: bool) -> str:
+    """One multiplied ligand prefix of a parent that takes substituent prefixes: a hydride
+    parent (Group 14) or a metal (``_assemble_bonded_metal_name``).
+
+    The multiplier, its hyphen and the / marks come
+    from the shared primitive (``naming_utils.multiplied_component``):
+    'di-tert-butyl' (d), the Blue Book), 'di(dodecyl)'
+     (c),:7104; 'di(dodecyl)silane (PIN)':38222),
+    'bis(4-tert-butylphenyl)' (a),:7104). A compound ligand
+    (a structural hyphen, an inner mark, a compound R-oxy) takes its
+    own marks. (:7272): "For mononuclear
+    parent hydrides with two or more substituents the first cited
+    substituent never has enclosing marks unless it includes a locant.
+    The second and further substituents are each enclosed with
+    parentheses even for simple substituents. When the simple
+    substituent groups are accompanied by multiplicative prefixes such
+    as 'di' and 'tri', the multiplicative prefixes are not included in
+    the parentheses" -- 'ethyldi(methyl)phosphane (PIN)',
+    'ethyldi(propan-2-yl)silane (PIN)', '*tert*-butyldi(methyl)
+    phosphane (PIN)' (:16286)."""
+    from ..assembly.naming_utils import (
+        apply_enclosing_marks,
+        enclose_if_compound,
+        has_structural_hyphen,
+        multiplied_component,
+    )
+
+    def _compound_ligand(nm):
+        return (has_structural_hyphen(nm) or '(' in nm
+                or _is_complex_ligand_oxy(nm))
+
+    marked = enclose_if_compound(name)
+    if marked == name and _compound_ligand(name):
+        marked = apply_enclosing_marks(name, -1)
+    if not first and marked == name:
+        marked = apply_enclosing_marks(name, -1)
+    return multiplied_component(count, name, marked) if count > 1 else marked
+
+
+def _terminal_ligand_prefix(mol: Any, metal_idx: int, lg: Any) -> Optional[str]:
+    """The prefix that names a ligand which is one terminal atom of the metal, or ``None``.
+
+    The atom has the metal as its only neighbour, no charge, no radical and no isotope; its
+    element, the order of its bond to the metal and its hydrogens pick a row of
+    ``TERMINAL_LIGAND_PREFIXES`` ('hydroxy' for -OH, 'oxo' for =O, 'sulfanylidene' for =S)."""
+    from rdkit import Chem
+    idxs = lg.ligand_atom_indices
+    if len(idxs) != 1:
+        return None
+    atom = mol.GetAtomWithIdx(idxs[0])
+    bond = mol.GetBondBetweenAtoms(metal_idx, idxs[0])
+    order = {Chem.BondType.SINGLE: 1, Chem.BondType.DOUBLE: 2}.get(
+        bond.GetBondType() if bond is not None else None)
+    if (order is None or atom.GetDegree() != 1 or atom.GetFormalCharge() != 0
+            or atom.GetNumRadicalElectrons() != 0 or atom.GetIsotope() != 0):
+        return None
+    return TERMINAL_LIGAND_PREFIXES.get((atom.GetSymbol(), order, atom.GetTotalNumHs()))
+
+
+def _assemble_bonded_metal_name(metal_complex: Any, mol: Any
+                                ) -> Optional[Tuple[str, str, List[Any]]]:
+    """The name of a mononuclear complex of a metal admitted to ``BONDED_NAMES`` (zinc) that the
+    neutral organyl branch of ``assemble_organometallic_name`` does not name: one that has a
+    hydrogen on the metal (``hydrido``), a terminal ligand of ``TERMINAL_LIGAND_PREFIXES``
+    (hydroxy, oxo, sulfanylidene,...) or a charge. ``None`` otherwise, and for any ligand it cannot
+    name (fail closed: the cascade goes on, and the exit gate reads every name back).
+
+     Compounds with at least one metal-carbon single bond (the Blue Book):
+    "Compounds are named by citing the names of ligands, including hydrogen atom(s), in
+    alphanumerical order, followed by the name of the metal. The presence of hydrogen attached to
+    a metal atom must always be indicated by the prefix 'hydrido'." The examples of that rule
+    ('trichlorido(methyl)titanium', 'acetyl(methyl)bis(triethylphosphane)platinum',
+    'dihydrido(naphthalen-2-yl)rhenium') cite the first ligand without enclosing marks and each
+    further one in parentheses, as (:7272) does for substituent prefixes, and the
+    multiplier stays outside the parentheses: ``_ligand_token``. A complex that carries a charge
+    ends in its charge number, as 'pentaammine(ethyl)osmium(1+)' does; the ligand atoms are
+    neutral then, so that the charge is the metal's. Ligands: the terminal ligands, and organyl
+    groups bonded by one single bond that the neutral branch names (``_extended_ligand_name``); a
+    halide, a pi-ligand or a ligand of more than one bond to the metal is left to the other
+    branches. No PIN: (:39753) and ``rules.metal_labels``."""
+    from rdkit import Chem
+    if metal_complex.is_multimetal or len(metal_complex.metal_atom_indices) != 1:
+        return None
+    metal_idx = metal_complex.metal_atom_indices[0]
+    metal = mol.GetAtomWithIdx(metal_idx)
+    symbol = metal.GetSymbol()
+    info = METAL_NAMES.get(symbol)
+    if (not has_mechanism(symbol, BONDED_NAMES) or info is None
+            or info['naming_system'] != 'metal_direct' or metal.GetIsotope() != 0):
+        return None
+    charge = metal.GetFormalCharge()
+    names: List[str] = ['hydrido'] * metal.GetTotalNumHs()
+    novel = bool(names) or charge != 0
+    for lg in metal_complex.ligand_groups:
+        if lg.hapticity_n != 1:
+            return None
+        if charge != 0 and any(
+                mol.GetAtomWithIdx(i).GetFormalCharge() != 0
+                or mol.GetAtomWithIdx(i).GetNumRadicalElectrons() != 0
+                for i in lg.ligand_atom_indices):
+            return None
+        prefix = _terminal_ligand_prefix(mol, metal_idx, lg)
+        if prefix is not None:
+            names.append(prefix)
+            novel = True
+            continue
+        bonds_to_metal = [mol.GetBondBetweenAtoms(i, metal_idx) for i in lg.ligand_atom_indices
+                          if mol.GetBondBetweenAtoms(i, metal_idx) is not None]
+        single = len(bonds_to_metal) == 1 and bonds_to_metal[0].GetBondType() == Chem.BondType.SINGLE
+        name = None if lg.ligand_smarts_key is not None or not single else (
+            _extended_ligand_name(mol, metal_complex, lg, is_group14=False,
+                                  naming_system='metal_direct', metal_symbol=symbol))
+        if name is None:
+            return None
+        names.append(name)
+    if not novel:
+        return None
+    grouped = _alphabetize_simple_ligands(_group_ligand_counts(names))
+    ligand_prefix = ''.join(_ligand_token(count, name, k == 0)
+                            for k, (count, name) in enumerate(grouped))
+    metal_name = info['direct'] + ('' if charge == 0 else f"({abs(charge)}{'+' if charge > 0 else '-'})")
+    nodes = [NameTreeNode(parent_stem=name, multiplicative_prefix=_multiplicative_prefix(count) or None,
+                          class_id='organometallic_ligand') for count, name in grouped]
+    return (f"{ligand_prefix}{metal_name}", metal_name, nodes)
+
+
 def assemble_organometallic_name(metal_complex: Any, mol: Any,
                                   style: str = "pin"
                                   ) -> Optional[Tuple[str, str, List[Any]]]:
@@ -670,6 +901,9 @@ def assemble_organometallic_name(metal_complex: Any, mol: Any,
     metal_symbol = mol.GetAtomWithIdx(metal_idx).GetSymbol()
     metal_charge = metal_complex.formal_charges[0]
     ligand_groups = metal_complex.ligand_groups
+    bonded = _assemble_bonded_metal_name(metal_complex, mol)    # hydrido, hydroxy, oxo, a charge
+    if bonded is not None:
+        return bonded
 
     # === dispatch: mononuclear metal carbonyls ===
     if (ligand_groups
@@ -788,98 +1022,10 @@ def assemble_organometallic_name(metal_complex: Any, mol: Any,
             else:
                 organic_ligs.append(lg)
 
-        # Identify organic ligand names from atom indices. Wave-2 C2
-        # extensions (hydride-parent Group-14 scope only, fail-closed):
-        # (a) an O-attached ligand (R-O-[Si], NOT bare -OH — the G2
-        # silanol suffix diversion above keeps priority) names as R-oxy
-        # via the substituent chokepoint ('methoxy', 'oxiranylmethoxy');
-        # (b) an all-C ligand the simple table rejects (tert-butyl) falls
-        # back to the same chokepoint. Anything unresolvable stays None.
-        def _extended_ligand_name(lg):
-            simple = _ligand_name_from_atoms(mol, lg.ligand_atom_indices)
-            if simple is not None:
-                return simple
-            atoms = list(lg.ligand_atom_indices)
-            if not atoms:
-                return None
-            # find the ligand atom sigma-bonded to the central metal atom
-            _central = set(metal_complex.metal_atom_indices)
-            attach_idx = None
-            for a in atoms:
-                if any(nb.GetIdx() in _central
-                       for nb in mol.GetAtomWithIdx(a).GetNeighbors()):
-                    attach_idx = a
-                    break
-            if attach_idx is None:
-                return None
-            from ..assembly.substituent_enumerator import name_substituent
-            a0 = mol.GetAtomWithIdx(attach_idx)
-            # (a) Group-14 hydride-parent R-O-[Si] -> R-oxy (unchanged scope).
-            if (is_group14 and naming_system == 'hydride_parent'
-                    and a0.GetSymbol() == 'O' and a0.GetFormalCharge() == 0
-                    and a0.GetTotalNumHs() == 0):
-                inner = [i for i in atoms if i != attach_idx]
-                c_start = [n.GetIdx() for n in a0.GetNeighbors()
-                           if n.GetIdx() in inner]
-                if len(c_start) != 1 or mol.GetAtomWithIdx(
-                        c_start[0]).GetSymbol() != 'C':
-                    return None
-                nm = name_substituent(mol, set(inner), c_start[0])
-                if not nm or nm == 'substituent' or not nm.endswith('yl'):
-                    return None
-                # (the Blue Book): only methoxy, ethoxy, propoxy,
-                # butoxy, phenoxy and tert-butoxy contract; every other R-O- keeps
-                # the whole organyl name, enclosed when it is compound:
-                # '(propan-2-yl)oxy (preferred prefix)' (:27683), '(benzyloxy)
-                # carbonyl' (:18116), '(cyclohexyloxy)benzene (PIN)' (:27768). The
-                # bare 'yl' -> 'oxy' swap made 'propan-2-oxy' and 'benzoxy'. The
-                # shared converter spells every alkoxy prefix.
-                from ..assembly.substituent_enumerator import alkoxy_prefix_from_substituent
-                return alkoxy_prefix_from_substituent(nm)
-            # (b) a carbon-attached ligand the simple table rejects -> the general
-            # substituent composer. TWO distinct scopes, deliberately asymmetric:
-            # - Group-14 hydride-parent (Si/Ge/Sn/Pb): require the WHOLE ligand to
-            # be all-carbon (tert-butyl). This is the ORIGINAL guard, restored:
-            # a ligand carrying a heteroatom senior group (e.g. -CH2-COOH on Si)
-            # must NOT be claimed here — the senior carboxylic acid parent wins
-            # (protect: (trimethylsilyl)acetic acid, NOT carboxymethyl...silane).
-            # - Group-12 metal-direct (Zn/Cd/Hg): the mixed-class ligand
-            # may contain a WALKED-THROUGH class-2 metalloid (the Sb of a
-            # 4-(diphenylstibanyl)phenyl ligand), so allow non-carbon atoms ONLY
-            # when every one is itself a metal/metalloid (never an O/N/S senior
-            # heteroatom). Gate on the sigma-attach atom being carbon.
-            from ..perception.metals import is_metal_element
-            _syms = [mol.GetAtomWithIdx(a).GetSymbol() for a in atoms]
-            _g14_allcarbon = (
-                is_group14 and naming_system == 'hydride_parent'
-                and all(s == 'C' for s in _syms))
-            _g12_metalloid_ok = (
-                naming_system == 'metal_direct'
-                and metal_symbol in ('Zn', 'Cd', 'Hg')
-                and all(s == 'C' or is_metal_element(s) for s in _syms))
-            # Breadth Job 2 (best-effort tier only): a Group-12 metal is the
-            # central atom of an additive name whatever its organyl ligand
-            # carries, the Blue Book: coordination nomenclature is
-            # the primary method for Groups 3-12;,:39735: no PIN), so a
-            # functionalised ligand ('2-oxocyclohexyl' in
-            # '(2-oxocyclohexyl)mercury chloride') is named by the same
-            # substituent composer. The Group-14 guard above is different: there
-            # a senior characteristic group outranks the parent hydride.
-            from ..metrics.provenance import best_effort_ctx
-            _g12_functional_ok = (
-                naming_system == 'metal_direct'
-                and metal_symbol in ('Zn', 'Cd', 'Hg')
-                and best_effort_ctx.get())
-            if a0.GetSymbol() == 'C' and (_g14_allcarbon or _g12_metalloid_ok
-                                          or _g12_functional_ok):
-                nm = name_substituent(mol, set(atoms), attach_idx)
-                if not nm or nm == 'substituent':
-                    return None
-                return nm
-            return None
-
         organic_names: List[Optional[str]] = [
-            _extended_ligand_name(lg) for lg in organic_ligs
+            _extended_ligand_name(mol, metal_complex, lg, is_group14=is_group14,
+                                  naming_system=naming_system, metal_symbol=metal_symbol)
+            for lg in organic_ligs
         ]
         if any(n is None for n in organic_names):
             return None  # cascade to SALT@100
@@ -895,48 +1041,6 @@ def assemble_organometallic_name(metal_complex: Any, mol: Any,
             # Group identical ligands
             grouped = _group_ligand_counts(organic_names)
             sorted_groups = _alphabetize_simple_ligands(grouped)
-            # Wave-2 C2: a COMPOUND ligand name (compound R-oxy,
-            # tert-, or ring-yl forms) takes enclosing marks at the join so
-            # the boundary is unambiguous ('tert-butyl(dimethyl)[(oxiran-2-
-            # yl)methoxy]silane' BB-style); simple methyl/ethyl stay bare
-            # unless multiplied next to a compound neighbour.
-            def _ligand_token(count, name, first):
-                """One multiplied ligand prefix of the hydride parent.
-
-                The multiplier, its hyphen and the / marks come
-                from the shared primitive (``naming_utils.multiplied_component``):
-                'di-tert-butyl' (d), the Blue Book), 'di(dodecyl)'
-                 (c),:7104; 'di(dodecyl)silane (PIN)':38222),
-                'bis(4-tert-butylphenyl)' (a),:7104). A compound ligand
-                (a structural hyphen, an inner mark, a compound R-oxy) takes its
-                own marks. (:7272): "For mononuclear
-                parent hydrides with two or more substituents the first cited
-                substituent never has enclosing marks unless it includes a locant.
-                The second and further substituents are each enclosed with
-                parentheses even for simple substituents. When the simple
-                substituent groups are accompanied by multiplicative prefixes such
-                as 'di' and 'tri', the multiplicative prefixes are not included in
-                the parentheses" -- 'ethyldi(methyl)phosphane (PIN)',
-                'ethyldi(propan-2-yl)silane (PIN)', '*tert*-butyldi(methyl)
-                phosphane (PIN)' (:16286)."""
-                from ..assembly.naming_utils import (
-                    apply_enclosing_marks,
-                    enclose_if_compound,
-                    has_structural_hyphen,
-                    multiplied_component,
-                )
-
-                def _compound_ligand(nm):
-                    return (has_structural_hyphen(nm) or '(' in nm
-                            or _is_complex_ligand_oxy(nm))
-
-                marked = enclose_if_compound(name)
-                if marked == name and _compound_ligand(name):
-                    marked = apply_enclosing_marks(name, -1)
-                if not first and marked == name:
-                    marked = apply_enclosing_marks(name, -1)
-                return multiplied_component(count, name, marked) if count > 1 else marked
-
             _ligand_tokens = [
                 (count, name, _ligand_token(count, name, k == 0))
                 for k, (count, name) in enumerate(sorted_groups)

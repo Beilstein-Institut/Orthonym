@@ -1,0 +1,7 @@
+smiles	tier_req	to_tier	name
+[CH2-]C.[CH2-]C.[Zn+2]	best-effort	systematic_verified	zinc bis(ethan-1-ide)
+[CH2-]C.[CH2-]C.[Zn+2]	pin	abstain	zinc bis(ethan-1-ide)
+[c-]1ccccc1.[c-]1ccccc1.[Zn+2]	best-effort	systematic_verified	zinc dibenzenide
+[c-]1ccccc1.[c-]1ccccc1.[Zn+2]	pin	abstain	zinc dibenzenide
+[CH2-]C.[CH2-]C.[Zn+2]	valid	systematic_verified	zinc bis(ethan-1-ide)
+[c-]1ccccc1.[c-]1ccccc1.[Zn+2]	valid	systematic_verified	zinc dibenzenide

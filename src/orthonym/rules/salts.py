@@ -26,12 +26,13 @@ import re
 
 from rdkit import Chem
 
-from ..data.ion_retained_names import INORGANIC_ANIONS, INORGANIC_CATIONS
+from ..data.ion_retained_names import INORGANIC_CATIONS
 from ..data.multipliers import multiplier_table
 from ..errors import is_failure_name
 from ..perception.ions import get_ion_sites, parse_salt_fragments
 from ..perception.metals import assembly_has_out_of_scope_metal
 from .ions import name_anion, name_cation
+from .metal_atoms import inorganic_anion_word
 from ..perception.smarts_cache import compiled as _compiled_smarts
 
 # B2: basic (protonatable) amine nitrogen -- an sp3 N that is not an amide,
@@ -697,18 +698,38 @@ def _name_organic_ion_best_effort(ion_smiles: str, *,
             or allow_aromatic_general):
         return ''
     try:
+        from orthonym.assembly.fragment_naming import own_hang_budgets
         from orthonym.namer import Orthonym
-        name = Orthonym(
-            style=style,
-            general_fallback=general_fallback,
-            general_fallback_unverified=general_fallback_unverified,
-            allow_aromatic_general=allow_aromatic_general,
-        ).name(ion_smiles)
+
+        # Each ion is a compound of its own and is named with the hang budgets of one
+        # compound, as the components of an adduct are (``adducts.name_adduct``): two
+        # drug-size macrocyclic anions of one salt that share the budgets of one compound
+        # run them out in the second, and the whole drawing abstains (a PubChem 1M salt of
+        # three zinc cations and three phthalocyanine anions)., "Neutral salts
+        # of acids are named by citing the name of the cation(s) followed by the name of
+        # the anion", names each ion as a separate word.
+        with own_hang_budgets():
+            name = Orthonym(
+                style=style,
+                general_fallback=general_fallback,
+                general_fallback_unverified=general_fallback_unverified,
+                allow_aromatic_general=allow_aromatic_general,
+            ).name(ion_smiles)
     except Exception:  # never hard-fail a name (matches adducts._name_component)
         return ''
     if not name or is_failure_name(name):
         return ''
     return name
+
+
+def _anion_word(frag_mol, assembly, style: str, best_effort: bool) -> str:
+    """The word of one anion of a salt: the ligand of a metal complex that the scope table admits to
+    ``MACROCYCLE`` at the tiers that name ions (``rules/metal_macrocycles.py``), else the chokepoint
+    ``route_charged`` and the legacy ``name_anion``."""
+    from .charged_router import route_charged
+    from .metal_macrocycles import macrocycle_anion_name
+    return ((best_effort and macrocycle_anion_name(frag_mol, assembly))
+            or route_charged(frag_mol, style) or name_anion(frag_mol, style))
 
 
 def _ion_fragment_roundtrips(frag_mol, name: str) -> bool:
@@ -1008,13 +1029,12 @@ def name_salt(mol, style: str = 'pin', *,
     # -sulfonate / -ide), falling back to name_anion and the INORGANIC_ANIONS
     # retained table (chloride / sulfate / phosphate — which route_charged does
     # not name). The cation is NOT substituted in (salt = functionalization).
-    from .charged_router import route_charged
     for anion_frag in frags['anions']:
         frag_mol = anion_frag['mol']
         smiles = anion_frag['smiles']
 
-        if smiles in INORGANIC_ANIONS:
-            anion_names.append(INORGANIC_ANIONS[smiles])
+        if (inorganic_word := inorganic_anion_word(smiles, cation_list)):
+            anion_names.append(inorganic_word)
             # The table word of a one-atom anion of a mononuclear parent hydride
             # ('nitride', 'phosphide', 'carbide') has the systematic '-ide' name as
             # its alternative, the Blue Book-40902: 'azanetriide',
@@ -1023,7 +1043,7 @@ def name_salt(mol, style: str = 'pin', *,
             from .ions import _name_mononuclear_hydride_anion
             _sys_word = _name_mononuclear_hydride_anion(frag_mol)
             if _sys_word:
-                systematic_anion_words[INORGANIC_ANIONS[smiles]] = _sys_word
+                systematic_anion_words[inorganic_word] = _sys_word
             continue
         # W3-P10: di-/polynuclear oxoacid anion word ('diphosphate')
         # BEFORE the generic name_anion, which would otherwise emit the neutral acid
@@ -1035,9 +1055,9 @@ def name_salt(mol, style: str = 'pin', *,
             continue
         # Organic anion: chokepoint first (the sound parent decision), then the
         # legacy name_anion path on '' (retained carboxylate names etc.).
-        name = route_charged(frag_mol, style) or name_anion(frag_mol, style)
         _be = (general_fallback or general_fallback_unverified
                or allow_aromatic_general)
+        name = _anion_word(frag_mol, mol, style, _be)
         # abstain-recovery (mirrors the cation branch): a confidently-wrong
         # ordinary anion name would shadow the best-effort per-component namer.
         # Under a best-effort flag, verify the ordinary anion name round-trips to

@@ -27,6 +27,9 @@ from typing import FrozenSet, List, Optional, Tuple
 
 from rdkit import Chem
 
+from ..data.metal_scope import (BONDED_NAMES, CARBANION_SALTS, CONNECT_ANION, DATIVE, DISCONNECT,
+                                GROUP_1, GROUP_2, ION_SALTS, has_mechanism, has_valence)
+from ..data.organometallics import TERMINAL_LIGAND_PREFIXES
 from .molcache import atoms_of, bonds_of  # audit 2026-09-03 (S2): per-call atom/bond tuples
 
 # Allowlist for is_metal_element per RESEARCH
@@ -315,10 +318,18 @@ def _build_sigma_ligand_groups(mol: "Chem.Mol",
     single-atom LigandGroup with ligand_smarts_key set per
     _HALIDE_SMARTS_KEYS so the rules layer can dispatch Grignard vs alkyl.
 
+    A metal admitted to ``BONDED_NAMES`` (``data/metal_scope.py``) also takes a terminal atom joined
+    by a double bond (the =O of ``O=[Zn]``) as a ligand of its own, and a metal that carries
+    hydrogens takes no ligand at all (``[ZnH2]``): the hydrogens are its ligands Compounds
+    with at least one metal-carbon single bond: "The presence of hydrogen attached to a metal atom
+    must always be indicated by the prefix 'hydrido'"). Every other metal declines a multiple bond
+    and a drawing without a neighbour, as before.
+
     Returns None if the topology doesn't match σ-bonded (e.g., aromatic
     π-bonded ligand attached to metal). Pure per internal notes.
     """
     metal_atom = mol.GetAtomWithIdx(metal_idx)
+    bonded_names = has_mechanism(metal_atom.GetSymbol(), BONDED_NAMES)
     sigma_groups: List[LigandGroup] = []
     seen_atoms: set = {metal_idx}
 
@@ -338,6 +349,24 @@ def _build_sigma_ligand_groups(mol: "Chem.Mol",
                 hapticity_n=1,
                 ligand_smarts_key=halide_key,
                 ligand_canonical_smiles=halide_key,
+            ))
+            seen_atoms.add(neighbor_idx)
+            continue
+
+        # A terminal atom of a metal admitted to BONDED_NAMES, joined by a double bond, that the
+        # table of terminal ligands names (=O, =S): a ligand of its own. Any other doubly bonded
+        # atom (=CH2, =NH) stays declined, as for every other metal.
+        if (bonded_names and neighbor_bond.GetBondType() == Chem.BondType.DOUBLE
+                and neighbor_atom.GetDegree() == 1 and neighbor_atom.GetFormalCharge() == 0
+                and neighbor_atom.GetIsotope() == 0
+                and (neighbor_atom.GetSymbol(), 2, neighbor_atom.GetTotalNumHs())
+                in TERMINAL_LIGAND_PREFIXES):
+            sigma_groups.append(LigandGroup(
+                metal_atom_idx=metal_idx,
+                ligand_atom_indices=(neighbor_idx,),
+                hapticity_n=1,
+                ligand_smarts_key=None,
+                ligand_canonical_smiles=None,
             ))
             seen_atoms.add(neighbor_idx)
             continue
@@ -369,7 +398,7 @@ def _build_sigma_ligand_groups(mol: "Chem.Mol",
         ))
 
     if not sigma_groups:
-        return None
+        return () if bonded_names and metal_atom.GetTotalNumHs() > 0 else None
     return tuple(sigma_groups)
 
 
@@ -647,36 +676,341 @@ _TRUE_METAL_SYMBOLS_FOR_VETO: FrozenSet[str] = METAL_ELEMENT_SYMBOLS - frozenset
 })
 
 
-# (levers 1b/1d): alkali + alkaline-earth (Groups 1-2). A net-0 salt or a
-# net-charged assembly of one of these with an organic ion is IN scope binary
-# salt / adduct). Any OTHER true metal is out of scope by default, and
-# any true metal co-present with a carbanion/hydride is organometallic.
-_ALKALI_ALKALINE_EARTH: FrozenSet[str] = frozenset({
-    'Li', 'Na', 'K', 'Rb', 'Cs', 'Fr',       # Group 1
-    'Be', 'Mg', 'Ca', 'Sr', 'Ba', 'Ra',      # Group 2
-})
-
-
 def assembly_has_out_of_scope_metal(mol: "Chem.Mol") -> bool:
-    """True if a multi-fragment ionic assembly contains a out-of-scope true
-    metal, so the best-effort ion/adduct widening must NOT fire (0-wrong:
-    never render a coordination complex / organometallic as a salt or adduct).
+    """True if a multi-fragment ionic assembly contains a true metal that the scope table
+    (``data/metal_scope.py``) does not admit, so the best-effort ion/adduct widening must NOT
+    fire (0-wrong: never render a coordination complex / organometallic as a salt or adduct).
 
-    OUT ⇔ (i) any true metal (``_TRUE_METAL_SYMBOLS_FOR_VETO``) that is NOT
-    alkali/alkaline-earth (the default boundary), OR (ii) an alkali/alkaline-earth
-    true metal co-present with a carbanion/hydride organometallic).
-    Metalloids (Si/Ge/Sn/B/As/... — excluded from ``_TRUE_METAL_SYMBOLS_FOR_VETO``)
+    OUT <=> (i) a true metal (``_TRUE_METAL_SYMBOLS_FOR_VETO``) that is not admitted to the
+    ``ION_SALTS`` mechanism, OR (ii) a carbanion or a hydride is present and a true metal is
+    not admitted to the ``CARBANION_SALTS`` mechanism: INTRODUCTION, "Organometallic
+    compounds are compounds having at least one bond between one metal atom and one carbon
+    atom", so such an assembly is organometallic for that metal.
+    Metalloids (Si/Ge/Sn/B/As/... -- excluded from ``_TRUE_METAL_SYMBOLS_FOR_VETO``)
     are IN scope and never trip this.
+
+    A salt or an adduct of a Group 1 or Group 2 cation with organic ions is IN scope
+    binary salt / adduct); those elements are the ones the table admits to
+    ``ION_SALTS``.
     """
-    true_metals = [a.GetSymbol() for a in mol.GetAtoms()
-                   if a.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO]
+    true_metals = {a.GetSymbol() for a in mol.GetAtoms()
+                   if a.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO}
     if not true_metals:
         return False
-    if any(s not in _ALKALI_ALKALINE_EARTH for s in true_metals):
+    if any(not has_mechanism(symbol, ION_SALTS) for symbol in true_metals):
         return True
-    return any((a.GetSymbol() == 'C' and a.GetFormalCharge() < 0)
-               or (a.GetSymbol() == 'H' and a.GetFormalCharge() < 0)
-               for a in mol.GetAtoms())
+    if any(not has_mechanism(symbol, CARBANION_SALTS) for symbol in true_metals):
+        return any((a.GetSymbol() == 'C' and a.GetFormalCharge() < 0)
+                   or (a.GetSymbol() == 'H' and a.GetFormalCharge() < 0)
+                   for a in mol.GetAtoms())
+    return False
+
+
+#: the true metals of Groups 3-12 (the transition elements including Group 3, the lanthanides and the
+#: actinides): the true metals without Groups 1 and 2. ORGANOMETALLIC COMPOUNDS INVOLVING THE
+#: ELEMENTS IN GROUPS 3 THROUGH 12 puts them together.
+GROUP_3_12_METAL_SYMBOLS: FrozenSet[str] = (
+    _TRUE_METAL_SYMBOLS_FOR_VETO - frozenset(GROUP_1) - frozenset(GROUP_2))
+
+
+def _is_cyanide_carbon(atom: "Chem.Atom") -> bool:
+    """True for the carbon of a cyanide anion: one heavy neighbour, a nitrogen joined by a triple
+    bond, no hydrogen."""
+    if atom.GetDegree() != 1 or atom.GetTotalNumHs() != 0:
+        return False
+    bond = atom.GetBonds()[0]
+    other = bond.GetOtherAtom(atom)
+    return (other.GetSymbol() == 'N' and other.GetFormalCharge() == 0
+            and bond.GetBondType() == Chem.BondType.TRIPLE)
+
+
+def holds_carbanion_salt_of_group_3_12_metal(mol: "Chem.Mol") -> bool:
+    """True iff ``mol`` is, structurally, a salt of a carbanion with a Group 3-12 metal cation: it
+    holds a true metal of Groups 3-12, has no bond from a true metal to carbon, and a fragment of
+    negative net charge holds a carbon atom with formal charge -1 that has no positively charged
+    neighbour and is not the carbon of a cyanide anion.
+
+     INTRODUCTION (the Blue Book): "Organometallic compounds are compounds having at
+    least one bond between one metal atom and one carbon atom"; a salt of a carbanion has no such
+    bond (it is named by composition,,:40173: "it is a compositional name analogous to
+    sodium chloride"), and the status of its name is that of the organometallic compounds of the
+    metal: (:39735) "neither preferred IUPAC names or preselected names... for
+    organometallic compounds involving the transition elements (including the Group 3 elements)
+    and Groups 1 and 2 elements, except for 'ocene' compounds, are noted". A carbon with a
+    positively charged neighbour is an ylide or an isocyanide, and the carbon of a cyanide anion is
+    the anion of hydrogen cyanide, an acid: neither is a carbanion here.
+
+    Structure only: the name-dependent exclusions (the retained and the additive names) are the
+    predicate of the namer, which calls this. PURE: no mol mutation."""
+    if mol is None:
+        return False
+    if not any(a.GetSymbol() in GROUP_3_12_METAL_SYMBOLS for a in mol.GetAtoms()):
+        return False
+    if has_covalent_metal_carbon_bond(mol):
+        return False
+    for fragment in Chem.GetMolFrags(mol):
+        if sum(mol.GetAtomWithIdx(i).GetFormalCharge() for i in fragment) >= 0:
+            continue
+        for i in fragment:
+            atom = mol.GetAtomWithIdx(i)
+            if (atom.GetSymbol() == 'C' and atom.GetFormalCharge() == -1
+                    and not any(n.GetFormalCharge() > 0 for n in atom.GetNeighbors())
+                    and not _is_cyanide_carbon(atom)):
+                return True
+    return False
+
+
+def single_bond_metal_heteroatom_sites(mol: "Chem.Mol") -> Optional[List[Tuple[int, int]]]:
+    """The bonds of ``mol`` that a charge-conserving heterolytic disconnection may break, as
+    ``(metal atom index, other atom index)`` pairs; ``None`` when ``mol`` is not a drawing that
+    ``DISCONNECT`` (``data/metal_scope.py``) covers.
+
+    The sites are the single bonds from a true metal (``_TRUE_METAL_SYMBOLS_FOR_VETO``) to an
+    atom that is neither carbon nor a metal or metalloid. ``None`` (the drawing is left as it is
+    written) when
+
+    * there is no such bond;
+    * a true metal is bonded to carbon INTRODUCTION, "Organometallic compounds are
+      compounds having at least one bond between one metal atom and one carbon atom": the key of
+      such a drawing is not the key of its ionic drawing), to another metal or a metalloid;
+    * a bond from a true metal is not a single bond (a double bond, a dative bond);
+    * a bonded metal is not admitted to ``DISCONNECT``, or the charge it would carry after the
+      disconnection (its formal charge plus the number of its bonds broken) is not one of its
+      ``valences`` in the scope table: ``Cl[Zn](Cl)N`` would give ``[Zn+3]`` with the key of
+      ``Cl[Zn](Cl)N`` unchanged, and a standard InChIKey does not bound the charge of a metal;
+    * a broken bond carries a bond direction, or an atom at either end carries a chiral tag, or a
+      double bond at the other end carries a stereo label: breaking the bond would change the
+      configuration the drawing states.
+
+    A metal cation that has no bond (the counter-ion ``[Na+]`` of ``[Na+].Cl[Zn-2](Cl)(Cl)Cl``)
+    is not a site and does not matter. PURE: read-only inspection of ``mol``.
+    """
+    if mol is None:
+        return None
+    sites: List[Tuple[int, int]] = []
+    broken: dict = {}
+    for b in bonds_of(mol):
+        a1, a2 = b.GetBeginAtom(), b.GetEndAtom()
+        m1 = a1.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO
+        m2 = a2.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO
+        if not (m1 or m2):
+            continue
+        if m1 and m2:
+            return None
+        metal, other = (a1, a2) if m1 else (a2, a1)
+        symbol = other.GetSymbol()
+        if symbol == 'C' or is_metal_element(symbol):
+            return None
+        if b.GetBondType() != Chem.BondType.SINGLE or b.GetBondDir() != Chem.BondDir.NONE:
+            return None
+        if (metal.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED
+                or other.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED):
+            return None
+        if any(nb.GetStereo() != Chem.BondStereo.STEREONONE for nb in other.GetBonds()):
+            return None
+        sites.append((metal.GetIdx(), other.GetIdx()))
+        broken[metal.GetIdx()] = broken.get(metal.GetIdx(), 0) + 1
+    if not sites:
+        return None
+    for metal_idx, count in broken.items():
+        atom = mol.GetAtomWithIdx(metal_idx)
+        symbol = atom.GetSymbol()
+        if not has_mechanism(symbol, DISCONNECT) or not has_valence(symbol, atom.GetFormalCharge() + count):
+            return None
+    return sites
+
+
+#: the bond types RDKit reads for the ``->`` and ``<-`` of a SMILES; the begin atom of the bond is
+#: the donor and the end atom the acceptor
+_DATIVE_BOND_TYPES = (Chem.BondType.DATIVE, Chem.BondType.DATIVEONE, Chem.BondType.DATIVEL,
+                      Chem.BondType.DATIVER)
+
+
+def dative_bond_split_sites(mol: "Chem.Mol") -> Optional[List[Tuple[int, int]]]:
+    """The dative bonds of ``mol`` that a split removes, as ``(metal atom index, donor atom index)``
+    pairs; ``None`` when ``mol`` is not a drawing that ``DATIVE`` (``data/metal_scope.py``) covers.
+
+    A drawing with dative bonds has no standard InChIKey in RDKit, so it has no key to read a name
+    back against. The split drawing is the same drawing without those bonds: the donor keeps its
+    lone pair, the acceptor its charge, every atom its hydrogens, and no charge moves.
+    Structures for Lewis 'adducts' draws the 'dative' bond as structure (I) of the three drawings
+    of an adduct. The sites are every dative bond of ``mol``; ``None`` (the drawing is left as it
+    is written) when
+
+    * there is no dative bond;
+    * a dative bond does not end at a true metal (``_TRUE_METAL_SYMBOLS_FOR_VETO``): the split
+      would leave a dative bond in the drawing, and the drawing would still have no key; or its
+      donor is a metal or a metalloid;
+    * an acceptor metal is not admitted to ``DATIVE``;
+    * a bond carries a bond direction, an atom at either end of a dative bond carries a chiral tag,
+      or a double bond at the donor carries a stereo label: the split would change the
+      configuration the drawing states, and the key of the split drawing cannot tell.
+
+    PURE: read-only inspection of ``mol``.
+    """
+    if mol is None:
+        return None
+    sites: List[Tuple[int, int]] = []
+    for b in bonds_of(mol):
+        if b.GetBondType() not in _DATIVE_BOND_TYPES:
+            continue
+        donor, acceptor = b.GetBeginAtom(), b.GetEndAtom()
+        if (acceptor.GetSymbol() not in _TRUE_METAL_SYMBOLS_FOR_VETO
+                or donor.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO
+                or is_metal_element(donor.GetSymbol())
+                or not has_mechanism(acceptor.GetSymbol(), DATIVE)):
+            return None
+        if b.GetBondDir() != Chem.BondDir.NONE:
+            return None
+        if (donor.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED
+                or acceptor.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED):
+            return None
+        if any(nb.GetStereo() != Chem.BondStereo.STEREONONE for nb in donor.GetBonds()):
+            return None
+        sites.append((acceptor.GetIdx(), donor.GetIdx()))
+    return sites or None
+
+
+def connect_anion_to_organometal_cation_sites(mol: "Chem.Mol") -> Optional[List[Tuple[int, int]]]:
+    """The bonds that join a free anion to the organometallic cation it is drawn beside, as
+    ``(metal atom index, donor atom index)`` pairs; ``None`` when ``mol`` is not a drawing that
+    ``CONNECT_ANION`` (``data/metal_scope.py``) covers.
+
+    The drawing is ``[Cl-].[Zn+]c1ccccc1``: one cation of a true metal that carries a bond to
+    carbon INTRODUCTION, "Organometallic compounds are compounds having at least one bond
+    between one metal atom and one carbon atom") and the free anion that neutralises it. Each site
+    is the bond from the metal to the donor atom of such an anion. ``None`` (the drawing is left as
+    it is written) unless
+
+    * exactly one true metal atom is positively charged, and no other true metal atom is in the
+      molecule but a metal that has no bond at all;
+    * that metal has only single bonds without a bond direction, no chiral tag, a bond to carbon,
+      no bond to another metal or a metalloid, is admitted to ``CONNECT_ANION`` and its formal
+      charge plus its number of bonds is one of its ``valences`` in the table (the charge the
+      metal would carry if every bond were broken; the cation the anion neutralises is the metal's
+      formal charge);
+    * every fragment of negative net charge but the cation's is such a free anion, and they are as
+      many as the metal's positive charge: a fragment of its own with net charge -1 and one
+      negatively charged atom (the donor, neither carbon nor a metal or a metalloid, with no chiral
+      tag and no bond that carries a stereo label), so which atom takes the bond is not a choice
+      and no anion has to be picked among several. The fragment of the cation has the net charge
+      of the cation.
+
+    A carbanion is no donor: a bond from the metal to its carbon would be a second metal-carbon
+    bond, and the key of that drawing is not the key of this one. PURE: read-only inspection of
+    ``mol``.
+    """
+    if mol is None:
+        return None
+    metals = [a for a in atoms_of(mol) if a.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO]
+    cations = [a for a in metals if a.GetFormalCharge() > 0]
+    if len(cations) != 1 or any(a.GetDegree() for a in metals if a.GetIdx() != cations[0].GetIdx()):
+        return None
+    cation = cations[0]
+    symbol, charge = cation.GetSymbol(), cation.GetFormalCharge()
+    if (not has_mechanism(symbol, CONNECT_ANION)
+            or not has_valence(symbol, charge + cation.GetDegree())
+            or cation.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED):
+        return None
+    bonded_to_carbon = False
+    for bond in cation.GetBonds():
+        other = bond.GetOtherAtom(cation)
+        if (bond.GetBondType() != Chem.BondType.SINGLE or bond.GetBondDir() != Chem.BondDir.NONE
+                or is_metal_element(other.GetSymbol())):
+            return None
+        bonded_to_carbon = bonded_to_carbon or other.GetSymbol() == 'C'
+    if not bonded_to_carbon:
+        return None
+    sites: List[Tuple[int, int]] = []
+    for fragment in Chem.GetMolFrags(mol):
+        atoms = [mol.GetAtomWithIdx(i) for i in fragment]
+        net = sum(a.GetFormalCharge() for a in atoms)
+        if cation.GetIdx() in fragment:
+            if net != charge:                       # the cation is already balanced inside its fragment
+                return None
+            continue
+        if net >= 0:
+            continue
+        negative = [a for a in atoms if a.GetFormalCharge() < 0]
+        donor = negative[0]
+        if (net != -1 or len(negative) != 1 or donor.GetSymbol() == 'C'
+                or is_metal_element(donor.GetSymbol())
+                or any(a.GetSymbol() in _TRUE_METAL_SYMBOLS_FOR_VETO for a in atoms)
+                or donor.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED
+                or any(b.GetStereo() != Chem.BondStereo.STEREONONE for b in donor.GetBonds())):
+            return None                             # an anion that is no free anion: the pairing is a choice
+        sites.append((cation.GetIdx(), donor.GetIdx()))
+    return sites if len(sites) == charge else None
+
+
+def atom_and_charge_ledger_ok(before: "Chem.Mol", after: "Chem.Mol",
+                              changed_bonds: List[Tuple[int, int]], moved_charge: int = 1) -> bool:
+    """True when ``after`` is ``before`` with the bonds ``changed_bonds`` broken and nothing else
+    changed but the charges those bonds carry. A count of atoms and charges that uses no InChI
+    and shares no code with the rewrite it checks: a rewrite that keeps the standard InChIKey
+    (which is blind to metal-ligand bonds and to which atom of an ambident anion carries the
+    charge) and moves a charge to the wrong donor atom, or drops a hydrogen, fails here.
+
+    ``before`` and ``after`` are sanitized molecules with the same atom order. ``changed_bonds``
+    lists the broken bonds as ``(metal atom index, other atom index)``: the metal gains
+    ``moved_charge`` and the other atom loses it for each (+1 and -1 for the heterolytic
+    disconnection of a single bond; 0 for the removal of a dative bond, which moves no charge:
+    :func:`dative_bond_split_sites`). Compared atom by atom: element, isotope, number of radical electrons,
+    number of hydrogens, and the formal charge (the charge before plus the declared change); then
+    the bond set (``before`` minus the broken bonds), the sum of the bond orders at each atom of a
+    Kekule drawing of each molecule, and the net charge.
+    A bond listed twice, a bond that ``before`` does not have, or any RDKit error is False.
+    PURE: read-only inspection of both molecules."""
+    if before is None or after is None:
+        return False
+    try:
+        count = before.GetNumAtoms()
+        if after.GetNumAtoms() != count:
+            return False
+        delta = [0] * count
+        broken = set()
+        for metal_idx, other_idx in changed_bonds:
+            key = frozenset((metal_idx, other_idx))
+            if key in broken or before.GetBondBetweenAtoms(metal_idx, other_idx) is None:
+                return False
+            broken.add(key)
+            delta[metal_idx] += moved_charge
+            delta[other_idx] -= moved_charge
+        for idx in range(count):
+            old, new = before.GetAtomWithIdx(idx), after.GetAtomWithIdx(idx)
+            if (old.GetAtomicNum() != new.GetAtomicNum() or old.GetIsotope() != new.GetIsotope()
+                    or old.GetNumRadicalElectrons() != new.GetNumRadicalElectrons()
+                    or old.GetTotalNumHs() != new.GetTotalNumHs()
+                    or new.GetFormalCharge() != old.GetFormalCharge() + delta[idx]):
+                return False
+
+        def pairs(mol, skip):
+            return {frozenset((bd.GetBeginAtomIdx(), bd.GetEndAtomIdx())) for bd in mol.GetBonds()
+                    if frozenset((bd.GetBeginAtomIdx(), bd.GetEndAtomIdx())) not in skip}
+
+        def bond_order_sums(mol, skip):
+            # the sum of the bond orders at each atom of a Kekule drawing: an aromatic bond of one
+            # perception (a pyrrolide that is aromatic once its nitrogen has no metal bond) and the
+            # alternating bonds of another are one structure, and the sums, with the charges and
+            # the hydrogens above, tell them from a drawing in which a bond order moved
+            kekule = Chem.Mol(mol)
+            Chem.Kekulize(kekule, clearAromaticFlags=True)
+            sums = [0.0] * kekule.GetNumAtoms()
+            for bd in kekule.GetBonds():
+                if frozenset((bd.GetBeginAtomIdx(), bd.GetEndAtomIdx())) in skip:
+                    continue
+                order = bd.GetBondTypeAsDouble()
+                sums[bd.GetBeginAtomIdx()] += order
+                sums[bd.GetEndAtomIdx()] += order
+            return sums
+
+        if pairs(before, broken) != pairs(after, set()):
+            return False
+        if bond_order_sums(before, broken) != bond_order_sums(after, set()):
+            return False
+        return Chem.GetFormalCharge(before) == Chem.GetFormalCharge(after)
+    except (RuntimeError, ValueError):
+        return False
 
 
 def has_covalent_metal_carbon_bond(mol: "Chem.Mol") -> bool:
