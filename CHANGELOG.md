@@ -5,6 +5,50 @@ All notable changes to Orthonym are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.8](https://github.com/Steinbeck-Lab/Orthonym/compare/v1.0.7...v1.0.8) (2026-10-15)
+
+
+### Features
+
+* nomenclature coverage and correctness updates ([c803335](https://github.com/Steinbeck-Lab/Orthonym/commit/c8033357d800296e89fd8148074219817772fa08))
+* **provenance:** the row names the code that built the name ([dfaf422](https://github.com/Steinbeck-Lab/Orthonym/commit/dfaf422828f1ffc94eab04b85cddbb614324aa04))
+
+
+### Bug Fixes
+
+* an unnamed structure gives an empty name by default, and the reason goes to the log ([9e9319d](https://github.com/Steinbeck-Lab/Orthonym/commit/9e9319d4decee1b9830b46f37e9ee6fa0a1e6d32))
+* an unnamed structure gives an empty name by default, and the reason goes to the log ([4f1dc27](https://github.com/Steinbeck-Lab/Orthonym/commit/4f1dc273fd391bb76a82baa619cfe28733e52224)), closes [#45](https://github.com/Steinbeck-Lab/Orthonym/issues/45)
+* cite every locant OPSIN needs and withdraw names OPSIN reads as ambiguous ([e0e7c31](https://github.com/Steinbeck-Lab/Orthonym/commit/e0e7c31d02b4af318440663b541bc7d0fbfc0992))
+* **cli:** --batch writes one output line per input line ([7020cad](https://github.com/Steinbeck-Lab/Orthonym/commit/7020cadf4be66ceb89d7af39c35cebd25dde323a))
+* **cli:** --batch writes one output line per input line ([6f9a3a3](https://github.com/Steinbeck-Lab/Orthonym/commit/6f9a3a3adf8e70dfb4c07103ec95314f29a60e48)), closes [#42](https://github.com/Steinbeck-Lab/Orthonym/issues/42)
+* in-process JVM -- crash traceback setup no longer replaces the JVM signal handler, and fork children no longer hang ([4658fcd](https://github.com/Steinbeck-Lab/Orthonym/commit/4658fcd4f73d02030d9b19ef5385fc6e775eb483))
+* in-process JVM -- crash traceback setup no longer replaces the JVM signal handler, and fork children no longer hang ([d878672](https://github.com/Steinbeck-Lab/Orthonym/commit/d87867243aae96a410e4e328632e1352c296f7ad))
+* lowest locants for the first-cited prefix, and enclosing marks for further prefixes of a one-atom parent ([a0cefb5](https://github.com/Steinbeck-Lab/Orthonym/commit/a0cefb52adcfcace2083e057a9a7c4b44b594ffe))
+* lowest locants for the first-cited prefix, and enclosing marks for further prefixes of a one-atom parent ([71b1bee](https://github.com/Steinbeck-Lab/Orthonym/commit/71b1bee8d15c5992b0e728905050ace09b90dda4))
+* name zinc compounds whatever the drawing ([a2ee8a3](https://github.com/Steinbeck-Lab/Orthonym/commit/a2ee8a3ce6f2028789161d724fb81c1760e6b0c7))
+* name zinc compounds whatever the drawing ([53bd2ab](https://github.com/Steinbeck-Lab/Orthonym/commit/53bd2ab8ba59e67bf01bef4d1cc20e361f2f771a))
+* no hang in the resonance search, and porphyrin names ([576c598](https://github.com/Steinbeck-Lab/Orthonym/commit/576c598fce9f2828901edbc09c6db66c7e1dd044))
+* no hang in the resonance search, and porphyrin names ([a5da15a](https://github.com/Steinbeck-Lab/Orthonym/commit/a5da15a3d36524248c867d90bf5be277eaf4431a))
+* **organometallics:** read the charge a name states from the structure OPSIN reads from it ([3169d02](https://github.com/Steinbeck-Lab/Orthonym/commit/3169d025773c527d36e1e6b106c176f0a9e332fb))
+* **organometallics:** read the charge a name states from the structure OPSIN reads from it ([adb4bc6](https://github.com/Steinbeck-Lab/Orthonym/commit/adb4bc69481674102a4959d953873b09a971d060))
+* preferred names for azolium and amidinium cations and hydrogen dicarboxylate anions ([4cf66c0](https://github.com/Steinbeck-Lab/Orthonym/commit/4cf66c0020a5a84633e3c72573b70f98390b886c))
+* preferred names for azolium and amidinium cations and hydrogen dicarboxylate anions ([75c179b](https://github.com/Steinbeck-Lab/Orthonym/commit/75c179b7ab4bfd575f827740b4896e19a93f93c6))
+* preferred names for fused rings with a ring amidine and for ring cation-carboxylate zwitterions, and a test-suite worker crash at teardown ([9b3d3d6](https://github.com/Steinbeck-Lab/Orthonym/commit/9b3d3d6c7ca8ff7476ab80ac40f90d336b84ebe3))
+* preferred names for fused rings with a ring amidine and for ring cation-carboxylate zwitterions, and a test-suite worker crash at teardown ([953a844](https://github.com/Steinbeck-Lab/Orthonym/commit/953a84411c657e1003fe2b0743f6a670089eb6e5))
+* preferred names for fused rings with a ring guanidine and for saturated-ring zwitterions with stereo ([746fd39](https://github.com/Steinbeck-Lab/Orthonym/commit/746fd397d0bd6589aa5b212f65414557ed4ab46b))
+* preferred names for fused rings with a ring guanidine and for saturated-ring zwitterions with stereo ([f2e5df7](https://github.com/Steinbeck-Lab/Orthonym/commit/f2e5df7db7c309bdb97328ee33cd1553f56f1e87))
+* preferred names for six-ring amidinium cations and substituted acetonitriles, enclosing marks of acylsulfanyl prefixes, and the choice among charge forms ([c48dbb5](https://github.com/Steinbeck-Lab/Orthonym/commit/c48dbb56006be275484d5bcc65f8a8988bc15263))
+* preferred names for six-ring amidinium cations and substituted acetonitriles, enclosing marks of acylsulfanyl prefixes, and the choice among charge forms ([fe2c72b](https://github.com/Steinbeck-Lab/Orthonym/commit/fe2c72b99ad09b786506939d211e6be01252bbdd))
+* **provenance:** the row names the code that built the name ([977be0c](https://github.com/Steinbeck-Lab/Orthonym/commit/977be0c14e1a38db39d6da2de1f6b839b3de05e3))
+* stereo names of pseudoasymmetric centres ([35aa379](https://github.com/Steinbeck-Lab/Orthonym/commit/35aa379c385eeef4ce3eb78a43fa5b3862e13a0c))
+* stereo names of pseudoasymmetric centres ([8fcefb1](https://github.com/Steinbeck-Lab/Orthonym/commit/8fcefb17550644e65f42bc4761de38f4a80925e4))
+
+
+### Documentation
+
+* cite the Blue Book rules the code applies, not rule ids the book does not have ([#22](https://github.com/Steinbeck-Lab/Orthonym/issues/22)) ([f27e261](https://github.com/Steinbeck-Lab/Orthonym/commit/f27e261346cf64d976be789832624446d493c573))
+* maintainer guide, rule index and contributing rules ([#28](https://github.com/Steinbeck-Lab/Orthonym/issues/28)) ([fc7538a](https://github.com/Steinbeck-Lab/Orthonym/commit/fc7538ae76e502763c9250736c855473a2c17766))
+
 ## [1.0.7](https://github.com/Steinbeck-Lab/Orthonym/compare/v1.0.6...v1.0.7) (2026-10-10)
 
 
