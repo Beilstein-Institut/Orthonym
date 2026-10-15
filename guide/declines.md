@@ -38,7 +38,7 @@ The first line is a log message on the error stream: the engine withdrew a candi
 
 | `limit_code` | Label (`on_failure="label"`, and the `name` of a provenance row) | When |
 |:--|:--|:--|
-| `UNSUPPORTED_ELEMENT` | `inorganic compound (not supported)`, or `<metal> compound (not supported)` | an element outside the ones the rules cover |
+| `UNSUPPORTED_ELEMENT` | `inorganic compound (not supported)`, or `<metal> compound (not supported)` | an element outside the ones the rules cover, or a compound of a metal that is not admitted to the naming mechanisms and that no general producer names ([Metal compounds](tiers.md#metal-compounds)) |
 | `WILDCARD_ATOMS` | `compound with wildcard atoms (not supported)` | the structure has a `*` atom |
 | `STRUCTURE_TOO_LARGE` | `unknown organic compound` | an unnamed structure with more than 125 heavy atoms: a label given after the attempt, since the engine sets no size limit and attempts every input |
 | `ISOLATED_ATOM` | `unknown organic compound` | a single heavy atom |

@@ -120,12 +120,12 @@ def test_u2_free_base_at_both_tiers():
 
 
 def test_u2_with_its_free_zinc_ion():
-    """The drawing is a neutral free-base porphyrin plus a bare [Zn+2]. The default tier declines it,
-    out of scope); the best-effort name is the composite ``<ligand>--zinc(2+) (1/1)`` and it must read back
+    """The drawing is a neutral free-base porphyrin plus a bare [Zn+2]. The default tier names nothing for it
+    (UNNAMEABLE: no producer of that tier names the whole drawing); the best-effort name is the composite ``<ligand>--zinc(2+) (1/1)`` and it must read back
     exactly: a composite that did not would turn a name into an abstention."""
     default = name_default(U2)
-    assert default.get("name") == "zinc compound (not supported)", default
-    assert default.get("limit_code") == "UNSUPPORTED_ELEMENT", default
+    assert default.get("name") == "zinc compound (not supported)", default      # no producer of the default tier names it
+    assert default.get("limit_code") == "UNNAMEABLE", default
     breadth = name_breadth(U2)
     assert breadth.get("name") and name_is_rt_exact(breadth["name"], U2), breadth
 

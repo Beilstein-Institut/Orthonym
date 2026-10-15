@@ -221,6 +221,15 @@ def no_verified_pin(message: str, smiles: Optional[str] = None) -> OrthonymLimit
     return _make('NO_VERIFIED_PIN', message=message, smiles=smiles)
 
 
+def _names_every_element(symbols) -> bool:
+    """True when an input made of the elements ``symbols`` that no producer names is the engine's
+    gap and not an unsupported element: every element is a metal the scope table admits and at least
+    one metal is complete (``data.metal_scope.has_complete_scope``; zinc). The failure label of such
+    an input is UNNAMEABLE. Imported here: ``orthonym.data`` loads the retained-name tables."""
+    from .data.metal_scope import has_complete_scope
+    return has_complete_scope(symbols)
+
+
 def unsupported_element_branch(symbol: str,
                                smiles: Optional[str] = None
                                ) -> OrthonymLimitError:
@@ -236,12 +245,16 @@ def unsupported_element_branch(symbol: str,
     more dangerous 'ethane', which no failure predicate can flag.
 
     The message names the element when known, so the refusal stays as
-    informative as the descriptive fallback it mirrors.
+    informative as the descriptive fallback it mirrors. A branch of a metal the
+    scope table has completed (zinc) is the engine's gap, not an unsupported
+    element: the refusal is UNNAMEABLE, as ``classify_failure_limit`` labels
+    the whole input; its text stays the descriptive fallback of the metal.
     """
     metal = _METAL_NAMES.get(symbol)
     message = (f'{metal} compound (not supported)' if metal
                else LIMIT_CATALOG['UNSUPPORTED_ELEMENT']['message'])
-    return _make('UNSUPPORTED_ELEMENT', message=message, smiles=smiles)
+    return _make('UNNAMEABLE' if _names_every_element((symbol,)) else 'UNSUPPORTED_ELEMENT',
+                 message=message, smiles=smiles)
 
 
 def is_failure_name(name: Optional[str]) -> bool:
@@ -447,8 +460,14 @@ def classify_failure_limit(mol: Chem.Mol,
         metals = sorted((s for s in non_organic if s in _METAL_NAMES),
                         key=lambda s: pt.GetAtomicNumber(s))
         if metals:
+            # Every element a metal of the scope table with at least one complete metal (zinc): the
+            # engine attempted the compound in every drawing and found no name; the element is
+            # supported, so the label is UNNAMEABLE. The text stays the descriptive fallback of the
+            # metal: it is the string of the plain call, and the default tier reads the text
+            # 'unknown organic compound' as the decline of a name that was built (NO_VERIFIED_PIN).
+            code = 'UNNAMEABLE' if _names_every_element(non_organic) else 'UNSUPPORTED_ELEMENT'
             return _make(
-                'UNSUPPORTED_ELEMENT',
+                code,
                 message=f"{_METAL_NAMES[metals[0]]} compound (not supported)",
                 smiles=smiles,
             )

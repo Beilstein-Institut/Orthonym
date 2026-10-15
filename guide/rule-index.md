@@ -80,7 +80,7 @@ The helpers decide whether a prefix needs brackets, which bracket, and how marks
 | `enclose_if_compound` | `assembly/naming_utils.py` | 164 calls in 44 other files |
 | `needs_brackets` | `assembly/naming_utils.py` | 28 calls in 8 other files |
 | `is_complex_substituent` | `assembly/naming_utils.py` | 43 calls in 20 other files |
-| `renest_group_and_ancestors` | `assembly/naming_utils.py` | 1 call in 1 other file |
+| `renest_group_and_ancestors` | `assembly/naming_utils.py` | 2 calls in 2 other files |
 | `top_level_tokens` | `assembly/naming_utils.py` | 2 calls in 2 other files |
 | `matching_close` | `assembly/naming_utils.py` | 3 calls in 3 other files |
 
@@ -116,8 +116,8 @@ Blue Book: <!-- rule-index:begin bb:P-14.2,P-16.3 -->P-14.2 Multiplicative Prefi
 
 | Helper | Module | Used outside its module |
 |:--|:--|:--|
-| `SIMPLE_MULTIPLIERS` | `data/multipliers.py` | 80 reads in 27 other files |
-| `COMPLEX_MULTIPLIERS` | `data/multipliers.py` | 32 reads in 14 other files |
+| `SIMPLE_MULTIPLIERS` | `data/multipliers.py` | 81 reads in 28 other files |
+| `COMPLEX_MULTIPLIERS` | `data/multipliers.py` | 33 reads in 15 other files |
 | `multiplier_table` | `data/multipliers.py` | 92 calls in 46 other files |
 | `get_multiplier_prefix` | `assembly/naming_utils.py` | 36 calls in 16 other files |
 | `simple_multiplier_word` | `assembly/naming_utils.py` | 9 calls in 6 other files |
@@ -319,6 +319,7 @@ A class handler is a short shim in `routing/dispatch_table.py` that calls the co
 | 302 | `MIXED_SIGN_ZWITTERION` | Net-charged ions with both cation and anion sites | `rules/charged_router.py`, `rules/ions.py` |
 | 400 | `ANION_RETAINED` | Anions with a retained name (acetate, benzoate) | `rules/ions.py` |
 | 480 | `CATION_QUATERNARY` | Quaternary ammonium cations | `rules/charged_router.py` |
+| 490 | `METAL_ATOM` | Atoms, ions and isotopes of a metal the scope table admits (zinc, zinc(2+), (65Zn)zinc) | `rules/metal_atoms.py` |
 | 500 | `CATION_RETAINED` | Cations with a retained name | `rules/ions.py` |
 | 600 | `ANION_SMALL` | Single anions of up to 25 heavy atoms | `rules/acid_ester_anion.py`, `rules/ions.py`, `rules/charged_router.py`, `perception/ions.py` |
 | 700 | `POLY_ANION` | Anions with two or more anionic sites | `rules/acid_ester_anion.py`, `rules/charged_router.py`, `rules/ions.py`, `perception/ions.py` |
@@ -424,17 +425,17 @@ The number of times the code (comments, docstrings and strings) mentions a secti
 
 | Section | Title | Mentions | Modules that mention it most |
 |:--|:--|:--|:--|
-| P-14 | General Rules | 1440 | `assembly/naming_utils.py` (110), `assembly/composer.py` (95), `assembly/handlers/_handler_shared.py` (92) |
-| P-15 | Types of Nomenclature | 274 | `rules/multiplicative.py` (92), `rules/skeletal_replacement.py` (29), `assembly/universal_substituent.py` (12) |
-| P-16 | Name Writing | 1022 | `assembly/naming_utils.py` (220), `assembly/composer.py` (91), `assembly/substituent_naming.py` (68) |
-| P-21 | Mononuclear and Acyclic Polynuclear Parent Hydrides | 106 | `routing/dispatch_table.py` (25), `rules/catenated_hydrides.py` (16), `rules/polychalcogen.py` (10) |
+| P-14 | General Rules | 1446 | `assembly/naming_utils.py` (110), `assembly/composer.py` (95), `assembly/handlers/_handler_shared.py` (92) |
+| P-15 | Types of Nomenclature | 276 | `rules/multiplicative.py` (92), `rules/skeletal_replacement.py` (29), `assembly/universal_substituent.py` (12) |
+| P-16 | Name Writing | 1026 | `assembly/naming_utils.py` (220), `assembly/composer.py` (91), `assembly/substituent_naming.py` (68) |
+| P-21 | Mononuclear and Acyclic Polynuclear Parent Hydrides | 108 | `routing/dispatch_table.py` (25), `rules/catenated_hydrides.py` (16), `rules/polychalcogen.py` (10) |
 | P-22 | Monocyclic Parent Hydrides | 200 | `rules/heterocycles.py` (70), `rules/skeletal_replacement.py` (21), `rules/monocycle_forms.py` (17) |
 | P-23 | Polyalicyclic Parent Hydrides (Extended von Baeyer System) | 199 | `rules/polycyclic.py` (82), `rules/ring_replacement.py` (25), `rules/vonbaeyer_universal.py` (22) |
 | P-24 | Spiro Ring Systems | 262 | `rules/spiro.py` (196), `assembly/composer.py` (31), `data/fused_heterocycles.py` (7) |
 | P-25 | Fused and Bridged Fused Ring Systems | 635 | `rules/fused_rings.py` (96), `data/fused_heterocycles.py` (62), `rules/bridged_fused_pin/fusion_components.py` (30) |
 | P-26 | Phane Nomenclature | 60 | `rules/phane.py` (50), `routing/dispatch_table.py` (3), `rules/linear_phane_screen.py` (3) |
 | P-28 | Ring Assemblies | 140 | `rules/ring_assemblies.py` (101), `rules/ring_substituents.py` (13), `rules/ring_assembly_screen.py` (6) |
-| P-29 | Prefixes Denoting Substituent Groups Derived from Parent Hydrides | 356 | `assembly/substituent_naming.py` (65), `assembly/substituent_enumerator.py` (59), `rules/ring_substituents.py` (38) |
+| P-29 | Prefixes Denoting Substituent Groups Derived from Parent Hydrides | 359 | `assembly/substituent_naming.py` (65), `assembly/substituent_enumerator.py` (59), `rules/ring_substituents.py` (38) |
 | P-31 | Modification of the Degree of Hydrogenation of Parent Hydrides | 416 | `rules/spiro.py` (41), `rules/polycyclic.py` (27), `rules/heterocycles.py` (26) |
 | P-35 | Prefixes Corresponding to Characteristic Groups | 61 | `rules/seniority.py` (17), `assembly/naming_utils.py` (12), `assembly/composer.py` (8) |
 | P-41 | Seniority Order for Classes | 220 | `rules/benzene.py` (21), `rules/fused_rings.py` (15), `rules/polycyclics.py` (12) |
@@ -447,22 +448,22 @@ The number of times the code (comments, docstrings and strings) mentions a secti
 | P-58 | Selecting Preferred IUPAC Names | 139 | `rules/partial_saturation.py` (27), `rules/fused_rings.py` (24), `rules/bridged_fused_pin/hydro.py` (17) |
 | P-59 | Name Construction | 91 | `assembly/universal_substituent.py` (23), `rules/fused_rings.py` (9), `perception/ions.py` (8) |
 | P-61 | Substitutive Nomenclature: Prefix Mode | 73 | `rules/benzene.py` (14), `rules/mononuclear_hydrides.py` (12), `assembly/substituent_naming.py` (7) |
-| P-62 | Amines and Imines | 145 | `assembly/composer.py` (17), `rules/ring_substituents.py` (13), `assembly/substituent_naming.py` (10) |
-| P-63 | Hydroxy Compounds, Ethers, Peroxols, Peroxides, and Chalcogen Analogues | 324 | `assembly/substituent_enumerator.py` (39), `rules/seniority.py` (36), `assembly/substituent_prefix_forms.py` (31) |
-| P-64 | Ketones, Pseudoketones, Heterones, and Chalcogen Analogues | 135 | `routing/dispatch_table.py` (19), `rules/partial_saturation.py` (14), `assembly/composer.py` (12) |
-| P-65 | Acids, Acyl Halides and Pseudohalides, Salts, Esters, and Anhydrides | 902 | `rules/seniority.py` (89), `perception/functional_groups.py` (78), `rules/esters.py` (66) |
+| P-62 | Amines and Imines | 146 | `assembly/composer.py` (17), `rules/ring_substituents.py` (13), `assembly/substituent_naming.py` (10) |
+| P-63 | Hydroxy Compounds, Ethers, Peroxols, Peroxides, and Chalcogen Analogues | 327 | `assembly/substituent_enumerator.py` (39), `rules/seniority.py` (36), `assembly/substituent_prefix_forms.py` (31) |
+| P-64 | Ketones, Pseudoketones, Heterones, and Chalcogen Analogues | 137 | `routing/dispatch_table.py` (19), `rules/partial_saturation.py` (14), `assembly/composer.py` (12) |
+| P-65 | Acids, Acyl Halides and Pseudohalides, Salts, Esters, and Anhydrides | 903 | `rules/seniority.py` (89), `perception/functional_groups.py` (78), `rules/esters.py` (66) |
 | P-66 | Amides, Imides, Hydrazides, Nitriles, and Aldehydes | 809 | `assembly/composer.py` (77), `rules/benzene.py` (75), `assembly/substituent_naming.py` (57) |
 | P-67 | Mononuclear and Polynuclear Noncarbon Acids and their Functional Replacement Analogues as Functional Parents for Naming Organic Compounds | 414 | `rules/inorganic_acids.py` (126), `rules/functional_replacement.py` (33), `rules/phosphorus.py` (27) |
-| P-68 | Nomenclature of Organic Compounds of the Group 13, 14, 15, 16, and 17 Elements not Included in Sections P-62 through P-67 | 331 | `routing/dispatch_table.py` (51), `rules/mononuclear_hydrides.py` (31), `rules/polyazane.py` (22) |
-| P-69 | Nomenclature for Organometallic Compounds | 118 | `rules/organometallics.py` (30), `perception/metals.py` (17), `namer.py` (12) |
+| P-68 | Nomenclature of Organic Compounds of the Group 13, 14, 15, 16, and 17 Elements not Included in Sections P-62 through P-67 | 341 | `routing/dispatch_table.py` (51), `rules/mononuclear_hydrides.py` (31), `rules/polyazane.py` (22) |
+| P-69 | Nomenclature for Organometallic Compounds | 147 | `rules/organometallics.py` (32), `perception/metals.py` (21), `namer.py` (14) |
 | P-71 | Radicals | 132 | `rules/radicals.py` (76), `rules/charged_router.py` (25), `rules/ions.py` (18) |
-| P-72 | Anions | 228 | `rules/ions.py` (92), `rules/charged_router.py` (61), `routing/dispatch_table.py` (15) |
+| P-72 | Anions | 233 | `rules/ions.py` (92), `rules/charged_router.py` (61), `routing/dispatch_table.py` (15) |
 | P-73 | Cations | 279 | `rules/ions.py` (101), `rules/charged_router.py` (65), `data/ion_retained_names.py` (14) |
 | P-74 | Zwitterions | 237 | `rules/charged_router.py` (57), `rules/ions.py` (34), `assembly/general_engine.py` (23) |
-| P-82 | Isotopically Substituted Compounds | 282 | `rules/isotopes.py` (242), `assembly/locant_omission.py` (12), `assembly/naming_utils.py` (5) |
-| P-91 | Stereoisomer Graphical Representation and Naming | 112 | `assembly/substituent_naming.py` (18), `rules/stereochemistry.py` (18), `namer.py` (11) |
-| P-93 | Configuration Specification | 59 | `namer.py` (11), `rules/stereochemistry.py` (10), `assembly/composer.py` (7) |
-| P-101 | Nomenclature for Natural Products Based on Parent Hydrides (Alkaloids, Steroids, Terpenes, Carotenes, Corrinoids, Tetrapyrroles, and Similar Compounds) | 51 | `rules/natural_products.py` (17), `namer.py` (15), `data/natural_products.py` (7) |
+| P-82 | Isotopically Substituted Compounds | 285 | `rules/isotopes.py` (242), `assembly/locant_omission.py` (12), `assembly/naming_utils.py` (5) |
+| P-91 | Stereoisomer Graphical Representation and Naming | 110 | `assembly/substituent_naming.py` (18), `rules/stereochemistry.py` (18), `namer.py` (9) |
+| P-93 | Configuration Specification | 70 | `namer.py` (13), `rules/stereochemistry.py` (10), `rules/relative_stereo.py` (9) |
+| P-101 | Nomenclature for Natural Products Based on Parent Hydrides (Alkaloids, Steroids, Terpenes, Carotenes, Corrinoids, Tetrapyrroles, and Similar Compounds) | 55 | `rules/natural_products.py` (17), `namer.py` (15), `data/natural_products.py` (7) |
 | P-102 | Carbohydrate Nomenclature | 150 | `data/sugar_names.py` (91), `rules/oligosaccharides.py` (26), `routing/dispatch_table.py` (13) |
 | P-103 | Amino Acids and Peptides | 97 | `data/amino_acids.py` (35), `rules/peptides.py` (23), `decomposition/engine.py` (5) |
 
@@ -488,6 +489,7 @@ The tables are Python modules in `src/orthonym/data/`, and the retained names wr
 | `data/hw_heteroatoms.py` | Hantzsch-Widman heteroatom prefix data for systematic heterocycle naming |
 | `data/hw_stems.py` | Hantzsch-Widman stem suffix data for systematic heterocycle naming |
 | `data/ion_retained_names.py` | Retained names for common ions used in IUPAC nomenclature |
+| `data/metal_scope.py` | Which metals the engine names beside organic ions, and by which mechanism |
 | `data/multipliers.py` | The multiplying prefixes: ``di, tri, tetra, ...`` and ``bis, tris, tetrakis, ...`` |
 | `data/natural_products.py` | Natural product scaffold data and derivative lookup tables |
 | `data/organometallics.py` | Retained names + lookup tables for IUPAC P-69 organometallic compounds |

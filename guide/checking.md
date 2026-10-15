@@ -45,6 +45,20 @@ Some correct names use words OPSIN does not know. Two kinds of name leave the en
 
 If OPSIN itself does not answer (the Java runtime times out or stops), the candidate is withdrawn and the row shows `gate_outcome` `suppressed`. A name ships with `gate_outcome` `unavailable` only in the opt-in reduced mode without the jars (`ORTHONYM_ALLOW_REDUCED=1`, [Install](start/install.md)).
 
+## Compounds of metals
+
+A standard InChIKey does not record the bonds between a metal and its ligands. Zinc chloride drawn with two zinc-chlorine bonds and drawn as a zinc ion with two chloride ions have one key, so the round trip cannot tell the two drawings apart, and a producer may name one where it cannot name the other.
+
+When Orthonym names a metal compound through another drawing of it, three things must hold:
+
+- the two drawings have the same standard InChIKey;
+- a separate count, which does not use InChI, finds the same atoms, isotopes, hydrogens and bonds apart from the broken bonds, and charges that differ only by the charge those bonds move: one positive charge on the metal and one negative charge on the other atom for each broken bond;
+- the metal ends on a charge that Orthonym allows for it (zinc: 2+).
+
+A drawing that fails a test is named as drawn, or not at all. The round trip then confirms the atoms, the charges and the organic part of the name, not which atom the metal is bonded to. The name describes the other drawing, so it is {tier}`systematic_verified`, never {tier}`pin_verified`. The provenance row says so in `spelling_failures`.
+
+A drawing with dative bonds has no standard InChIKey in RDKit, so there is no key to read a name back against. Its name is read back to the same drawing without the dative bonds, which has a key, and the same count of atoms and charges ties the two drawings. The row shows `verified` `opsin_split`.
+
 ## See it for yourself
 
 `--provenance` prints what happened to every name. [The provenance row](use/provenance.md) explains each field, and the web app draws the read-back structure next to yours ([In the browser](use/browser.md)).

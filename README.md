@@ -168,21 +168,62 @@ Whatever the tier, `--provenance` (one SMILES at a time) says what each name is:
 preferred status is not certified), `systematic_verified` (a correct systematic name that is not
 the PIN, for example from the general engine, from a table of retained names, a strict-path name
 with a part the engine records as not the preferred form, a natural-product name of a molecule
-whose bridged fused PIN the engine does not build yet, or of a class for which the Blue Book
-gives no PIN, such as Group 1-12 organometallic compounds), `best_effort` (a last-resort producer's
+whose bridged fused PIN the engine does not build yet, a name reached through another drawing of
+the same compound, or a name of a class for which the Blue Book gives no PIN, such as Group 1-12
+organometallic compounds), `best_effort` (a last-resort producer's
 name, or one that no round trip confirmed) or `abstain` (no name). The tier says how a name was
 built.
 The `verified` field says how it was checked: `opsin` (OPSIN read the whole name back to your
 structure), `opsin_constitution` (OPSIN read it back without its stereodescriptors, and each
 descriptor was checked against its CIP label), `identity` (a name from an exact-match list: a
 metal-complex name found by your structure's exact InChIKey, or a natural-product parent name found
-by its exact structure; OPSIN cannot read these names) or `unverified`.
+by its exact structure; OPSIN cannot read these names), `opsin_split` (OPSIN read the name back
+to your structure drawn without its dative bonds, because RDKit gives a drawing with dative bonds no
+standard InChIKey to read a name back against; a count of atoms and charges ties the two drawings) or
+`unverified`.
 
 When Orthonym cannot name a molecule, the plain call returns the empty string and logs the reason
 (a limit code and a label) on the `orthonym` logger; the command line prints an empty name and the
 reason on the error stream. `on_failure="label"` (`--on-failure label`) returns the label instead, such
 as `inorganic compound (not supported)`, and `--provenance` marks the row `abstain` with a reason
 code. [More on declines](guide/declines.md).
+
+### Metal compounds
+
+Orthonym names a compound of a metal when OPSIN reads the name back to your structure. Zinc is
+admitted to every naming mechanism, and the tiers differ in how much of it they name.
+
+- `best-effort` names the widest range: a salt, the atom with its ions and isotopes, an
+  organozinc compound, a complex drawn with bonds to zinc or with dative bonds, a porphyrin or
+  phthalocyanine complex, and the adducts of zinc (the ammine, the aqua ion, a complex with a
+  neutral ligand such as pyridine, a porphyrin drawn beside a zinc ion). A compound of these
+  kinds can still be left unnamed.
+- `valid` names a salt, the atom with its ions and isotopes, most compounds drawn with bonds to
+  zinc or with dative bonds (`zinc diacetate` for the dative drawing of the acetate), the zinc
+  porphyrin complexes, and an organozinc compound whose organyl groups are hydrocarbon groups
+  (`diethylzinc`, `phenylzinc chloride`). It does not name the adducts: the ammine, the aqua ion,
+  a complex with a neutral ligand, a zincate anion drawn alone, a free porphyrin beside a zinc
+  ion. It does not name a phthalocyanine complex or an organozinc compound with a halogen or an
+  ester on its organyl group either. Those names come at `best-effort` only.
+
+A standard InChIKey does not record the bonds between a metal and its ligands, so the round
+trip cannot tell two drawings of one compound apart. Zinc chloride drawn with two zinc-chlorine
+bonds is named `zinc dichloride`, the name of its ionic drawing, after a separate count has
+confirmed that the two drawings hold the same atoms and differ in charge only by the charge that
+the broken bonds move. The name is `systematic_verified`, and the `spelling_failures` entry of
+`--provenance` says that it describes another drawing of the same compound. A drawing with dative
+bonds has no standard InChIKey in RDKit; its name is read back to the same drawing without the
+dative bonds, and `verified` is `opsin_split`.
+
+The default tier names a zinc salt drawn as ions when the strict PIN path builds a name that
+carries a PIN label: a salt of an acid, an alcohol or a thiol, or a carbon-free salt
+(`zinc diacetate`, `zinc dichloride`). It declines the zinc names that carry no PIN label:
+organozinc compounds, drawings with bonds to zinc, the atom and its ions, salts of carbanions,
+ammines and complexes.
+
+Other metals are admitted one at a time. A compound of a metal that is not admitted is named
+where the general producers can name it (`copper(II) sulfate`) and is otherwise declined, usually
+with `UNSUPPORTED_ELEMENT`.
 
 ## More
 

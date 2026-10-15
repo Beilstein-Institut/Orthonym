@@ -4087,6 +4087,20 @@ def _form_choice_scope(fn):
     return _wrapper
 
 
+from .assembly.metal_offer import (
+    form_result_rank as _form_result_rank,
+    make_metal_offer_scope as _make_metal_offer_scope,
+    record_metal_rewrite_non_pin as _record_metal_rewrite_non_pin,
+)
+from .rules.metal_labels import (
+    is_metal_name_without_pin as _is_metal_name_without_pin,
+)
+
+#: the decorator of ``Orthonym.name`` that offers the ionic drawing of a metal drawing
+#: (``assembly/metal_offer.py``); the strings of the two scopes named here are named as given
+_metal_offer_scope = _make_metal_offer_scope((_FORM_RUN_OWNED, _PIN_PROMOTION_WRAPPED))
+
+
 def _book_retry_scope(fn):
     """Roadmap N5 safety net around the public ``name``, outside ``_budget_scope``.
 
@@ -4177,6 +4191,7 @@ def _budget_scope(fn):
             _result = fn(self, *args, **kwargs)
             if depth == 1:
                 _record_stereo_group_non_pin(_result)
+                _record_metal_rewrite_non_pin(_result)
             if _policy:
                 _result = self._default_tier_decision(
                     _result, args[0] if args else kwargs.get('smiles'),
@@ -4215,6 +4230,7 @@ def _budget_scope(fn):
             if _rescued is not None and not is_failure_name(_rescued):
                 _result = self._finish(_rescued, smiles)
                 _record_stereo_group_non_pin(_result)
+                _record_metal_rewrite_non_pin(_result)
                 if _policy:
                     _result = self._default_tier_decision(_result, smiles, False)
                 return _result
@@ -4805,6 +4821,7 @@ class Orthonym:
         return gated
 
     @_failure_mode.failure_mode_scope
+    @_metal_offer_scope
     @_form_choice_scope
     @_book_retry_scope
     @_budget_scope
@@ -5631,8 +5648,10 @@ class Orthonym:
                 stereodescriptors were not confirmed by OPSIN), ``identity`` (a name
                 from an exact-match list: a metal-complex name found by the input's
                 exact InChIKey, or a natural-product parent name found by its exact
-                structure; OPSIN cannot read these names) or ``unverified`` (no
-                read-back recorded).
+                structure; OPSIN cannot read these names), ``opsin_split`` (OPSIN
+                read the whole name back to the drawing of the input without its
+                dative bonds, which has the reference key; the drawing as given has
+                no standard InChIKey) or ``unverified`` (no read-back recorded).
             ``spelling_failures``
                 The spelling rules of the PIN a name in PIN form breaks, as
                 ``{"rule": "", "detail":...}`` entries
@@ -6061,16 +6080,16 @@ class Orthonym:
         if tier in (PIN_VERIFIED, PIN_UNVERIFIED) and _has_no_pin_status_element(smiles):
             tier = SYSTEMATIC_VERIFIED if opsin == "verified" else BEST_EFFORT
             is_pin = False
-        # TRIAGE j12 finding 6: likewise (the Blue Book) notes no PIN
-        # for organometallic compounds of the Group 1-12 metals, except the ocenes
-        # ('tert-butyllithium', 'methylmagnesium bromide', 'diethylzinc' shipped
-        # pin_verified). Same demotion; the name is unchanged.
-        # Not for a name of the exact-match metal-complex list (heme, chlorophyll,
-        # cobalamin, siroheme, coenzyme F430): its label is the one the naming
-        # path gives it (user decision 2026-09-30, the paper's measured labels).
+        # TRIAGE j12 finding 6: likewise (the Blue Book) notes no PIN for
+        # organometallic compounds of the Group 1-12 metals, except the ocenes ('tert-butyllithium',
+        # 'methylmagnesium bromide', 'diethylzinc' shipped pin_verified), nor for a salt of a
+        # carbanion with a Group 3-12 metal,:40173), nor for a bonded zinc complex named by
+        # its ligands,:39753; both in rules/metal_labels.py). Same demotion; the name is
+        # unchanged. Not for a name of the exact-match metal-complex list (heme, chlorophyll,
+        # cobalamin, siroheme, coenzyme F430): its label is the path's (user decision 2026-09-30).
         if (tier in (PIN_VERIFIED, PIN_UNVERIFIED)
-                and _is_p69_organometallic_without_pin(smiles, name)
-                and not _is_coord_list):
+                and (_is_p69_organometallic_without_pin(smiles, name) and not _is_coord_list
+                     or _is_metal_name_without_pin(smiles, name))):
             tier = SYSTEMATIC_VERIFIED if opsin == "verified" else BEST_EFFORT
             is_pin = False
         # Breadth Job 2: a mixed organic-inorganic adduct of a metal has no PIN
@@ -6212,7 +6231,7 @@ class Orthonym:
                  "stereo_unexpressed": stereo_unexpressed,
                  "suffix_free_prefix_name": suffix_free_prefix_name,
                  "prefix_order_fallback": prefix_order_fallback,
-                 "verified": verified,
+                 "verified": _pv.verified_field(verified, prov, name),
                  "spelling_failures": spelling_failures}, _pin_form)
 
     def _retained_structural_preference(self, mol) -> Optional[str]:
@@ -8270,21 +8289,7 @@ class Orthonym:
             return out
 
         def rank(form, result):
-            # (the label, 1 for a decline of the default tier that says a name exists below the
-            # PIN): of two forms that name nothing at the default tier, the one whose decline is
-            # NO_VERIFIED_PIN (a wider tier keeps its name) stands over one that names nothing
-            if not isinstance(result, str) or not result or is_failure_name(result):
-                stash = getattr(self, "_default_tier_row", None)
-                declined = (isinstance(stash, tuple) and len(stash) > 1
-                            and isinstance(stash[1], dict) and stash[0] == result
-                            and stash[1].get("limit_code") == "NO_VERIFIED_PIN")
-                return (0, 1 if declined else 0)
-            try:
-                row, _pin_form = self._tier_row_and_pin_form(form[0], result,
-                                                             _pv.get_provenance())
-                return (_LABEL_RANK.get(row.get("tier"), 0), 0)
-            except Exception:
-                return (1, 0)
+            return _form_result_rank(self, form[0], result)
 
         from .assembly.fragment_naming import hang_budget_trips
         try:

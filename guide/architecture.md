@@ -16,7 +16,7 @@ Functions and classes are given by name, not by line number, so that you can fin
 
 ```text
 name_compound(smiles, ...)           one Orthonym per call
-  Orthonym.name()                    three wrappers, then the body
+  Orthonym.name()                    four wrappers, then the body
     _name_with_pin_promotion         PIN tier: a second run if no name
     isotope decorator, wildcard check
     _name_impl()
@@ -40,12 +40,13 @@ name_compound(smiles, ...)           one Orthonym per call
 
 When `name_compound` is called while another naming is already running, which is how recursion happens, it builds a fresh `Orthonym` and looks the call up in a memo (`cached_nested_call`). A fresh instance does not have the flags of the outer call, so the flags travel in context variables (see [Tiers are flags](#tiers-are-flags)).
 
-### 2. `Orthonym.name`: three wrappers and a body
+### 2. `Orthonym.name`: four wrappers and a body
 
-`name` carries three decorators, outermost first.
+`name` carries four decorators, outermost first.
 
 | Wrapper | What it does |
 |:--|:--|
+| `_metal_offer_scope` | For the caller's own call only. When the input is a metal drawing that has another drawing with the same standard InChIKey (the ionic drawing of a covalent one, the bonded drawing of an organometal cation drawn beside its anion, or the drawing without the dative bonds), names the drawing as written and the other drawing, each as a call of its own, and keeps the better name (`assembly/metal_offer.py`). The name of the other drawing is recorded as not the PIN. |
 | `_form_choice_scope` | Names the charge forms of your input (`_charge_forms`) and keeps the best one. |
 | `_book_retry_scope` | When a name written in the book's spelling leaves the molecule unnamed at a wider tier, names it again with the older spelling (`mechanical_forms`). |
 | `_budget_scope` | Counts how deep the naming is (`enter_name_scope`), arms the work budgets that stop a runaway molecule, and applies the default tier's emission rule (`_default_tier_decision`) to the caller's own call. |

@@ -11,7 +11,7 @@ Every name Orthonym returns carries a tier. The tier says **how the name was bui
 : A name in PIN form that only a breadth producer built, so its preferred status is not certified. It is also the tier of a strict-path name that OPSIN read back only in part (its constitution) or not at all. The `verified` field tells which.
 
 {tier}`systematic_verified`
-: A correct systematic name that is not the PIN: from the general engine (for example, a von Baeyer name for a fused ring system), from the table of retained trivial names, from the strict path when the name contains a part the engine records as not the preferred form (for example `(trimethylazaniumyl)acetate`, whose PIN is `(N,N-dimethylmethanaminiumyl)acetate`), or from the strict path for a class the Blue Book gives no PIN, such as organometallic compounds of the Group 1-12 metals (`ethenylsodium`) and compounds of aluminium, gallium, indium and thallium. A natural-product name lands here too when the molecule's preferred name is a bridged fused name the engine does not build yet (`diamorphine`, `(9R,13S,14S)-3-methoxy-17-methylmorphinan`). Where the engine builds that bridged fused name (morphine, codeine, oxycodone), it is the PIN and is returned instead of the natural-product name. At `best-effort` the `cis` or `trans` name of a monocycle's pair of stereocentres (`trans-cyclohexane-1,4-diol`) lands here too: it is a general name of the Blue Book, and the PIN of the same structure cites lowercase `r` and `s`, which OPSIN cannot read.
+: A correct systematic name that is not the PIN: from the general engine (for example, a von Baeyer name for a fused ring system), from the table of retained trivial names, from the strict path when the name contains a part the engine records as not the preferred form (for example `(trimethylazaniumyl)acetate`, whose PIN is `(N,N-dimethylmethanaminiumyl)acetate`), or from the strict path for a class the Blue Book gives no PIN, such as organometallic compounds of the Group 1-12 metals (`ethenylsodium`) and compounds of aluminium, gallium, indium and thallium. A name reached through another drawing of the same compound is here too, as are the zinc names of [Metal compounds](#metal-compounds) that carry no PIN label. A natural-product name lands here too when the molecule's preferred name is a bridged fused name the engine does not build yet (`diamorphine`, `(9R,13S,14S)-3-methoxy-17-methylmorphinan`). Where the engine builds that bridged fused name (morphine, codeine, oxycodone), it is the PIN and is returned instead of the natural-product name. At `best-effort` the `cis` or `trans` name of a monocycle's pair of stereocentres (`trans-cyclohexane-1,4-diol`) lands here too: it is a general name of the Blue Book, and the PIN of the same structure cites lowercase `r` and `s`, which OPSIN cannot read.
 
 {tier}`best_effort`
 : A name from the last-resort producers of the `best-effort` tier, or a name whose own string no round trip confirmed.
@@ -34,6 +34,30 @@ The default is `pin`. Wider tiers are opt-in:
 | `full-coverage` | The coordination-name builder for metal tetrapyrrole and corrin complexes as well; it builds a name or declines. |
 
 The wider tiers are not simply "the default plus more". They also return the names the default tier declines, each labelled with its tier. At `valid`, `complete` and `best-effort` every name must pass a full-InChIKey round trip, except a name from the natural-product and metal-complex lists (`verified` `identity`), so the name formats absent from OPSIN's grammar, which the default tier ships without a full read-back, are declined there ([How every name is checked](checking.md)).
+
+## Metal compounds
+
+A standard InChIKey does not record the bonds between a metal and its ligands, so one compound drawn in two ways has one key. Orthonym names a metal compound through another drawing of it when the keys are equal and a separate count of atoms and charges agrees ([How every name is checked](checking.md#compounds-of-metals)). That name describes the other drawing, so it is {tier}`systematic_verified`, never {tier}`pin_verified`, and the default tier declines it.
+
+Zinc is admitted to every mechanism that names a metal compound. Other metals are admitted one at a time. The table shows zinc, drawn in several ways, at three tiers:
+
+| Zinc drawn as | Name | `pin` (default) | `valid` | `best-effort` |
+|:--|:--|:--|:--|:--|
+| a zinc ion and two chloride ions | `zinc dichloride` | {tier}`pin_verified` | {tier}`pin_verified` | {tier}`pin_verified` |
+| two zinc-chlorine bonds | `zinc dichloride` | declined | {tier}`systematic_verified` | {tier}`systematic_verified` |
+| a zinc ion and two acetate ions | `zinc diacetate` | {tier}`pin_verified` | {tier}`pin_verified` | {tier}`pin_verified` |
+| two acetates joined to zinc by dative bonds | `zinc diacetate` | declined | {tier}`systematic_verified` | {tier}`systematic_verified` |
+| a zinc-carbon bond, two ethyl groups | `diethylzinc` | declined | {tier}`systematic_verified` | {tier}`systematic_verified` |
+| a zinc ion and two ethanide ions | `zinc bis(ethan-1-ide)` | declined | {tier}`systematic_verified` | {tier}`systematic_verified` |
+| the atom, an ion, an isotope | `zinc`, `zinc(2+)`, `(65Zn)zinc` | declined | {tier}`systematic_verified` | {tier}`systematic_verified` |
+| a zinc ion and four ammonia molecules | `ammonia—zinc(2+) (4/1)` | declined | no name | {tier}`systematic_verified` |
+| a zinc ion and the tetraphenylporphyrin dianion | `zinc 5,10,15,20-tetraphenylporphyrin-21,23-diide` | declined | {tier}`systematic_verified` | {tier}`systematic_verified` |
+
+At `valid` the engine gives no name for the adducts of zinc (the ammine of the table, the aqua ion, a complex with a neutral ligand such as pyridine, a zincate anion drawn alone, a porphyrin drawn beside a zinc ion), for a phthalocyanine complex, or for an organozinc compound with a halogen or an ester on its organyl group (`(3-ethoxy-3-oxopropyl)zinc chloride`). `best-effort` names them.
+
+A zinc salt drawn as ions is {tier}`pin_verified` at the default tier when the strict PIN path builds its name and the name carries a PIN label: salts of acids, alcohols and thiols, and carbon-free salts. The names of organozinc compounds, of drawings with bonds to zinc, of the atom and its ions, of carbanion salts, of ammines and of complexes carry no PIN label, so the default tier declines them.
+
+A compound of a metal that is not admitted is named where the general producers can name it (`copper(II) sulfate`, {tier}`pin_verified`) and is otherwise declined, usually with `UNSUPPORTED_ELEMENT` ([Declines](declines.md)).
 
 ## One molecule, three tiers
 
