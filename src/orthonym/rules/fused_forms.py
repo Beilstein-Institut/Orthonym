@@ -85,6 +85,7 @@ class FusedForm:
     numbering: Dict[int, object]
     kind: str = "fused"
     parent_cites_locant: bool = False
+    free_valence_added: str = ""
 
     def cites_locant(self, free_valence_locant: Optional[int] = None) -> bool:
         """The parent or its prefix at ``free_valence_locant`` cites a locant,
@@ -104,6 +105,11 @@ class FusedForm:
         if bond_order != 1 or not isinstance(loc, int):
             return None
         stem = self.parent[:-1] if self.parent.endswith("e") else self.parent
+        if self.free_valence_added:
+            # (:24695): the free valence on an atom with no hydrogen in the mancude parent
+            # takes added hydrogen, 'pyridin-1(2H)-yl'; "preferred over... nondetachable hydro
+            # prefixes" (:24687): '3,4-dihydroquinolin-1(2H)-yl (PIN)' (:7467)
+            return f"{stem}-{loc}({self.free_valence_added})-yl"
         return f"{stem}-{loc}-yl"
 
 
@@ -178,6 +184,7 @@ def fused_system_form(mol, ring_atoms: Iterable[int], free_valence_atom: Optiona
         logger.info("fused_forms: the parent resolver raised; decline")
         return None
     from . import ring_hydrogen as rh_rule
+    from .bridged_fused_pin import hydro
     from .monocycle_forms import free_valence_carries_indicated_hydrogen
     needed = list(branch_atoms)
     if free_valence_atom is not None:
@@ -215,15 +222,30 @@ def fused_system_form(mol, ring_atoms: Iterable[int], free_valence_atom: Optiona
                 if (rh_fv is not None and not rh_fv.added
                         and free_valence_atom in rh_fv.indicated):
                     rh = rh_fv
+            fv_added = ""
+            if (free_valence_atom is not None and free_valence_atom not in rh.indicated
+                    and mol.GetAtomWithIdx(free_valence_atom).GetSymbol() != 'C'
+                    and hydro.lacks_hydrogen(rh.state, free_valence_atom, 1)):
+                # (:24695): a ring heteroatom with no hydrogen in the mancude parent and
+                # no indicated hydrogen to take the free valence -> added hydrogen (a ring carbon
+                # keeps its hydrogen: '1,2,3,4-tetrahydronaphthalen-1-yl')
+                try:
+                    rh_fv = rh_rule.ring_hydrogen(mol, ring, (free_valence_atom,), a2l)
+                except Exception:  # noqa: BLE001
+                    rh_fv = None
+                if (rh_fv is not None and rh_fv.added and free_valence_atom in rh_fv.groups
+                        and free_valence_atom not in rh_fv.indicated):
+                    rh, fv_added = rh_fv, rh_rule.added_text(rh_fv, a2l)
             pre = rh_rule.parent_prefix(rh, a2l)
             if pre is None:
                 continue
-            ih_key, _suffix_key, _added_key, hydro_key = rh_rule.numbering_key(rh, a2l, ())
+            ih_key, _suffix_key, added_key, hydro_key = rh_rule.numbering_key(
+                rh, a2l, (free_valence_atom,) if fv_added else ())
             fv_key = ((locant_key(a2l[free_valence_atom]),)
                       if free_valence_atom is not None else ())
             prefix_key = tuple(sorted(locant_key(a2l[a]) for a in branch_atoms))
             tie = tuple(ranks[a] for a in sorted(ring, key=lambda x: locant_key(a2l[x])))
-            key = (ih_key, fv_key, hydro_key, prefix_key, stem, tie)
+            key = (ih_key, fv_key, added_key if fv_added else (), hydro_key, prefix_key, stem, tie)
             if best is None or key < best[0]:
                 # (:16880) the hydro prefixes precede the indicated hydrogen;
                 # a hyphen only before a stem that starts with a locant
@@ -233,13 +255,13 @@ def fused_system_form(mol, ring_atoms: Iterable[int], free_valence_atom: Optiona
                 # `stem` is the catalogue's parent name (data, not an emitted name): a
                 # digit in it is a fusion locant the name cites,:2869)
                 cites_locant = bool(pre) or any(ch.isdigit() for ch in stem)
-                best = (key, f"{pre}{glue}{stem}", dict(a2l), cites_locant)
+                best = (key, f"{pre}{glue}{stem}", dict(a2l), cites_locant, fv_added)
     if best is None:
         return None
     from ..assembly.book_prefixes import note_book_form
     note_book_form()
     return FusedForm(parent=best[1], numbering=best[2],
-                     parent_cites_locant=best[3])
+                     parent_cites_locant=best[3], free_valence_added=best[4])
 
 
 @dataclass(frozen=True)

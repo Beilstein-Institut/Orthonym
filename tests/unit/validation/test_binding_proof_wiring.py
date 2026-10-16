@@ -43,7 +43,14 @@ ENGINE_PROBES = ["CC(C)(C)OC(=O)N1CCS[C@@H]1C(=O)O", "C1CC(=CC(=O)C1)NO",
 # test needs a recorded spine as a precondition rather than as a sweep. It must reach the
 # LATE-RECOVERY site (stage 'general_engine_recovery'): that is the only site where the retained-name
 # swap that test_a_retained_name_swap_after_the_certificate_is_reported pins can fire.
-ENGINE_PROBE = "C1CCC2C(C1)CCCC2SCl"
+# 'C1CCC2C(C1)CCCC2SCl' (the decalin sulfenyl chloride) used to be this probe: it reached the late recovery
+# only because the tetralin-class veto (partial_sat_sp3_substituent_drop) withheld its correct name
+# '1-(chlorosulfanyl)decahydronaphthalene', which had no aromatic ring and so was outside the veto's scope
+#, the Blue Book). It still declines at the default tier (UNNAMEABLE: the PIN path cannot
+# name the decalin); at the best-effort tier the general engine now ships that name directly, so the
+# molecule no longer reaches 'general_engine_recovery'. The probe is a molecule that reaches it for a reason
+# of its own (a zwitterionic pyridinium-triazine olate).
+ENGINE_PROBE = "CC1=N[N+]2=CC=CC=C2C(=N1)[O-]"
 
 
 def _best_effort(**kw):

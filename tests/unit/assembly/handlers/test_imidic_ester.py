@@ -1,0 +1,155 @@
+"""Imidic acid esters beyond the =NH oxygen ester: imidothioates, N-substituted imidates, hydrazonates,
+carbamimidothioates "Esters of acids modified by functional replacement nomenclature",
+, the Blue Book-31999;.
+
+Each was named by the systematic imine/hydrazone form and shipped ``pin_verified``
+('1-(methylsulfanyl)ethan-1-imine', '1-ethoxy-N-methylethan-1-imine',
+'(1-ethoxypropylidene)hydrazine'), or not named at all (the S-ester of carbamimidic acid, the
+imibenconazole row d1454 of dev2000). The names below are the Blue Book's verbatim PINs where the book
+prints the molecule, and OPSIN reads each back to the input.
+"""
+import pytest
+from rdkit import Chem
+from rdkit.Chem import inchi
+
+from orthonym import Orthonym
+from orthonym.assembly.inner_dispatch import INNER_DISPATCH_TABLE
+from orthonym.validation.opsin_roundtrip import opsin_parse
+
+pytestmark = pytest.mark.opsin_gate
+
+
+@pytest.fixture(scope="module")
+def namer():
+    return Orthonym()
+
+
+def _same(smi, name):
+    out = opsin_parse(name)
+    m_out = Chem.MolFromSmiles(out) if out else None
+    return m_out is not None and inchi.MolToInchiKey(Chem.MolFromSmiles(smi)) == inchi.MolToInchiKey(m_out)
+
+
+# (smiles, PIN): the first five are Blue Book examples (:31993-:31999,:33473-:33485)
+BOOK = [
+    ("CSC(=N)c1ccccc1", "methyl benzenecarboximidothioate"),
+    ("CCOC(CC)=NN", "ethyl propanehydrazonate"),
+    ("CCSC(=N)N(C)C", "ethyl N,N-dimethylcarbamimidothioate"),
+    ("CCSC(N)=NC", "ethyl N'-methylcarbamimidothioate"),
+    ("CCSC(=N)NC", "ethyl N-methylcarbamimidothioate"),
+]
+# the molecules the review found shipping a systematic imine name as pin_verified, and the dev2000 row
+BUILT = [
+    ("CC(=N)SC", "methyl ethanimidothioate"),
+    ("CC(=NC)OCC", "ethyl N-methylethanimidate"),
+    ("CC(=Nc1ccccc1)OC", "methyl N-phenylethanimidate"),
+    ("Clc1ccc(CSC(Cn2cncn2)=Nc2ccc(Cl)cc2Cl)cc1",
+     "(4-chlorophenyl)methyl N-(2,4-dichlorophenyl)-2-(1H-1,2,4-triazol-1-yl)ethanimidothioate"),
+]
+
+
+@pytest.mark.parametrize("smiles,expected", BOOK + BUILT)
+def test_imidic_ester_pin(namer, smiles, expected):
+    row = namer.name_tiered(smiles)
+    assert row["name"] == expected, row["name"]
+    assert row["tier"] == "pin_verified" and row["producer"] == "inner:imidic_ester", row
+    assert _same(smiles, expected), expected
+
+
+# an unsaturated chain: the principal chain is the longest "Greater number of skeletal atoms"),
+# then the one with the greater number of multiple bonds, then of double bonds;
+# its multiple bonds are cited by 'ene' / 'yne' endings, never as an ylidene / ylidyne prefix on a shorter chain
+UNSATURATED = [
+    ("C=CCC(=NC)OC", "methyl N-methylbut-3-enimidate"),
+    ("C#CCC(=NC)OC", "methyl N-methylbut-3-ynimidate"),
+    ("C=C(C)CC(=NC)OC", "methyl N,3-dimethylbut-3-enimidate"),
+    ("C=CC(C)C(=NC)OC", "methyl N,2-dimethylbut-3-enimidate"),
+    ("CC=CCC(=NC)SC", "methyl N-methylpent-3-enimidothioate"),
+    ("CCC(C=C)C(=NC)OC", "methyl 2-ethyl-N-methylbut-3-enimidate"),    # equal length: the double bond wins
+    ("C=C(CC)CC(=NC)OC", "methyl N-methyl-3-methylidenepentanimidate"),  # the longer chain beats the double bond
+    ("CC=CCC(=NN)OC", "methyl pent-3-enehydrazonate"),
+]
+
+
+@pytest.mark.parametrize("smiles,expected", UNSATURATED)
+def test_an_unsaturated_chain_is_cited_by_ene_and_yne(namer, smiles, expected):
+    row = namer.name_tiered(smiles)
+    assert row["name"] == expected, row["name"]
+    assert row["tier"] == "pin_verified" and row["producer"] == "inner:imidic_ester", row
+    assert _same(smiles, expected), expected
+
+
+@pytest.mark.parametrize("name", ["methyl N-methylbut-3-enimidate", "methyl N-methylbut-3-ynimidate",
+                                  "methyl pent-3-enehydrazonate", "methyl N-methylpent-3-enimidothioate"])
+def test_the_numbering_check_reads_the_imidic_endings_as_chain_terminal(name):
+    # 'but-3-enimidate' carries its suffix at C-1 like 'but-3-enoate'; the check read the 3 as the suffix locant
+    from orthonym.validation.spelling.checks_locants import numbering_check
+    assert numbering_check(None, name) is None
+
+
+# "Carbohydroximic acids": 'N-hydroxyethanimidic acid (PIN)'; the ester keeps the N-hydroxy prefix.
+# These were 'S-methyl ethanethioate oxime' / 'methyl acetate oxime' (the oxime handler's class name) before.
+N_HYDROXY = [
+    ("CC(=NO)SC", "methyl N-hydroxyethanimidothioate"),
+    ("CC(=NO)OC", "methyl N-hydroxyethanimidate"),
+    ("ClCC(=NO)OC", "methyl 2-chloro-N-hydroxyethanimidate"),
+    ("c1ccccc1C(=NO)OC", "methyl N-hydroxybenzenecarboximidate"),
+]
+
+
+@pytest.mark.parametrize("smiles,expected", N_HYDROXY)
+def test_n_hydroxy_imidic_ester(namer, smiles, expected):
+    row = namer.name_tiered(smiles)
+    assert row["name"] == expected, row["name"]
+    assert row["tier"] == "pin_verified" and row["producer"] == "inner:imidic_ester", row
+    assert _same(smiles, expected), expected
+
+
+@pytest.mark.parametrize("smiles", [
+    "CCC(=NN)SC",              # the S-ester of a hydrazonic acid: the book prints no example, the old path runs
+    "ON=C(N)SC",               # N-hydroxy carbamimidothioate: not this handler's stem
+    "CC(=NOC)OC",              # an O-alkyl oxime ether: left to the old path
+])
+def test_n_hydroxy_and_hydrazonothio_edges_are_not_claimed(namer, smiles):
+    assert namer.name_tiered(smiles)["producer"] != "inner:imidic_ester"
+
+
+@pytest.mark.parametrize("smiles,name,producer", [
+    ("CC(=N)OC", "methyl ethanimidate", "inner:imidate"),                  #:31993
+    ("CCOC(=N)N(C)C", "ethyl N,N-dimethylcarbamimidate", "inner:imidate"),
+])
+def test_the_imidate_handler_keeps_its_molecules(namer, smiles, name, producer):
+    row = namer.name_tiered(smiles)
+    assert (row["name"], row["producer"]) == (name, producer)
+
+
+@pytest.mark.parametrize("smiles", [
+    "CC1=NCCO1",                                       # ring imidate (2-oxazoline): not this class
+    "C/C(=N\\C)OCC",                                   # a C=N stereo descriptor would be dropped
+    "CC(=N)SCC(=O)N",                                  # an amide beside it: the pipeline decides
+    "CC(=N)SC.CC(=N)OC",                               # two imidic ester groups
+    "C=CCC(=NOS(=O)(=O)O)SC1OC(CO)C(O)C(O)C1O",        # thiohydroximate, not an imidate
+    "CCSC(=N)N1CCCC1",                                 # ring amino N: left to the old path
+])
+def test_not_claimed_outside_the_scope(namer, smiles):
+    assert namer.name_tiered(smiles)["producer"] != "inner:imidic_ester"
+
+
+def test_registered_ahead_of_the_claimants():
+    entry = INNER_DISPATCH_TABLE["imidic_ester"]
+    assert entry.priority == 90
+    assert entry.priority < INNER_DISPATCH_TABLE["oxime"].priority < INNER_DISPATCH_TABLE["hydrazone"].priority
+
+
+@pytest.mark.parametrize("name", [
+    "4-(1-sulfanylideneethyl)benzoic acid",
+    "4-chloro-7-[(3-chloro-4-nitroquinolin-7-yl)sulfanyl]-3-nitroquinoline",
+    "2-(cyanosulfonyl)cyclohexane-1-carboxylic acid",
+    "1-(2-oxophosphepan-3-yl)propan-1-one",
+])
+def test_the_four_refuted_names_are_not_pin_verified(namer, name):
+    # PB trace 4: a re-run / breadth name must never reach pin_verified by a label change
+    out = opsin_parse(name)
+    if out:
+        row = namer.name_tiered(out)
+        assert not (row["tier"] == "pin_verified" and row["name"] == name)

@@ -72,13 +72,9 @@ from tests.support.default_tier import (  # noqa: E402
 # as not the PIN is declined at the default tier with NO_VERIFIED_PIN; for the
 # molecules below the test asserts that decline, the strict path's name and label,
 # and the same name at the best-effort tier (tests/support/default_tier.py).
-DEFAULT_TIER_DECLINES = frozenset({
-    "CC(C)(C)NC(=S)NC1(CCCCC1)N=NC(C)(C)C",
-})
+DEFAULT_TIER_DECLINES = frozenset()   # PB lane R: the 1,1-disubstituted cyclohexyl row left (pin_verified)
 #... whose best-effort name is another one (it reads back exactly)
-BEST_EFFORT_NAMES_IT_OTHERWISE = frozenset({
-    "CC(C)(C)NC(=S)NC1(CCCCC1)N=NC(C)(C)C",
-})
+BEST_EFFORT_NAMES_IT_OTHERWISE = frozenset()
 
 
 def _declined_pin_row(smiles):
@@ -173,8 +169,7 @@ def test_r3_ships_its_verified_pin_never_a_wrong_constitution():
     # wp6-tests; TRIAGE.md ' outcome').
     import orthonym.namer as _n
     assert _n._DISABLE_VALIDITY_GATE is False
-    row = (_declined_pin_row(R3_SMILES) if default_tier_rule_applies()
-           else _OS(style="pin").name_tiered(R3_SMILES))
+    row = _OS(style="pin").name_tiered(R3_SMILES)
     # Breadth job 1: the gap closed. The PIN tier's re-run names the 1,1-
     # disubstituted cyclohexyl through the promoted ring-substituent producers, and
     # 'tert-butyldiazenyl' is a compound prefix, so it is enclosed,
@@ -182,11 +177,14 @@ def test_r3_ships_its_verified_pin_never_a_wrong_constitution():
     # after its own round trip; what must never happen is a real name describing a
     # different molecule.
     assert row.get("name") == "N-tert-butyl-N'-[1-(tert-butyldiazenyl)cyclohexyl]thiourea", row
-    # Branch review fixes: a name only the promotion re-run builds (breadth
-    # producers) is labelled pin_unverified, is_pin False -- the paper's tier
-    # definition, "pin_unverified means a name in PIN form that only a breadth
-    # producer built" -- the name is unchanged.
-    assert row.get("tier") == "pin_unverified" and row.get("is_pin") is False, row
+    # Branch review fixes: a name only the promotion re-run builds with a breadth
+    # producer is labelled pin_unverified, is_pin False -- the paper's tier definition,
+    # "pin_unverified means a name in PIN form that only a breadth producer built".
+    # PB lane R: the '1-(tert-butyldiazenyl)cyclohexyl' ring-yl is built by the strict
+    # producer (assembly.strict_ring_prefix, NUMBERING the Blue Book: the free
+    # valence takes locant 1), no breadth piece is kept, and the name above is the verified
+    # PIN: pin_verified.
+    assert row.get("tier") == "pin_verified" and row.get("is_pin") is True, row
     from orthonym.validation.opsin_roundtrip import opsin_roundtrip_check
     assert opsin_roundtrip_check(R3_SMILES, row["name"])["passed"], row
     assert _formula(R3_SMILES) == "C15H30N4S"

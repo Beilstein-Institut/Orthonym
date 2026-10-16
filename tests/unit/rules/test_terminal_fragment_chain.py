@@ -154,14 +154,16 @@ def test_branched_ether_fragment_is_a_methyl_group_with_an_alkoxy_prefix():
     assert _reads_back_on_benzene(got.name, "CC(C)OCc1ccccc1")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "P-63.2.2.2 (BlueBookV2.md:27683) '(CH3)2CH-O- ... (propan-2-yl)oxy (preferred "
-    "prefix)': the chain writer names the branch '1-methylethyl'; the P-29.2 "
-    "'propan-2-yl' branch is not built by terminal_fragment (residual R-a of the L2 "
-    "proper-fix plan)"))
 def test_branched_ether_fragment_takes_the_book_prefix():
+    # "Retained names" (the Blue Book),:27683 '(CH3)2CH-O- isopropoxy
+    # 1-methylethoxy (propan-2-yl)oxy (preferred prefix)'. PB-W: the branch is named by its
+    # principal chain,:22660;,:40549-:40558 'propan-2-yl (PIN)
+    # 1-methylethyl'); this row was an xfail (residual R-a of the L2 proper-fix plan) while the
+    # backbone walk wrote '1-methylethyl'. Independent check: OPSIN reads it back.
     mol, frag, attach = _frag("COC(C)C")
-    assert terminal_fragment_name(mol, frag, attach).name == "[(propan-2-yl)oxy]methyl"
+    got = terminal_fragment_name(mol, frag, attach)
+    assert got.name == "[(propan-2-yl)oxy]methyl"
+    assert _reads_back_on_benzene(got.name, "CC(C)OCc1ccccc1")
 
 
 @pytest.mark.parametrize("smiles", ["CC(C)C", "CC(C)(C)C", "COC(C)C"])
@@ -269,8 +271,10 @@ def test_embedded_branched_fragment_bonded_to_an_outside_ring():
 # deterministic longest-path backbone selection.
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("smiles,expected", [
-    # one compound branch (isopropyl-shaped), single locant
-    ("CCCCC(C(C)C)CCCC",   "5-(1-methylethyl)nonyl"),
+    # one compound branch (isopropyl-shaped), single locant. PB-W: 'propan-2-yl (PIN)
+    # 1-methylethyl', the Blue Book, example:40558;,:16334), was
+    # '5-(1-methylethyl)nonyl'; OPSIN reads the new name back (test below)
+    ("CCCCC(C(C)C)CCCC",   "5-(propan-2-yl)nonyl"),
     # one compound branch that is itself a longer compound (isobutyl-shaped)
     ("CCCCC(CC(C)C)CCCC",  "5-(2-methylpropyl)nonyl"),
 ])
@@ -280,6 +284,7 @@ def test_compound_branch_gets_enclosing_marks(smiles, expected):
     assert got is not None, f"{smiles} refused"
     assert got.name == expected
     assert got.atoms == frozenset(frag)
+    assert _reads_back_on_benzene(got.name, "c1ccccc1" + smiles)
 
 
 def test_a_tert_butyl_branch_takes_the_retained_prefix():
@@ -292,8 +297,12 @@ def test_a_tert_butyl_branch_takes_the_retained_prefix():
 
 
 def test_two_identical_compound_branches_use_derived_multiplier():
-    """TWO IDENTICAL compound branches -> 'bis', not 'di', AND each occurrence
-    still carries its own enclosing marks: '5,6-bis(1-methylethyl)decyl'.
+    """TWO IDENTICAL compound branches take the derived multiplier where the prefix is
+    compound, AND each occurrence still carries its own enclosing marks. PB-W: the branch is
+    'propan-2-yl', the Blue Book, example:40558), a simple prefix that carries a
+    locant, so the multiplier is 'di' and the prefix stands in marks: '5,6-di(propan-2-yl)decyl',
+    as '2-[di(butan-2-yl)amino]butan-2-ol (PIN)' (:28170); the name was
+    '5,6-bis(1-methylethyl)decyl'.
 
     This is the exact shape that produced an OPSIN-UNPARSEABLE name before the
     fix ('5,6-di1-methylethyldecyl'): the multi-locant case is the critical
@@ -303,8 +312,9 @@ def test_two_identical_compound_branches_use_derived_multiplier():
     mol, frag, attach = _frag("CCCCC(C(C)C)C(C(C)C)CCCC")
     got = terminal_fragment_name(mol, frag, attach)
     assert got is not None
-    assert got.name == "5,6-bis(1-methylethyl)decyl"
+    assert got.name == "5,6-di(propan-2-yl)decyl"
     assert got.atoms == frozenset(frag)
+    assert _reads_back_on_benzene(got.name, "c1ccccc1CCCCC(C(C)C)C(C(C)C)CCCC")
 
 
 @pytest.mark.parametrize("smiles,expected", [

@@ -92,7 +92,9 @@ PAIRS = [
     ("[CH3+]", "pin", "outer:cation_retained"),
     ("C[NH3+].[Cl-]", "pin", "outer:salt"),
     ("CC(=O)[O-].[NH4+]", "pin", "outer:salt"),
-    ("NCC(=O)N[C@@H](CC(N)=O)C(=O)NCC(=O)O", "best-effort", "outer:peptide"),
+    # PB lane S: a tripeptide is named substitutively now method (1); gives no PIN
+    # for peptide names), by the general acyclic producer
+    ("NCC(=O)N[C@@H](CC(N)=O)C(=O)NCC(=O)O", "best-effort", "inner:general_acyclic"),
     # the cascade that goes on when the first class's handler returns None
     ("C[C@]12CC[C@H](O[C@@H]3O[C@H](C(=O)O)[C@@H](O)[C@H](O)[C@H]3O)C[C@H]1CC[C@@H]1[C@@H]2CC[C@]2(C)C(=O)CC[C@@H]12",
      "pin", "outer:natural_product"),

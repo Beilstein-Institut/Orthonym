@@ -1579,4 +1579,5 @@ def promote_at_pin_tier(produce: Callable[[], Optional[str]]) -> Optional[str]:
     if not ok:
         _pv.restore_provenance(snap)
         return None
+    _pv.record_breadth_promotion(name)
     return name

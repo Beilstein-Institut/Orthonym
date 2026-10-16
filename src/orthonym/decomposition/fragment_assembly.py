@@ -1253,6 +1253,11 @@ def _assemble_amide(fragment_names: Dict[str, str], style: str,
         # "N-methylacetamide", "N-ethylpropanamide"
         amide_name = _acid_to_amide(acid_name)
         if amide_name:
+            # the nitrogen is substituted, so the locant of a group on C-2 is essential
+            from .amide_c_locant import amide_with_c_locant
+            amide_name = amide_with_c_locant(amide_name, (fragment_smiles or {}).get("acid"))
+            if amide_name is None:
+                return None
             if amine_prefix.startswith("N-") or amine_prefix.startswith("N,"):
                 # The amine is a secondary amine ('N-methylcyclohexanamine'): both groups
                 # stay on the amide N and each is cited with the locant N,

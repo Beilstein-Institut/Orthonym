@@ -13,6 +13,14 @@ from rdkit import Chem
 from orthonym import name_compound
 
 
+def _producer_name(smiles):
+    """The peptide producer's own name. The whole-molecule name is the substitutive PIN since j7
+    (TRIAGE g3 C05) and, with PB lane S (prefix_claims;, the Blue Book), for the Arg, Cys
+    and Gln residues too, so a test of residue identification asks the producer."""
+    from orthonym.rules.peptides import name_peptide
+    return name_peptide(Chem.MolFromSmiles(smiles))
+
+
 # ── Dipeptides (achiral) ──────────────────────────────────────────────
 
 @pytest.mark.unit
@@ -146,12 +154,12 @@ class TestTautomerRobustResidues:
 
     def test_arginylglycine(self):
         """Arg-Gly: arginine's guanidine tautomer must still identify."""
-        result = name_compound("N=C(N)NCCC[C@H](N)C(=O)NCC(=O)O")
+        result = _producer_name("N=C(N)NCCC[C@H](N)C(=O)NCC(=O)O")
         assert result == "arginylglycine"
 
     def test_glutaminylarginyltyrosine(self):
         """Gln-Arg-Tyr: an internal arginine in a tripeptide (was None)."""
-        result = name_compound(
+        result = _producer_name(
             "NC(=O)CC[C@H](N)C(=O)N[C@@H](CCCN=C(N)N)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)O")
         assert result == "glutaminylarginyltyrosine"
 
@@ -272,7 +280,7 @@ class TestCysteineStereoInversion:
         So the invariant is: the residue names as (L-)cysteine with NO 'D-'.
         """
         # L-cysteine: N[C@@H](CS)C(=O)O -- R configuration at alpha carbon
-        result = name_compound("N[C@@H](CS)C(=O)NCC(=O)O")
+        result = _producer_name("N[C@@H](CS)C(=O)NCC(=O)O")
         assert "cysteinyl" in result or "cysteine" in result, \
             f"Expected a cysteine residue, got: {result}"
         assert "D-" not in result, \
@@ -281,7 +289,7 @@ class TestCysteineStereoInversion:
     def test_d_cysteine_gets_d_prefix(self):
         """D-cysteine (S configuration) should get D- prefix."""
         # D-cysteine: N[C@H](CS)C(=O)O -- S configuration at alpha carbon
-        result = name_compound("N[C@H](CS)C(=O)NCC(=O)O")
+        result = _producer_name("N[C@H](CS)C(=O)NCC(=O)O")
         assert "D-cysteine" in result or "D-cysteyl" in result or "D-cysteinyl" in result, \
             f"Expected D-cysteine prefix, got: {result}"
 
@@ -314,7 +322,7 @@ class TestCysteineStereoInversion:
     def test_benchmark_peptide_with_l_cysteine_2(self):
         """Benchmark peptide 2: Gln-Lys-Cys, C-terminal L-cysteine (L omitted)."""
         smiles = "NCCCC[C@H](NC(=O)[C@@H](N)CCC(N)=O)C(=O)N[C@@H](CS)C(=O)O"
-        result = name_compound(smiles)
+        result = _producer_name(smiles)
         assert result is not None, "Should produce a name"
         assert result.endswith("cysteine"), \
             f"Expected an L-cysteine C-terminal (L omitted, P-103.3.4), got: {result}"
@@ -383,7 +391,7 @@ class TestStereoHonestyUndefinedResidues:
     def test_defined_stereo_arginine_tautomer_unchanged(self):
         """CRITICAL guard: the InChIKey-skeleton-fallback residue path
         (arginine's guanidine tautomer) is unaffected when stereo IS defined."""
-        result = name_compound("N=C(N)NCCC[C@H](N)C(=O)NCC(=O)O")
+        result = _producer_name("N=C(N)NCCC[C@H](N)C(=O)NCC(=O)O")
         assert result == "arginylglycine"
 
     def test_partially_specified_tripeptide_declines(self):

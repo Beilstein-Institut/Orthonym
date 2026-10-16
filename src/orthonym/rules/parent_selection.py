@@ -61,6 +61,17 @@ SKELETAL_SUFFIX_PGS = {
     "imine",
 }
 
+# /: the suffixes of the sulfonic and sulfinic acids and of their amides name the
+# chalcogen's group, and the chalcogen is bonded straight to the skeletal carbon ('benzenesulfonic
+# acid', 'methanesulfonamide'); there is no exocyclic-carbon form of them. A one-carbon chain whose
+# carbon is bonded to the ring and to the sulfur ('phenylmethanesulfonic acid') therefore holds the
+# suffix itself; the ring does not.
+CHALCOGEN_SUFFIX_PGS = {
+    "sulfonic_acid", "sulfinic_acid",
+    "primary_sulfonamide", "secondary_sulfonamide", "tertiary_sulfonamide",
+    "primary_sulfinamide", "secondary_sulfinamide", "tertiary_sulfinamide",
+}
+
 # a phase: the PGs whose characteristic heteroatom can carry MORE THAN ONE
 # bearing carbon, and can therefore BRIDGE two parent candidates. These are the
 # only subtypes for which the (heteroatom, bearing-C) normalisation in
@@ -321,6 +332,29 @@ def is_principal_group_on_ring(
                         and neighbor.GetIdx() in ring_atoms_set):
                     return True
 
+    return False
+
+
+def single_carbon_hosts_suffix(mol, principal_group, principal_group_atoms, single, ring_atoms) -> bool:
+    """True when the one-carbon chain ``single``, bonded to a ring, still holds the principal group.
+
+    Wave2: the skeletal suffixes (-ol, -amine, -imine, -thiol,...) decorate the
+    chain carbon itself, so a ring-attached CH2 carries them when it IS the attachment atom and
+    no attachment atom is a ring atom. The sulfonic/sulfinic acid and amide suffixes,
+    ``CHALCOGEN_SUFFIX_PGS``) are held by the chain carbon bonded to the suffix sulfur when
+    that sulfur is bonded to no ring atom. ``principal_group_atoms`` are the SMARTS matches.
+    """
+    ring_atoms = set(ring_atoms)
+    attach: Set[int] = set()
+    for m in principal_group_atoms or ():
+        attach.update(_pg_attachment_atoms(principal_group, m))
+    if principal_group in SKELETAL_SUFFIX_PGS:
+        return single in attach and not (attach & ring_atoms)
+    if principal_group in CHALCOGEN_SUFFIX_PGS:
+        for a in attach:
+            nbrs = {n.GetIdx() for n in mol.GetAtomWithIdx(a).GetNeighbors()}
+            if single in nbrs and a not in ring_atoms and not (nbrs & ring_atoms):
+                return True
     return False
 
 

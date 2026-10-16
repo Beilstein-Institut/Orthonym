@@ -492,6 +492,7 @@ def select_parent_unified(
         SKELETAL_SUFFIX_PGS,
         ParentSelectionResult,
         is_principal_group_on_ring,
+        single_carbon_hosts_suffix,
     )
 
     all_ring_atoms = set()
@@ -515,7 +516,10 @@ def select_parent_unified(
             nbr.GetIdx() in all_ring_atoms
             for nbr in mol.GetAtomWithIdx(_single).GetNeighbors()
         )
-        _skeletal = principal_group in SKELETAL_SUFFIX_PGS
+        # a skeletal suffix (-ol, -amine,...) or the sulfur suffix of a sulfonic/sulfinic acid or
+        # amide held by this carbon: the ring cannot express the group, the chain does
+        _skeletal = (principal_group in SKELETAL_SUFFIX_PGS or single_carbon_hosts_suffix(
+            mol, principal_group, principal_group_atoms, _single, all_ring_atoms))
         if (not principal_group or not principal_group_atoms
                 or (_single_ring_attached and not _skeletal)
                 or is_principal_group_on_ring(

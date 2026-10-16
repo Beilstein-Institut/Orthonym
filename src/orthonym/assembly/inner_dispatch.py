@@ -1112,6 +1112,38 @@ _register_inner(
     side_effect_inventory=(),
 )
 
+# --- imidic_ester@90: the imidic acid esters the =NH oxygen-ester handler below does not own
+# (S esters, N-substituted esters, hydrazonates;, the Blue Book-31999).
+# 90 sits ahead of oxime@100 and hydrazone@200, which claim the C=N of such an ester, and ahead
+# of ester_family / thioether / imine; the predicate is exact and the handler
+# returns None outside its scope, so every other molecule reaches the same handlers as before.
+from .handlers.imidic_ester import _is_imidic_ester, name_imidic_ester  # noqa: E402
+
+_register_inner(
+    handler_id="imidic_ester",
+    priority=90,
+    predicate=_is_imidic_ester,
+    handler=name_imidic_ester,
+    iupac_section="P-65.6.3.3.7.1",
+    description="Imidic acid esters: imidothioates, N-substituted imidates, hydrazonates, carbamimidothioates",
+    side_effect_inventory=(),
+)
+
+# --- diacylhydrazide: R-CO-NH-NH-CO-R', the Blue Book), ahead of chain_diamide,
+# noncarbon_ester and ester_family, whose names for the class are wrong (the OPSIN gate holds
+# them off the output); the predicate requires the hydrazide principal group and exactly two acyl groups.
+from .handlers.diacylhydrazide import _is_diacylhydrazide, name_diacylhydrazide_handler  # noqa: E402
+
+_register_inner(
+    handler_id="diacylhydrazide",
+    priority=1480,
+    predicate=_is_diacylhydrazide,
+    handler=name_diacylhydrazide_handler,
+    iupac_section="P-66.3.3.3",
+    description="1,2-Diacylhydrazines: the senior hydrazide substituted by the other acyl group",
+    side_effect_inventory=(),
+)
+
 # --- a phase Plan-03 commit 03-04: imidate (Tier-D FRN handler;
 # internal notes-FRN.md LOCK at priority 2900).
 # Rationale per AUDIT + RESEARCH:

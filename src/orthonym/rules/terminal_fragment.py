@@ -697,6 +697,12 @@ def _book_hetero_fragment(mol, frag: Set[int], attach_idx: int
                     mol, attach_idx, parts[0][0], frag, verify_acid=True)
             except Exception:  # noqa: BLE001 - a producer that raises is a decline
                 token = None
+        if not token and not any(acyl for _, acyl in names):
+            # C6H5-N<: 'anilino' is the preferred prefix, 'phenylamino' the general one
+            #, the Blue Book;,:26308 'N-methylanilino')
+            from .anilino_nitrogen import anilino_for_branches
+            token = anilino_for_branches(
+                mol, attach_idx, [(c, n) for (_, c), (n, _) in zip(parts, names)])
         if not token:
             from ..assembly.composer import _assemble_decorated_amino_prefix
             token = _assemble_decorated_amino_prefix(
@@ -975,6 +981,102 @@ def _book_retained_fragment(mol, frag: Set[int], attach_idx: int
                                 atoms=frozenset(frag))
 
 
+#: the elements of a group the principal-chain deriver is trusted with (the others reach the
+#: backbone walk below, as before)
+_CHAIN_ELEMENTS = frozenset({"C", "N", "O", "F", "Cl", "Br", "I"})
+
+
+def _plain_chain_group(mol, frag: Set[int]) -> bool:
+    """True when ``frag`` holds only C, N, O and halogen atoms, has no bond outside a ring but a
+    single bond or the double bond of an oxo group (a terminal =O), and links no two atoms by a
+    nitrogen or oxygen of its own unless one of them is a ring atom. The deriver cites a double
+    bond it does not read ('=N-OH' as 'hydroxyamino', '=S' as 'sulfanyl') in the single-bond
+    spelling of the branch, and names a chain-linking '-NH-CH3' branch '(aminomethyl)': another
+    molecule. The groups it is trusted with carry their heteroatoms as oxo, hydroxy, amino and
+    halogen prefixes, or join a ring ('anilino', 'phenoxy')."""
+    if any(mol.GetAtomWithIdx(a).GetSymbol() not in _CHAIN_ELEMENTS for a in frag):
+        return False
+    for a in frag:
+        atom = mol.GetAtomWithIdx(a)
+        inside = [n for n in atom.GetNeighbors() if n.GetIdx() in frag]
+        if (atom.GetSymbol() in ("N", "O") and not atom.IsInRing() and len(inside) >= 2
+                and not any(n.IsInRing() for n in inside)):
+            return False
+    for b in mol.GetBonds():
+        i, j = b.GetBeginAtomIdx(), b.GetEndAtomIdx()
+        if i not in frag or j not in frag or b.IsInRing():
+            continue
+        if b.GetBondType() == Chem.BondType.SINGLE:
+            continue
+        ends = (mol.GetAtomWithIdx(i), mol.GetAtomWithIdx(j))
+        if not (b.GetBondType() == Chem.BondType.DOUBLE and any(
+                e.GetSymbol() == "O" and e.GetDegree() == 1 for e in ends)):
+            return False
+    return True
+
+
+def _branch_name(mol, atoms, root: int) -> Optional[str]:
+    """The name this writer gives the group ``atoms`` attached at ``root``, or None; a group
+    rooted at N or O that it cannot spell (a pyridyl ring it has no name for) goes to the
+    deriver of hetero-rooted groups, which names the ring by the ring producers."""
+    named = _terminal_fragment_name(mol, set(atoms), root)
+    if named is not None:
+        return named.name
+    if mol.GetAtomWithIdx(root).GetSymbol() not in ("N", "O"):
+        return None
+    from ..assembly.substituent_naming import _located_fg_hetero_root
+    return _located_fg_hetero_root(mol, sorted(atoms), root)
+
+
+def _book_principal_chain_fragment(mol, frag: Set[int], attach_idx: int
+                                   ) -> Optional[TerminalFragmentName]:
+    """An acyclic carbon group named by its PRINCIPAL CHAIN, not by the chain that starts at
+    the free valence: 'butan-2-yl', '1-oxopropan-2-yl', '1-(4-hydroxyphenyl)-5-methyl-3-
+    oxohexan-2-yl' where the backbone walk below writes '1-methylpropyl', '1-methyl-2-oxo
+    ethyl', '1-[(4-hydroxyphenyl)methyl]-4-methyl-2-oxopentyl'.
+
+     "THE PRINCIPAL SUBSTITUENT CHAIN" (the Blue Book), (b): "the greater number of
+    skeletal atoms, i.e., the longest chain"; (:22660): "This criterion is applicable
+    to both methods (1) and (2) of "; (:40549) "Method (1) generates preferred
+    IUPAC names": 'propan-2-yl (PIN) 1-methylethyl' (:40558); "Retained prefixes no longer
+    recommended as approved prefixes" (:16398): 'butan-2-yl (preferred prefix) 1-methylpropyl'.
+    The chain, its numbering and the citation of its prefixes are the shared deriver's
+    (``substituent_naming._located_acyclic_alkyl_name``, (b)-(m)); this writer only
+    takes its name for a single-bond group whose attachment is an acyclic carbon. ``None``
+    where the deriver declines (an unsaturated chain, a branch it cannot name): the backbone
+    walk then names the group as before."""
+    from ..assembly.book_prefixes import note_book_form
+    from ..assembly.substituent_naming import (
+        BRANCH_FALLBACK, _add_substituent_stereo, _located_acyclic_alkyl_name)
+    from ..errors import is_failure_name
+    from .pin_vocabulary import non_pin_vocabulary
+    root = mol.GetAtomWithIdx(attach_idx)
+    parents = [nb.GetIdx() for nb in root.GetNeighbors()
+               if nb.GetIdx() not in frag and nb.GetAtomicNum() > 1]
+    if (root.GetSymbol() != "C" or root.IsInRing() or len(parents) != 1 or mol.GetBondBetweenAtoms(
+            attach_idx, parents[0]).GetBondType() != Chem.BondType.SINGLE
+            or not _plain_chain_group(mol, frag)):
+        return None
+    atoms = sorted(frag)
+    # a branch the strict namer declines ('N(CH3)C6H5', 'NH-pyridin-2-yl') is named by this
+    # writer, so the chain is the deriver's and the branches are the ones the walk below writes
+    token = BRANCH_FALLBACK.set(_branch_name)
+    try:
+        located = _located_acyclic_alkyl_name(
+            mol, atoms, attach_idx, with_pos=True, allow_functional=True)
+        if located is None:
+            return None
+        name = _add_substituent_stereo(
+            mol, atoms, located[0], attach_idx=attach_idx, located=located)
+    finally:
+        BRANCH_FALLBACK.reset(token)
+    if not name or is_failure_name(name) or " " in name or non_pin_vocabulary(name) is not None:
+        return None     # a branch the deriver spells in the general form: the walk below names it
+    note_book_form()
+    return TerminalFragmentName(name=name, numbering=dict(located[2]), basis="chain",
+                                atoms=frozenset(frag))
+
+
 def _terminal_fragment_name(
     mol, frag_atoms, attach_idx: int,
 ) -> Optional[TerminalFragmentName]:
@@ -1072,14 +1174,14 @@ def _terminal_fragment_name_impl(
                       else _book_group_fragment(mol, frag, attach_idx, late=True))
         if late_group is not None:
             return late_group
-        retained = _book_retained_fragment(mol, frag, attach_idx)
+        retained = (_book_retained_fragment(mol, frag, attach_idx) or (
+            None if licensed_a else _book_principal_chain_fragment(mol, frag, attach_idx)))
         if retained is not None:
             return retained
 
     _frag_has_ring = not _is_acyclic(mol, frag)
     ranks = _canonical_ranks(mol)
-    backbone = _backbone_from(mol, frag, attach_idx, ranks,
-                              stop_at_ring=_frag_has_ring)
+    backbone = _backbone_from(mol, frag, attach_idx, ranks, stop_at_ring=_frag_has_ring)
     if (book and mol.GetAtomWithIdx(attach_idx).GetAtomicNum() == 6
             and (not a_chain_licensed(mol, backbone) or _ps_in(mol, backbone))
             and hetero_roots_composable(mol, backbone, forms_enabled('chain'), _ps_on())):

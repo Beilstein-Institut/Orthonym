@@ -187,14 +187,22 @@ ACYCLIC_IMIDE_ROWS = [
 ]
 
 HYDRAZIDE_ROWS = [
+    # 'acetohydrazide', not 'ethanehydrazide': (the Blue Book-33944); still below the PIN
+    # (the guanidine, class 11, outranks the hydrazide, class 12), read back by name_is_rt_exact below.
     ("N=C(N)NCC(=O)NN", "N-[2-(aminoamino)-2-oxoethyl]guanidine",
-     "2-(carbamimidoylamino)ethanehydrazide"),
+     "2-(carbamimidoylamino)acetohydrazide"),
     ("N=C(N)NCCC(=O)NN", "N-[3-(aminoamino)-3-oxopropyl]guanidine",
      "3-(carbamimidoylamino)propanehydrazide"),
     ("N=C(N)NCCCC(=O)NNC", "N-{4-[(methylamino)amino]-4-oxobutyl}guanidine",
      "4-(carbamimidoylamino)-1-[(methylamino)amino]-1-oxobutane"),
+    # the best-effort name was '1-(acetamidoamino)-3-(carbamimidoylamino)-1-oxopropane' (a replacement-chain
+    # name); the diacylhydrazine now has its hydrazide name, 'N'-acetyl-...propanehydrazide',
+    # the Blue Book, "Acyl, diacyl, and triacyl derivatives of hydrazides are named by substituting the
+    # senior hydrazide"). change-asserted-value: independent check = the read-back assert below
+    # (name_is_rt_exact); mutation = tests/unit/rules/test_diacylhydrazides.py. It stays below the PIN and
+    # the default tier still declines: the guanidine (class 11) outranks the hydrazide (class 12,:18184).
     ("N=C(N)NCCC(=O)NNC(C)=O", "N-[3-(acetamidoamino)-3-oxopropyl]guanidine",
-     "1-(acetamidoamino)-3-(carbamimidoylamino)-1-oxopropane"),
+     "N'-acetyl-3-(carbamimidoylamino)propanehydrazide"),
     ("N=C(N)NCCCC(=O)NN", "N-[4-(aminoamino)-4-oxobutyl]guanidine",
      "4-(carbamimidoylamino)butanehydrazide"),
 ]

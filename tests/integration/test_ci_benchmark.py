@@ -287,7 +287,8 @@ CI_BENCHMARK = [
     pytest.param(
         "CC(C)[C@H](N)C(=O)N[C@@H](CCCN=C(N)N)C(=O)N[C@@H](CCCCN)"
         "C(=O)O",
-        _declined_at_default("valylarginyllysine"),
+        _ships(
+            "(2S)-6-amino-2-{(2S)-2-[(2S)-2-amino-3-methylbutanamido]-5-(carbamimidoylamino)pentanamido}hexanoic acid"),  # PB-S S1: was _declined_at_default("valylarginyllysine"); method (1),:32995; OPSIN 2.9.0 full InChIKey exact
         marks=_GATE,
     ),
     pytest.param(
@@ -367,7 +368,8 @@ CI_BENCHMARK = [
     pytest.param(
         "CC[C@H](C)[C@H](NC(=O)[C@@H](NC(=O)[C@@H](N)CC(N)=O)"
         "[C@@H](C)O)C(=O)O",
-        _declined_at_default("asparaginylthreonylisoleucine"),
+        _ships(
+            "(2S,3S)-2-{(2S,3R)-2-[(2S)-2,4-diamino-4-oxobutanamido]-3-hydroxybutanamido}-3-methylpentanoic acid"),  # PB-S S1: was _declined_at_default("asparaginylthreonylisoleucine"); method (1),:32995; OPSIN 2.9.0 full InChIKey exact
         marks=_GATE,
     ),
     pytest.param(
@@ -987,7 +989,8 @@ CI_BENCHMARK = [
     pytest.param(
         "CSCC[C@H](N)C(=O)N[C@@H](CC(N)=O)C(=O)N[C@@H](Cc1cnc[nH]1)"
         "C(=O)O",
-        _declined_at_default("methionylasparaginylhistidine"),
+        _ships(
+            "(2S)-2-{(2S)-4-amino-2-[(2S)-2-amino-4-(methylsulfanyl)butanamido]-4-oxobutanamido}-3-(1H-imidazol-5-yl)propanoic acid"),  # PB-S S1: was _declined_at_default("methionylasparaginylhistidine"); method (1),:32995; OPSIN 2.9.0 full InChIKey exact
         marks=_GATE,
     ),
     pytest.param(

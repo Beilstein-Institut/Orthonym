@@ -301,6 +301,9 @@ def _perm(n, seed):
     return order
 
 
+_NAMED_AT_THE_PIN = {"NC1CCc2ccc(O)cc2C1": "7-amino-5,6,7,8-tetrahydronaphthalen-2-ol"}
+
+
 @pytest.mark.parametrize("smiles", [
     "NC1CCc2ccc(O)cc2C1",        # PIN '7-amino-5,6,7,8-tetrahydronaphthalen-2-ol'
     "NC(=O)C1CCc2cc(O)ccc2C1",   # PIN '6-hydroxy-...-2-carboxamide'
@@ -315,5 +318,14 @@ def test_no_suffix_less_name_at_pin_verified(smiles):
     r = Orthonym().name_tiered(smiles)
     if r["tier"] == "abstain":
         return
-    assert r["tier"] != "pin_verified", r
+    if smiles in _NAMED_AT_THE_PIN:
+        # the hydroxy-aminotetralin is now named with its PIN: the -ol suffix, the amine a prefix. The
+        # tetralin-class veto used to suppress it (partial_sat_sp3_substituent_drop answered "dropped" for
+        # every name when the hydro-fused producer refused). change-asserted-value:
+        # (the Blue Book) class 17 hydroxy compounds before class 19 amines, (:24221)
+        # hydro prefixes; independent check = the read-back below; mutation =
+        # tests/unit/perception/test_partial_sat_veto_scope.py.
+        assert (r["name"], r["tier"]) == (_NAMED_AT_THE_PIN[smiles], "pin_verified"), r
+    else:
+        assert r["tier"] != "pin_verified", r
     assert name_is_rt_exact(r["name"], smiles), r

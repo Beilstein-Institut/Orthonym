@@ -108,10 +108,13 @@ class TestCarbamoylPrefixE2E:
         assert "acid" in result
 
     def test_carbamoylpentanedioic_acid(self):
-        """NC(=O)CC(C(=O)O)CC(=O)O -> carbamoyl on diacid chain"""
+        """NC(=O)CC(C(=O)O)CC(=O)O: the principal chain holds both COOH (butanedioic acid), and the
+        -CH2-CO-NH2 group ends its own chain, so it is cited as amino + oxo, the Blue Book
+        :30369 "The combination of the prefixes 'amino' and 'oxo' is used for describing the -CO-NH2 at
+        the end of an acyclic chain in preferred IUPAC names"); one substituent on butanedioic acid takes
+        no locant ('chlorobutanedioic acid (PIN)',:2883). PB lane S; OPSIN reads it back to the input."""
         result = name_compound("NC(=O)CC(C(=O)O)CC(=O)O")
-        assert result is not None
-        assert "carbamoyl" in result
+        assert result == "(2-amino-2-oxoethyl)butanedioic acid"
 
     def test_carbamoyl_with_hydroxy(self):
         """NC(=O)CC(O)C(=O)O -> 4-amino-2-hydroxy-4-oxobutanoic acid (amino-oxo PIN)."""

@@ -355,7 +355,11 @@ def test_general_ring_prefix_emission_is_not_labelled_a_pin():
     from orthonym import Orthonym
     namer = Orthonym(general_fallback=True, general_fallback_unverified=True,
                       allow_aromatic_general=True)
-    demoted = namer.name_tiered('OC(=O)CC12CC3CC(O)(CC(C3)C1)C2')
+    # (PB lane R) 'OC(=O)CC12CC3CC(O)(CC(C3)C1)C2' left this test: its cage prefix 'adamantan-1-yl' is
+    # built by ``assembly.strict_ring_prefix``, so it is a certified PIN at both tiers; the
+    # witness is a ring prefix only the breadth producers build (a benzimidazole sulfoxide)
+    # (PB merge) the sulfinylbenzimidazole used before is named by the strict first run since lane P ('methanesulfinyl',; a dihydropyridazinyl prefix stands in
+    demoted = namer.name_tiered('CN(CCO)C1=CNNC=C1')
     assert demoted['name'], demoted
     assert demoted['is_pin'] is False, demoted
     # Tier labels, paper semantics (namer.py "Tier labels" block): a name in PIN form

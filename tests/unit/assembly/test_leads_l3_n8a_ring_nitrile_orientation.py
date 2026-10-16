@@ -46,8 +46,6 @@ ROWS = [
     ("CCc1ccc(OC2CCCCC2C#N)cc1", "2-(4-ethylphenoxy)cyclohexane-1-carbonitrile"),
     ("C1(C#N)C(n2nc(C)c(Cl)c2C)CC(CCC)CC1",
      "2-(4-chloro-3,5-dimethyl-1H-pyrazol-1-yl)-4-propylcyclohexane-1-carbonitrile"),
-    # the order that gave a wrong molecule: the substituent is on the carbon that carries the nitrile
-    ("CC(C)(C)NNC1(CCCCCCC1)C#N", "1-[(tert-butylamino)amino]cyclooctane-1-carbonitrile"),
     # (f) between the two directions round the ring
     ("N#CC1(C)CCCC(C)C1", "1,3-dimethylcyclohexane-1-carbonitrile"),
     ("N#CC1CCC(Br)CC1Cl", "4-bromo-2-chlorocyclohexane-1-carbonitrile"),
@@ -64,6 +62,29 @@ def test_every_atom_order_gives_the_one_pin(smiles, pin):
         d, b = name_default(order), name_breadth(order)
         assert (d["name"], d["tier"]) == (pin, "pin_verified"), (order, d["name"], d["tier"])
         assert (b["name"], b["tier"]) == (pin, "pin_verified"), (order, b["name"], b["tier"])
+
+
+# The order that gave a wrong molecule: the substituent is on the carbon that carries the nitrile.
+# The numbering is the point of this row; the spelling of its hydrazine unit is not the PIN's.
+# "Hydrazine and derivatives" (the Blue Book): "For H2N-NH– 'hydrazinyl'";
+# a substituted unit cites its locants, '4-(1-acetyl-2-ethylhydrazin-1-yl)benzoic acid (PIN)'
+# (:34042), so the PIN of this group is '1-(2-tert-butylhydrazin-1-yl)cyclooctane-1-carbonitrile',
+# which no producer builds: the name stays '(tert-butylamino)amino' and is labelled below the PIN
+# (validation/spelling/checks_prefixes.py,. That PIN row is not asserted: the value
+# of the old assertion was the non-PIN spelling, and no worked example fixes the new one but
+#:34042 (the form is derived from it, so recorded as unverified).
+HYDRAZINE_ROW = ("CC(C)(C)NNC1(CCCCCCC1)C#N", "1-[(tert-butylamino)amino]cyclooctane-1-carbonitrile")
+
+
+def test_every_atom_order_gives_the_one_name_below_the_pin():
+    smiles, name = HYDRAZINE_ROW
+    assert name_is_rt_exact(name, smiles), name
+    orders = _orders(smiles)
+    assert len(orders) >= 10, orders
+    for order in orders:
+        d, b = name_default(order), name_breadth(order)
+        assert d["tier"] != "pin_verified", (order, d["name"], d["tier"])
+        assert (b["name"], b["tier"]) == (name, "systematic_verified"), (order, b["name"], b["tier"])
 
 
 def test_the_unoriented_ring_keeps_its_perception_order(monkeypatch):

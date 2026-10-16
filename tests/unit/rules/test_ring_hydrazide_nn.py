@@ -121,8 +121,13 @@ def test_chain_hydrazide_merged_nn_multiplier(smiles, expected):
         ("NNS(=O)(=O)c1ccccc1", "benzenesulfonohydrazide"),
         ("Cc1ccc(cc1)S(=O)(=O)NN", "4-methylbenzenesulfonohydrazide"),
         # acyclic N/N' path (T3d) unchanged
-        ("CNNC(C)=O", "N'-methylethanehydrazide"),
-        ("CN(N)C(C)=O", "N-methylethanehydrazide"),
+        # (the Blue Book-33944): 'acetohydrazide (PIN)... can be substituted in the same way
+        # as corresponding amides'; the two rows spelled 'ethanehydrazide' and shipped it as pin_verified.
+        # change-asserted-value: Blue Book row 66.3.3.1 'N-methylacetohydrazide' (benchmarks/bb_conformance);
+        # independent check = tests/unit/rules/test_acetohydrazide_spelling.py (OPSIN read-back); mutation =
+        # dropping the 'hydrazide' entry of composition_primitives.RETAINED_C2_ACYL_BY_SUFFIX fails both.
+        ("CNNC(C)=O", "N'-methylacetohydrazide"),
+        ("CN(N)C(C)=O", "N-methylacetohydrazide"),
         ("CNNC(=O)O", "N'-methylhydrazinecarboxylic acid"),
         ("CNNC(=S)C", "N'-methylethanethiohydrazide"),
         # dihydrazide via the decomposition quality gate (C1)
@@ -167,9 +172,6 @@ def _validity_gate_on(monkeypatch):
         # ring-substituted + N-substituted (needs combined
         # alphanumeric locant ordering: 'N',4-dimethyl...' etc.)
         "CNNC(=O)c1ccc(C)cc1",
-        # N-acyl ring hydrazide (N'-benzoylbenzohydrazide, acyl
-        # N-subs are out of the pure-alkyl collector's scope)
-        "O=C(NNC(=O)c1ccccc1)c1ccccc1",
         # N-attached ring hydrazide, N-substituted (piperidine-1-carbohydrazide
         # derivative -- acyl C attaches to a ring NITROGEN, deferred)
         "CNNC(=O)N1CCCCC1",
@@ -177,3 +179,13 @@ def _validity_gate_on(monkeypatch):
 )
 def test_ring_hydrazide_fail_closed(smiles, _validity_gate_on):
     assert "unknown" in name_compound(smiles, on_failure="label")
+
+
+@pytest.mark.unit
+def test_acyl_n_substituent_is_the_diacylhydrazide_producer_s(_validity_gate_on):
+    # The N-acyl ring hydrazide used to sit in the list above (the pure-alkyl collector cannot spell an acyl
+    # N-substituent). rules/diacylhydrazides.py owns it now: (the Blue Book), 'Acyl, diacyl,
+    # and triacyl derivatives of hydrazides are named by substituting the senior hydrazide by the appropriate
+    # acyl groups'; the Blue Book row (66.3.3.3) is 'N'-benzoylbenzohydrazide'. change-asserted-value: the
+    # book line is the primary source, tests/unit/rules/test_diacylhydrazides.py reads it back through OPSIN.
+    assert name_compound("O=C(NNC(=O)c1ccccc1)c1ccccc1") == "N'-benzoylbenzohydrazide"

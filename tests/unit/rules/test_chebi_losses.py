@@ -280,30 +280,59 @@ def test_phosphodiester_assembler_polyphosphate_words():
 
 GIANT_PEPTIDES = [
     # ChEBI rows (paper: RT-exact), abstained at ca6005b8f
-    ("CCC(C)[C@H](NC(=O)[C@H](Cc1ccccc1)NC(=O)[C@H](CO)NC(=O)[C@H](CO)NC(=O)"
-     "[C@H](Cc1ccc(O)cc1)NC(=O)CNC(=O)[C@H](CCCNC(=N)N)NC(=O)[C@H](C)N)C(=O)N"
-     "[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C@@H](Cc1ccccc1)"
-     "C(=O)N[C@@H](Cc1ccccc1)C(=O)O", None),
-    ("C[C@H](N)C(=O)N[C@@H](CCCNC(=N)N)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N"
-     "[C@@H](CO)C(=O)N[C@@H](CO)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CCCNC(=N)N)"
-     "C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C@@H]"
-     "(Cc1ccccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)O",
-     "alanylarginylglycyltyrosylserylserylphenylalanylarginyltyrosyltryptophyl"
-     "phenylalanylphenylalanine"),
+    (
+        "CCC(C)[C@H](NC(=O)[C@H](Cc1ccccc1)NC(=O)[C@H](CO)NC(=O)[C@H](CO)NC(=O)"
+        "[C@H](Cc1ccc(O)cc1)NC(=O)CNC(=O)[C@H](CCCNC(=N)N)NC(=O)[C@H](C)N)C(=O)"
+        "N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C@@H](Cc1cc"
+        "ccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)O",
+        "(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2"
+        "-(2-{(2S)-2-[(2S)-2-aminopropanamido]-5-(carbamimidoylamino)pentanamid"
+        "o}acetamido)-3-(4-hydroxyphenyl)propanamido]-3-hydroxypropanamido}-3-h"
+        "ydroxypropanamido]-3-phenylpropanamido}-3-methylpentanamido]-3-(4-hydr"
+        "oxyphenyl)propanamido}-3-(1H-indol-3-yl)propanamido]-3-phenylpropanami"
+        "do}-3-phenylpropanoic acid"),
+    (
+        "C[C@H](N)C(=O)N[C@@H](CCCNC(=N)N)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)C(=O"
+        ")N[C@@H](CO)C(=O)N[C@@H](CO)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CCCNC("
+        "=N)N)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C"
+        "@@H](Cc1ccccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)O",
+        "(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2"
+        "-(2-{(2S)-2-[(2S)-2-aminopropanamido]-5-(carbamimidoylamino)pentanamid"
+        "o}acetamido)-3-(4-hydroxyphenyl)propanamido]-3-hydroxypropanamido}-3-h"
+        "ydroxypropanamido]-3-phenylpropanamido}-5-(carbamimidoylamino)pentanam"
+        "ido]-3-(4-hydroxyphenyl)propanamido}-3-(1H-indol-3-yl)propanamido]-3-p"
+        "henylpropanamido}-3-phenylpropanoic acid"),
     # hand-made 13-mer and 12-mer (not in any split), abstained at ca6005b8f
-    ("C[C@H](N)C(=O)N[C@@H](CCCNC(=N)N)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N"
-     "[C@@H](CO)C(=O)N[C@@H](CO)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CCCNC(=N)N)"
-     "C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C@@H]"
-     "(Cc1ccccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)NCC(=O)O",
-     "alanylarginylglycyltyrosylserylserylphenylalanylarginyltyrosyltryptophyl"
-     "phenylalanylphenylalanylglycine"),
-    ("CC(C)[C@H](N)C(=O)N[C@@H](CCCNC(=N)N)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)"
-     "C(=O)N[C@@H](CO)C(=O)N[C@@H](CO)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H]"
-     "(CCCNC(=N)N)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)"
-     "C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)O",
-     "valylarginylglycyltyrosylserylserylphenylalanylarginyltyrosyltryptophyl"
-     "phenylalanylphenylalanine"),
+    (
+        "C[C@H](N)C(=O)N[C@@H](CCCNC(=N)N)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)C(=O"
+        ")N[C@@H](CO)C(=O)N[C@@H](CO)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CCCNC("
+        "=N)N)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C"
+        "@@H](Cc1ccccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)NCC(=O)O",
+        "[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-"
+        "2-(2-{(2S)-2-[(2S)-2-aminopropanamido]-5-(carbamimidoylamino)pentanami"
+        "do}acetamido)-3-(4-hydroxyphenyl)propanamido]-3-hydroxypropanamido}-3-"
+        "hydroxypropanamido]-3-phenylpropanamido}-5-(carbamimidoylamino)pentana"
+        "mido]-3-(4-hydroxyphenyl)propanamido}-3-(1H-indol-3-yl)propanamido]-3-"
+        "phenylpropanamido}-3-phenylpropanamido]acetic acid"),
+    (
+        "CC(C)[C@H](N)C(=O)N[C@@H](CCCNC(=N)N)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)"
+        "C(=O)N[C@@H](CO)C(=O)N[C@@H](CO)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CC"
+        "CNC(=N)N)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O"
+        ")N[C@@H](Cc1ccccc1)C(=O)N[C@@H](Cc1ccccc1)C(=O)O",
+        "(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2-{(2S)-2-[(2S)-2"
+        "-(2-{(2S)-2-[(2S)-2-amino-3-methylbutanamido]-5-(carbamimidoylamino)pe"
+        "ntanamido}acetamido)-3-(4-hydroxyphenyl)propanamido]-3-hydroxypropanam"
+        "ido}-3-hydroxypropanamido]-3-phenylpropanamido}-5-(carbamimidoylamino)"
+        "pentanamido]-3-(4-hydroxyphenyl)propanamido}-3-(1H-indol-3-yl)propanam"
+        "ido]-3-phenylpropanamido}-3-phenylpropanoic acid"),
 ]
+
+# PB lane S (2026-10-16, change-asserted-value): these four names were the retained peptide names
+# ('alanylarginylglycyl...', systematic_verified) and the test asserted 'not a PIN'. The substitutive
+# name now builds (prefix_claims: an atom is spelled once; method (1), the Blue Book-32998,
+# 'Method (1) generates preferred IUPAC names'; decision A: the PIN of a peptide is its substitutive name), so
+# the row ships pin_verified. Each name is OPSIN 2.9.0 full-InChIKey exact (java run outside the engine,
+# 4/4) and the pre-fix tree fails these assertions (it names the retained form).
 
 
 @pytest.mark.opsin_gate
@@ -313,9 +342,8 @@ GIANT_PEPTIDES = [
 def test_giant_peptide_names_inside_the_budget(smiles, expected):
     res = _be(smiles)
     assert_full_rt(res["name"], smiles)
-    assert res["tier"] != "pin_verified"  # decision A: a peptide name is not a PIN
-    if expected is not None:
-        assert res["name"] == expected
+    assert res["tier"] == "pin_verified"  # decision A: the substitutive name is the peptide's PIN
+    assert res["name"] == expected
 
 
 def test_nested_memo_hit_without_budget_replay():

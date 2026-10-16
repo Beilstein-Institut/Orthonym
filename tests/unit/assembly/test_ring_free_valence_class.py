@@ -138,8 +138,17 @@ RING_FAMILY_YLIDENES = [
 # only on a Java-less host, which is what the no_jvm parameter reproduces.
 OUT_OF_CLASS_LEAKS = [
     ("imine-double-count", "CC=NCC(=O)O", "C=N claimed twice"),
-    ("imine-double-count-long", "CC=NCCCC(=O)O", "C=N claimed twice"),
+    # 'imine-double-count-long' (CC=NCCCC(=O)O) left this list in PB lane S: the reconciliation of
+    # prefix atom claims (assembly/handlers/prefix_claims.py) spells the C=N once, and the row ships
+    # '4-(ethylideneamino)butanoic acid' (pin_verified, OPSIN full InChIKey); see the test below.
 ]
+
+
+def test_imine_double_count_long_is_named_once():
+    from orthonym import Orthonym
+    row = Orthonym().name_tiered("CC=NCCCC(=O)O")
+    # the name only: this module runs with the OPSIN gate off, so the label is not the production one
+    assert row["name"] == "4-(ethylideneamino)butanoic acid", row
 
 
 def _canonical(smiles):

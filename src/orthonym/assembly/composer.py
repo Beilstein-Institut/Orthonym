@@ -10695,6 +10695,11 @@ def _assemble_decorated_amino_prefix(branch_entries, enclose: bool = True,
         cite_organyl_in_composed_prefix,
         composed_prefix_multiplier,
     )
+    if head == "amino" and [b for b, _ in branch_entries] == ["amino"]:
+        # an amino group on an amino group is the hydrazine unit: "Hydrazine
+        # and derivatives" (the Blue Book): "For H2N-NH– 'hydrazinyl'"
+        from .prefix_derivation import built
+        return built("hydrazinyl", substituted=False, enclosed=False)
     counts = Counter(branch_entries)
     cited = []
     ordered = sorted(counts.items(), key=lambda kv: alpha_sort_key(kv[0][0]))
@@ -11558,40 +11563,11 @@ def _name_n_attached_substituent_fallback(
                 return sub_name
         # Fallback: recursive naming via name_fragment_recursively
         # for ring-containing N-branch fragments that failed direct naming.
-        # Last resort (audit 2026-09-03, Bug B): name the CARBON side that hangs
-        # off the nitrogen and wrap it, exactly like the two branches above
-        # ("(cyclohexylamino)", "((prefix)amino)"). The previous version put the
-        # nitrogen itself into a SMILES fragment, named it as an amine
-        # ("4-methylcyclohexan-1-amine", "N-methylaniline") and wrapped THAT in
-        # "amino" -- one nitrogen twice; every candidate was a different molecule.
-        # Only a single carbon branch on the nitrogen is handled here: with two
-        # (N-methyl-N-aryl, N-alkyl-N-cycloalkyl) the prefix needs the N-locant
-        # grammar of the later paths, so decline and let them name it.
-        if len(sub_atoms) <= 25:
-            n_branches = [nbr.GetIdx() for nbr in atom.GetNeighbors()
-                          if nbr.GetIdx() in sub_set]
-            carbon_side = [idx for idx in sub_atoms if idx != attach_atom]
-            if len(n_branches) == 1 and carbon_side:
-                try:
-                    from .naming_utils import apply_enclosing_marks, needs_brackets
-                    from .substituent_naming import name_substituent_fragment
-                    prefix = name_substituent_fragment(
-                        mol, carbon_side, n_branches[0], list(chain_set) + [attach_atom]
-                    )
-                except Exception:  # noqa: BLE001 - a declining namer is a decline
-                    prefix = None
-                if prefix and is_refusal_sentinel(prefix):
-                    prefix = None
-                if prefix and _has_ring_atoms(mol, carbon_side) and not _name_reflects_ring(prefix):
-                    prefix = None
-                if prefix:
-                    if needs_brackets(prefix):
-                        # (the Blue Book): '[(4-fluorophenyl)
-                        # methyl]amino', not '((4-fluorophenyl)methyl)amino';
-                        # the outer mark of the returned '(...amino)' is
-                        # re-chosen by format_substituent_prefix (TRIAGE g3 C10c).
-                        prefix = apply_enclosing_marks(prefix, -1)
-                    return f"({prefix}amino)"
+        # Last resort (Bug B;: assembly/n_branch_prefixes.py
+        from .n_branch_prefixes import n_branch_last_resort_prefix
+        _last = n_branch_last_resort_prefix(mol, atom, attach_atom, sub_set, sub_atoms, chain_set)
+        if _last:
+            return _last
         logger.debug(
             "n_branch_ring_substituent_unnameable substituent_skip: reason=n_branch_nonphenyl_ring_still_unnameable",
         )

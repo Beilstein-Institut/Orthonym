@@ -97,10 +97,10 @@ def test_shorter_acenes_not_shadowed(namer):
     shorter one (or vice versa) -- num_atoms + the exact-coverage check in
     identify_polycyclic prevent it; this asserts the emitted behaviour.
 
-    (tetracene is deliberately excluded here: its substituted-form emission
-    already used the 'naphthacene' spelling before this change -- a
-    pre-existing, unrelated quirk out of this fix's scope -- so it is not a
-    useful regression oracle for THIS change.)
+    (tetracene is deliberately excluded here: it was not a regression oracle for
+    THIS change. Its substituted forms used the general-nomenclature spelling
+    'naphthacene' until:11442 was applied; they are pinned in
+    test_tetracene_pin_spelling.py.)
     """
     assert namer.name(ANTHRACENE_SMILES) == "anthracene"
     assert namer.name(PENTACENE_SMILES) == "pentacene"

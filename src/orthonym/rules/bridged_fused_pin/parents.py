@@ -51,8 +51,8 @@ TRADITIONAL_NUMBERING = frozenset({"cyclopenta[a]phenanthrene", "purine"})
 #: ``parent_table.BB_PARENTS``, outside ``derived_parents.DERIVED_PARENTS`` and outside the
 #: benzo-name class (``_BENZO_NAME``) is not used as a bridged fused parent (the
 #: fusion names that ``fusion_names`` builds for skeletons no table holds aside):
-#: the engine's tables also hold general-nomenclature names ('naphthacene',
-#: '1,2-benzisoxazole', 'beta-carboline', 'imidazo[2,1-b]thiazole') that read back to the
+#: the engine's tables also hold general-nomenclature names ('1,2-benzisoxazole',
+#: 'beta-carboline', 'imidazo[2,1-b]thiazole') that read back to the
 #: right structure but are not PINs. Three names have no bare '(PIN)' line: 'heptalene'
 #: cites the list of hydrocarbon parent components (:14776; the rule
 #::11455 forms the name, and the PIN at:14599 is a dimethyl derivative of it);

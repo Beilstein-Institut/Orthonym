@@ -1719,18 +1719,13 @@ def name_substituent(mol, frag_atoms, attach_idx, allow_mancude: bool = False):
     else:
         from .memo import cache_or_compute
         _token = cache_or_compute("name_substituent", _memo_key, _body)
-    # Breadth Job 1 (M01): at the PIN tier a fragment the strict cascade declines
-    # is offered to the SAME cascade with its ring-substituent composition switch
-    # (``allow_mancude``) on -- the producers that switch opens build names such
-    # as '(4-methoxyphenyl)methyl' or '2,6,6-trimethylcyclohex-1-en-1-yl' that
-    # are PIN forms, the Blue Book;,:16619). Only a
-    # name made of PIN vocabulary is kept (`promote_at_pin_tier`): the universal
-    # replacement fallback stays best-effort-only (it reads ``best_effort_ctx``
-    # itself), and a von Baeyer / replacement / radical-style form is declined.
-    # A fragment the strict cascade names is untouched.
+    # Breadth Job 1 (M01) + PB lane R: in the PIN tier's promotion re-run a fragment the strict
+    # cascade declines is offered to the strict ring-yl producer, then to the same cascade with
+    # its composition switch (``allow_mancude``) on, under the PIN-vocabulary guard
+    # (``assembly.strict_ring_prefix``, ``promote_at_pin_tier``). Outside the re-run: no change.
     if not allow_mancude and (_token is None or _token == "substituent"):
-        from ..rules.pin_vocabulary import promote_at_pin_tier
-        _promoted = promote_at_pin_tier(lambda: name_substituent(
+        from .strict_ring_prefix import pin_tier_ring_prefix
+        _promoted = pin_tier_ring_prefix(mol, frag_atoms, attach_idx, lambda: name_substituent(
             mol, frag_atoms, attach_idx, allow_mancude=True))
         if _promoted is not None:
             return _promoted
@@ -4093,7 +4088,7 @@ def _terminal_monocycle_core_tail(mol, core, attach_idx, pos):
 
 
 def _recursive_fragment_substituent_name(mol, frag_atoms, attach_idx,
-                                          allow_mancude: bool = False):
+                                          allow_mancude: bool = False, policy=None):
     """General recursive composer: name a ring-bearing substituent fragment as
     ``{decorations}{ring-core}-yl`` by partitioning it into a ring CORE + its
     DECORATIONS and recursing.
@@ -4122,6 +4117,10 @@ def _recursive_fragment_substituent_name(mol, frag_atoms, attach_idx,
     unnameable, the coverage/termination invariant is violated, or any
     decoration cannot be named. NEVER returns the ``'substituent'`` sentinel
     and NEVER a multi-word token.
+
+    ``policy`` (``assembly.strict_ring_prefix.StrictRingPolicy``, PIN tier's promotion re-run):
+    admits the core by its kind (``admit_core``), names the decorations with the strict namer, and
+    resolves ties of the numbering by (g) (``renumber``); None = this function as before.
     """
     if not allow_mancude:
         return None
@@ -4166,8 +4165,10 @@ def _recursive_fragment_substituent_name(mol, frag_atoms, attach_idx,
         # saturated free-valence atom takes hydro prefixes and added hydrogen
         #, numbered as that form is (``_azine_added_hydrogen_core``).
         pos, core_tail = _azine
+        kind = 'azine'
     elif pos is not None:
         core_tail = _monocycle_core_tail(mol, core, attach_idx, pos, ring_info)
+        kind = 'stem'
         if not core_tail or ' ' in core_tail:
             # -T1b: the PIN stem tables declined -- a mixed-saturation
             # carbocycle (needs ene locants), a non-aromatic heterocycle with a
@@ -4181,9 +4182,11 @@ def _recursive_fragment_substituent_name(mol, frag_atoms, attach_idx,
             # (``rules.monocycle_forms``; the decoration locants below read off the
             # same ``pos``), then the replacement spelling for what it declines.
             _book = _book_monocycle_core_tail(mol, core, attach_idx, deco_carriers)
+            kind = 'book'
             if _book is not None:
                 pos, core_tail = _book
             else:
+                kind = 'terminal'
                 core_tail = _terminal_monocycle_core_tail(mol, core, attach_idx, pos)
             if not core_tail or ' ' in core_tail:
                 return None
@@ -4202,8 +4205,12 @@ def _recursive_fragment_substituent_name(mol, frag_atoms, attach_idx,
         if _poly is None:
             return None  # un-numberable polycyclic core -> clean abstain
         pos, core_tail = _poly
+        kind = 'poly'
         if not core_tail or ' ' in core_tail:
             return None
+    if policy is not None and not policy.admit_core(
+            kind, mol, core, attach_idx, deco_carriers, core_tail):
+        return None
 
     # No decorations: the bare-core tail IS the answer (earlier tiers normally
     # own this, but stay correct if we reach here for a bare ring).
@@ -4215,15 +4222,22 @@ def _recursive_fragment_substituent_name(mol, frag_atoms, attach_idx,
 
     from .naming_utils import alpha_sort_key, enclose_if_compound, get_multiplier_prefix
     groups = defaultdict(list)
+    named = []
     for ra, ni, branch in decorations:
         # Termination invariant: recurse only on a STRICTLY SMALLER atom set.
         if not len(branch) < len(frag_set):
             return None
         dname = name_substituent(
-            mol, sorted(branch), ni, allow_mancude=allow_mancude)
+            mol, sorted(branch), ni, allow_mancude=allow_mancude and policy is None)
         if (not dname or dname == 'substituent' or ' ' in dname
                 or 'unknown' in dname.lower()):
             return None  # unnameable decoration -> fail closed
+        named.append((ra, dname))
+    if policy is not None:
+        pos = policy.renumber(mol, core, attach_idx, pos, named)
+        if pos is None:
+            return None
+    for ra, dname in named:
         groups[dname].append(pos[ra])
 
     # ---- Step 5: assemble one hyphenated token -----------------------------
@@ -4461,10 +4475,11 @@ def _recursive_chain_fragment_substituent_name(mol, frag_atoms, attach_idx,
     # (preferred prefix) 1-methylethyl';:22744 '1-hydroxypropan-2-yl... [not
     # 1-(hydroxymethyl)ethyl]'), so when two carbon arms make a longer chain
     # ('1-benzylethyl' for 1-phenylpropan-2-yl) its name is not the PIN prefix.
-    # In the PIN tier's promotion re-run it declines; every other run is
-    # unchanged.
-    from ..rules.pin_vocabulary import in_pin_promotion
-    if in_pin_promotion():
+    # In the PIN tier's promotion re-run it declines; in the PIN tier's first run it
+    # takes the chain of the deriver (PB-W:, the Blue Book, 'the
+    # longest chain'); every other run is unchanged.
+    from ..rules.pin_vocabulary import at_pin_tier, in_pin_promotion
+    if in_pin_promotion() or at_pin_tier():
         _rest = frag_set - {attach_idx}
         _arms = sorted(
             (len(_longest_carbon_path_from(mol, _rest, nb.GetIdx()) or ())
@@ -4472,7 +4487,12 @@ def _recursive_chain_fragment_substituent_name(mol, frag_atoms, attach_idx,
              and nb.GetAtomicNum() == 6 and not nb.IsInRing()),
             reverse=True)
         if 1 + sum(_arms[:2]) > len(chain):
-            return None
+            if in_pin_promotion():
+                return None
+            from ..rules.terminal_fragment import _book_principal_chain_fragment
+            _longer = _book_principal_chain_fragment(mol, frag_set, attach_idx)
+            if _longer is not None:
+                return _longer.name
     pos = {atom: i + 1 for i, atom in enumerate(chain)}
     chain_set = set(chain)
 

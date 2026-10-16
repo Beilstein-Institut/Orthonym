@@ -187,6 +187,17 @@ _STILL_LEAKS = ("NC1CCc2cc(O)ccc2C1",)
 #: Retired witnesses: now named correctly at the source, with the name OPSIN 2.9.0 parses back
 #: to the input (full an InChIKey both sides).
 _NOW_NAMED = {"NC1CCc2ccccc2C1": "1,2,3,4-tetrahydronaphthalen-2-amine"}
+#: The hydro-fused producer still refuses the hydroxy-2-aminotetralin, so the veto still answers True for
+#: the wrong name above. What changed: when the producer refuses, the veto asks the read-back of the name
+#: that WAS shipped (perception.structure_conservation._name_reads_back_to_constitution) instead of
+#: answering "dropped" for every name, and the ring-substituted path's own name for this molecule is
+#: right. change-asserted-value: primary source the Blue Book (class 17 hydroxy
+#: compounds are senior to class 19 amines, so the suffix is -ol and the amine a prefix) with
+#::24221 (hydro prefixes); independent check: OPSIN 2.9.0 reads '6-amino-5,6,7,8-tetrahydronaphthalen-2-ol'
+#: back to the input constitution (test_partial_sat_veto_scope.py asserts the full read-back); mutation:
+#: tests/unit/perception/test_partial_sat_veto_scope.py::test_a_wrong_molecule_is_still_vetoed_when_the_producer_refuses
+#: fails if the veto stops reading the name back. With no read-back at all (no jar) the veto still holds.
+_NAMED_BY_READ_BACK = {"NC1CCc2cc(O)ccc2C1": "6-amino-5,6,7,8-tetrahydronaphthalen-2-ol"}
 
 
 @pytest.mark.unit
@@ -304,7 +315,8 @@ def test_partial_sat_drop_false_for_mixed_hydro_shape():
 ])
 def test_veto_fails_closed_on_documented_leaks_no_java(smiles):
     raw = Orthonym(style="pin", _disable_opsin_validity_gate=True)
-    assert raw.name(smiles, on_failure="label") == _NOW_NAMED.get(smiles, "unknown organic compound")
+    expected = {**_NOW_NAMED, **_NAMED_BY_READ_BACK}.get(smiles, "unknown organic compound")
+    assert raw.name(smiles, on_failure="label") == expected
 
 
 @pytest.mark.unit

@@ -47,7 +47,12 @@ def test_a_parent_of_its_own_outside_the_ring_system_declines(smiles):
 @pytest.mark.opsin_gate
 def test_the_engine_never_spells_guanidinyl(smiles):
     row = default_tier_row(smiles)
-    assert row["tier"] != "pin_verified" or "guanidin" not in (row["name"] or ""), row
+    # the prefix 'guanidinyl' never ships as a PIN; guanidine as the PARENT is the PIN when no senior group
+    # is present ('N,N'-dimethylguanidine (PIN)',, the Blue Book; the lowest locant is N)
+    assert row["tier"] != "pin_verified" or "guanidinyl" not in (row["name"] or ""), row
+    if row["tier"] == "pin_verified":
+        assert row["name"] == "N-(4,6,7-trimethylquinazolin-2-yl)guanidine", row
+        assert_full_rt(row["name"], smiles)
     be = name_best_effort(smiles)
     if be["name"] and not be["name"].startswith("unknown"):
         assert_full_rt(be["name"], smiles)

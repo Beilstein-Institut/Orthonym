@@ -55,7 +55,13 @@ def test_complex_arm_names_substitutively():
     from orthonym.validation.opsin_roundtrip import opsin_parse
     smi = "O=S(Cc1ccccc1)c1ccncc1"
     r = _be().name_tiered(smi)
-    assert r["name"] == "4-(benzylsulfinyl)pyridine"
+    # '4-(benzylsulfinyl)pyridine' became '4-(phenylmethanesulfinyl)pyridine': the CH2 between the ring and the
+    # sulfur is the parent of the sulfinyl group and the prefix is the acid-stem form
+    # 'methanesulfinyl', the Blue Book; '1-methyl-4-[(R)-phenyl(18O1)methanesulfonyl]benzene
+    # (PIN)':46030; '1-(methanesulfinyl)-2-(methylsulfanyl)ethane (PIN)':18284). change-asserted-value:
+    # OPSIN reads the new name back to the input (below); mutation =
+    # tests/unit/rules/test_ring_methane_sulfonyl_suffix.py.
+    assert r["name"] == "4-(phenylmethanesulfinyl)pyridine"
     assert "oxo" not in r["name"] and "thiaethyl" not in r["name"]
     got = opsin_parse(r["name"])
     assert got and (inchi.MolToInchiKey(Chem.MolFromSmiles(got))

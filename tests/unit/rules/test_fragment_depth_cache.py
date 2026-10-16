@@ -362,7 +362,8 @@ _RT_BREADTH_GAPS = {
     # "016_phenol_ether_ketone" -- REMOVED 2026-08-21: now round-trips
     # (verify_or_none True): '1-({4-[3-(hydroxymethyl)-5-methoxyphenoxy]-2-
     # methoxy-6-methylphenyl})-3-methylbut-3-en-2-one'.
-    "017_tripeptide_arginine",
+    # "017_tripeptide_arginine" -- REMOVED 2026-10-16 (PB lane S, prefix_claims): now round-trips (gate off): '(2S,3S)-2-[(2S)-2-{(2S)-2-amino-5-[(diaminomethylidene)amino]pentanamido}propanamido]-3-methylpentanoic acid'
+    # method (1), the Blue Book; OPSIN 2.9.0 full InChIKey exact).
     "018_steroid_furanone",
     # "020_tetrapeptide" -- REMOVED 2026-08-21, same cause/verification as
     # 013 above. Now 'aspartylvalylglycylproline', OPSIN round-trip
@@ -396,7 +397,7 @@ _RT_PARAMS = [
     for p in DEPTH_LIMIT_COMPOUNDS
 ]
 
-assert len(_RT_BREADTH_GAPS) == 6, "the measured gap list changed size"
+assert len(_RT_BREADTH_GAPS) == 5, "the measured gap list changed size"  # 6 until 017 left it (PB lane S, 2026-10-16)
 assert _RT_BREADTH_GAPS <= {p.id for p in DEPTH_LIMIT_COMPOUNDS}, (
     "a _RT_BREADTH_GAPS id does not match any DEPTH_LIMIT_COMPOUNDS param"
 )

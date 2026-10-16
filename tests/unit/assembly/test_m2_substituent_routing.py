@@ -49,9 +49,7 @@ from tests.support.default_tier import (  # noqa: E402
 # as not the PIN is declined at the default tier with NO_VERIFIED_PIN; for the
 # molecules below the test asserts that decline, the strict path's name and label,
 # and the same name at the best-effort tier (tests/support/default_tier.py).
-DEFAULT_TIER_DECLINES = frozenset({
-    "COc1ccc(C2Oc3cccc(OC(F)F)c3-c3ccc(NC(=O)N(C)C)cc32)cc1OC",
-})
+DEFAULT_TIER_DECLINES = frozenset()
 #... whose best-effort name is another one (it reads back exactly)
 BEST_EFFORT_NAMES_IT_OTHERWISE = frozenset()
 
@@ -195,9 +193,9 @@ def test_default_tier_now_names_through_the_pin_rerun(pin_eng, smi, expected):
     from orthonym.validation.opsin_roundtrip import opsin_roundtrip_check
     row = _dt_obj_row(pin_eng, smi)
     assert row["name"] == expected, row
-    # branch review fixes: the promotion re-run's name is labelled pin_unverified,
-    # is_pin False (a breadth producer built it; not certified as the PIN)
-    assert row["tier"] == "pin_unverified" and not row["is_pin"], row
+    # PB lane R (T3): the fused core is named by the fusion form, the Blue Book) through
+    # ``assembly.strict_ring_prefix``, so no breadth piece is kept and the name keeps its certification
+    assert row["tier"] == "pin_verified" and row["is_pin"], row
     assert opsin_roundtrip_check(smi, row["name"])["passed"], row
 
 

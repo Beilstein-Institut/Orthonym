@@ -58,16 +58,21 @@ def _be(smiles):
 # 1-benzopyran-4-one,:29628). The rows below are the re-run's; every
 # other row is named by the first (strict) run and stays pin_verified.
 RERUN_BUILT = frozenset({
-    "NCc1csc(-c2cccs2)n1",
+    # (PB lane R, T1) six rows left this list: 'NCc1csc(-c2cccs2)n1', 'C=C1CC1C(C)=O',
+    # 'O=C(O)C(=O)C[C@H]1C=C[C@H](O)CC1', 'CC1=C(CC/C(C)=C/C=C/C(C)=C/CO)C(C)(C)CCC1',
+    # 'CC1=CCC(CC1)C(=C)CCO' and the piperazinyl propanol. Their only re-run piece is a decorated
+    # monocycle-yl (carbocycle with ene locants, PIN-stem heterocycle) that
+    # ``assembly.strict_ring_prefix`` builds with the strict namer, so the re-run name is not flagged
+    # and stays pin_verified; the names are unchanged (tests/integration/test_pb_r_strict_ring_prefix.py).
+    # (PB lane R, T3) 'COc1ccc(C2=C(Cc3ccc4c(c3)CC(O)C(C)(C)O4)[C@H](OC)OC2=O)cc1' left too: its fused ring-yl
+    # '3-hydroxy-2,2-dimethyl-3,4-dihydro-2H-1-benzopyran-6-yl' is built by the fusion form.
     # (PIN class program Task 2) '2,5-bis[(4-methoxyphenyl)methyl]-4-methylpyrimidine'
     # is built by the strict first run now (the decorated ring-yl fold at every tier):
     # (b) (the Blue Book) the pyrimidine is the senior ring, the two
     # benzene units are its substituents, '7,7-bis[(2-butoxyethoxy)methyl]-...-dioic
     # acid (PIN)' (:18899) for 'bis[...]' on a senior parent; pin_verified.
-    "C=C1CC1C(C)=O",
-    "O=C(O)C(=O)C[C@H]1C=C[C@H](O)CC1",
-    "CC1=C(CC/C(C)=C/C=C/C(C)=C/CO)C(C)(C)CCC1",
-    "C1C2CC3CC1CC(C2)(C3)COC(=O)CCl",
+    # (PB lane R, T4) 'C1C2CC3CC1CC(C2)(C3)COC(=O)CCl' left too: its only re-run piece is the cage prefix
+    # 'adamantan-1-yl', built by ``assembly.strict_ring_prefix``, the Blue Book).
     # '2-[3-methyl-4-(propan-2-yl)phenoxy]-N-[4-(piperidin-1-yl)phenyl]acetamide' is
     # built by the strict first run since the drug lane's Task L3.5 (ring-yl prefixes of
     # two ring systems, the -NH-/-O-/-S- connective): (the Blue Book-
@@ -75,9 +80,11 @@ RERUN_BUILT = frozenset({
     # expressing N-substitution by a phenyl group on an amide are preferred IUPAC
     # names", 'N-phenylacetamide (PIN)' (:32859); pin_verified.
     "C=C1C[C@@H](O)CC(C)(C)[C@@H]1/C=C/C1=CC(=O)OC1",
-    "CC1=CCC(CC1)C(=C)CCO",
-    "COc1c(C)cnc(CS(=O)c2nc3ccc(O)cc3[nH]2)c1C",
-    "COc1ccc(C2=C(Cc3ccc4c(c3)CC(O)C(C)(C)O4)[C@H](OC)OC2=O)cc1",
+    # '2-[(4-methoxy-3,5-dimethylpyridin-2-yl)methanesulfinyl]-1H-1,3-benzimidazol-6-ol' left this list: a CH2
+    # between a ring and the sulfur of a sulfinyl group is the parent of that group, not the ring's methyl
+    #; rules.parent_selection.single_carbon_hosts_suffix), so the strict first run spells the
+    # prefix 'methanesulfinyl', the Blue Book-28094; ':28150 2-(methanesulfonyl)ethan-1-ol
+    # (PIN)') and it is pin_verified.
     "Cc1nnc(C(C)C)n1C1CC2CCC(C1)N2CC[C@H](NC(=O)C1CCC(F)(F)CC1)c1ccc(O)cc1",
     # (L4, 2026-10-09) '(1R)-2-(cyclopropylamino)-2-oxo-1-phenylethyl 2-cyclopropylquinoline-
     # 4-carboxylate' left this list: the ester producer now names the alcohol group from its
@@ -91,7 +98,6 @@ RERUN_BUILT = frozenset({
     "CO[C@H]1[C@H](O)[C@@H](O)[C@H](OCc2cc3cc(O)cc(O)c3c(=O)o2)O[C@@H]1CO",
     "CC/C=C\\C[C@H](O)/C=C/[C@@H]1[C@@H](C/C=C\\CCCC(=O)[O-])[C@@H](O)C[C@H]1O",
     "O=C(O)CCCCCC[C@H]1C(=O)C[C@@H](O)[C@@H]1/C=C/[C@@H](O)CCCCCO",
-    "CC1=CC(=C(C=C1)C)OCC(CN2CCN(CC2)C3=CC(=CC=C3)Cl)O",
 })
 
 
@@ -142,14 +148,27 @@ def test_m01_promoted_substituent_names_at_the_pin_tier(smiles, expected):
     _assert_pin(smiles, expected)
 
 
-def test_m01_best_effort_label_stays_below_the_pin_when_only_the_rerun_builds_it():
-    # Branch review fixes: the strict twin is the strict path without the
-    # promotion re-run, so a name only the re-run builds is not confirmed by it and
-    # the best-effort label stays pin_unverified (as before the re-run existed)
-    row = _be("NCc1csc(-c2cccs2)n1")
-    assert row["name"] == "1-[2-(thiophen-2-yl)-1,3-thiazol-4-yl]methanamine", row
-    assert row["tier"] == "pin_unverified" and not row["is_pin"], row
-    assert_full_rt(row["name"], "NCc1csc(-c2cccs2)n1")
+def test_m01_best_effort_label_stays_below_the_pin_when_a_breadth_piece_builds_it():
+    # Branch review fixes: the strict twin runs the default tier's own path, so a name that only a
+    # breadth producer builds is not confirmed by it and the best-effort label stays pin_unverified.
+    # (PB lane R, T6) 'NCc1csc(-c2cccs2)n1' left this test: its ring-yl is built by
+    # ``assembly.strict_ring_prefix``, the twin ships the same name, and both tiers label it pin_verified.
+    # (PB lane P) the sulfinylbenzimidazole used here before is named by the strict first run now
+    # ('methanesulfinyl',; the Blue Book row of stands in: its re-run name
+    # '4-(1-sulfanylideneethyl)benzoic acid' is not the PIN ('4-(ethanethioyl)benzoic acid',:30246).
+    smi = "CC(=S)c1ccc(C(=O)O)cc1"
+    row = _be(smi)
+    assert not is_failure_name(row["name"]), row
+    assert row["tier"] != "pin_verified" and not row["is_pin"], row
+    assert_full_rt(row["name"], smi)
+
+
+def test_m01_a_certified_rerun_name_has_the_same_label_at_both_tiers():
+    smi = "NCc1csc(-c2cccs2)n1"
+    for row in (_pin(smi), _be(smi)):
+        assert row["name"] == "1-[2-(thiophen-2-yl)-1,3-thiazol-4-yl]methanamine", row
+        assert row["tier"] == "pin_verified" and row["is_pin"], row
+    assert_full_rt(_pin(smi)["name"], smi)
 
 
 def test_m01_a_non_pin_rerun_name_is_not_shipped_at_the_pin_tier():
@@ -218,7 +237,7 @@ M03 = [
     ("Cc1nc2ccc(C(=O)O)cc2[nH]1", "2-methyl-1H-1,3-benzimidazole-6-carboxylic acid"),
     ("Clc1ccc2nc[nH]c2c1", "6-chloro-1H-1,3-benzimidazole"),
     ("COc1c(C)cnc(CS(=O)c2nc3ccc(O)cc3[nH]2)c1C",
-     "2-{[(4-methoxy-3,5-dimethylpyridin-2-yl)methyl]sulfinyl}-1H-1,3-benzimidazol-6-ol"),
+     "2-[(4-methoxy-3,5-dimethylpyridin-2-yl)methanesulfinyl]-1H-1,3-benzimidazol-6-ol"),
     # (a) (:6938): a hyphen separates a locant from a word
     ("COc1ccc(C2=C(Cc3ccc4c(c3)CC(O)C(C)(C)O4)[C@H](OC)OC2=O)cc1",
      "(5R)-4-[(3-hydroxy-2,2-dimethyl-3,4-dihydro-2H-1-benzopyran-6-yl)methyl]-5-methoxy-"

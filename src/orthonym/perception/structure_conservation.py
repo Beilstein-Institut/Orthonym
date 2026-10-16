@@ -224,6 +224,19 @@ def charge_dropped(mol: Chem.Mol, name: str) -> bool:
 # fused-carbocycle emitter
 # ---------------------------------------------------------------------------
 
+def _name_reads_back_to_constitution(mol: Chem.Mol, name: str) -> bool:
+    """True when OPSIN's structure for ``name`` has the constitution of ``mol`` (the stereo-free
+    first block of the InChIKey). False when there is no read-back at all."""
+    try:
+        from ..validation.opsin_roundtrip import opsin_parse
+        smiles = opsin_parse(name)
+        read = Chem.MolFromSmiles(smiles) if smiles else None
+        return (read is not None
+                and Chem.MolToInchiKey(read)[:14] == Chem.MolToInchiKey(mol)[:14])
+    except Exception:  # noqa: BLE001 - an unreadable name is not proven
+        return False
+
+
 def partial_sat_sp3_substituent_drop(mol: Chem.Mol, name: str) -> bool:
     """R12 spillover (2026-07-17, W8-P1/R12 adversarial-verify workflow;
     closed here per W8-P10).
@@ -300,12 +313,13 @@ def partial_sat_sp3_substituent_drop(mol: Chem.Mol, name: str) -> bool:
     if not atom_to_locant or not sat_set:
         return False
 
-    # Tetralin-class shape guard -- see docstring.
+    # Tetralin-class shape guard -- see docstring: an aromatic ring beside a saturated one. A system with
+    # no aromatic atom (decahydroazulene, decalin) is outside the class this veto was proven for.
     leftover = [
         idx for idx in ring_atoms
         if idx not in sat_set and not mol.GetAtomWithIdx(idx).GetIsAromatic()
     ]
-    if leftover:
+    if leftover or not any(mol.GetAtomWithIdx(i).GetIsAromatic() for i in ring_atoms):
         return False
 
     # Ring-FUSION atom substituents belong to the producer's own R12 fusion
@@ -338,7 +352,12 @@ def partial_sat_sp3_substituent_drop(mol: Chem.Mol, name: str) -> bool:
         # (the aromatic half of the tetralin re-spelled as a butyl chain on a
         # monocycle) where the answer had been a clean abstention.
         # Removing a wrong output must never unmask a worse one.
-        return True
+        #
+        # A refusal proves nothing about a name ANOTHER path spelled (the ester handler's 'methyl
+        # 1,2,3,4-tetrahydronaphthalene-2-carboxylate' is correct), so the structure the shipped name
+        # describes decides: its read-back has the input's constitution, or the drop stays vetoed.
+        # No read-back (no jar, no parse) keeps the veto, as before.
+        return not _name_reads_back_to_constitution(mol, name)
 
     if name != produced.name:
         return False  # something else composed this name -- not (this) leak

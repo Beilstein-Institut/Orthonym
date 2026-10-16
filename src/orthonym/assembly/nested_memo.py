@@ -36,13 +36,14 @@ _VARS = {
     "non_pin_label_rules": _pv._NON_PIN_LABEL_RULES,
     "uncertified_pin_names": _pv._UNCERTIFIED_PIN_NAMES,
     "split_verified_names": _pv._SPLIT_VERIFIED_NAMES,
+    "breadth_promoted_names": _pv._BREADTH_PROMOTED_NAMES,
 }
 # Accumulators: a hit MERGES the fresh call's recorded entries into the current
 # value instead of overwriting it -- an overwrite would drop entries recorded
 # after the fresh call (in this ambient context) that the snapshot never saw.
 _ACCUMULATORS = frozenset({"non_pin_fragments", "non_pin_labels",
                            "non_pin_label_rules", "uncertified_pin_names",
-                           "split_verified_names"})
+                           "split_verified_names", "breadth_promoted_names"})
 _BUDGETS = ("perf_budget", "analysis_budget", "work_budget")
 
 

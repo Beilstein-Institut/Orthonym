@@ -874,6 +874,17 @@ def get_alkyl_fragment_name(mol, alkyl_atoms: List[int]) -> str:
         if alkyl_name:
             return alkyl_name
 
+    # A count word ('pentyl', 'propan-2-yl') spells a SATURATED carbon chain
+    # method (1), the Blue Book: recommended "primarily for saturated acyclic
+    #... hydrocarbon substituent groups"). When the primitive and the unsaturated namer
+    # declined an alcohol component made of carbon and nitrogen only, with an alkene, an
+    # alkyne or a nitrile in it, counting its carbons names a different molecule ('pentyl'
+    # for C=C(C)C(C#N)): name_ester defers. A fragment that carries other elements (the
+    # phosphate and ester arms of a glycerolipid) is left to its callers, which cite them.
+    if (all(mol.GetAtomWithIdx(i).GetSymbol() in ('C', 'N') for i in alkyl_atoms)
+            and not _skeleton_is_saturated(mol, carbon_atoms)):
+        return ""
+
     # Detect branching: find the attachment point (C bonded to ester O)
     # and check if it's a branching carbon
     if carbon_count >= 3:
@@ -905,6 +916,17 @@ def get_alkyl_fragment_name(mol, alkyl_atoms: List[int]) -> str:
     except ValueError:
         # Fallback for edge cases
         return f"{carbon_count}C-yl"
+
+
+def _skeleton_is_saturated(mol, carbon_atoms: List[int]) -> bool:
+    """True when every carbon of ``carbon_atoms`` is neutral and single-bonded to everything
+    around it (no alkene, alkyne, carbonyl or nitrile carbon in the skeleton)."""
+    for idx in carbon_atoms:
+        atom = mol.GetAtomWithIdx(idx)
+        if (atom.GetFormalCharge() != 0 or atom.GetNumRadicalElectrons() != 0
+                or any(b.GetBondType() != Chem.BondType.SINGLE for b in atom.GetBonds())):
+            return False
+    return True
 
 
 def is_lactone(mol, ester_match: tuple) -> bool:

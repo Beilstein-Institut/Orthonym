@@ -163,7 +163,8 @@ def name_imidate(
     )
 
 
-def _name_carbamimidate(mol: Any, match: "tuple[int, ...]") -> Optional[str]:
+def _name_carbamimidate(mol: Any, match: "tuple[int, ...]",
+                        thio: bool = False) -> Optional[str]:
     """ (BB 33408): R''2N-C(=NR')-O-R -> the carbamimidate ester
     PIN 'R N'-R'-N,N-R''-carbamimidate'.
 
@@ -176,6 +177,9 @@ def _name_carbamimidate(mol: Any, match: "tuple[int, ...]") -> Optional[str]:
 
     ``match`` = (central_C, imino_N, amino_N, ester_O, alkyl_C) per the
     carbamimidate SMARTS ``[CX3](=[NX2])([NX3])[OX2][#6]``.
+
+    ``thio=True`` names the S-ester (match[3] is the sulfur): the stem is
+    'carbamimidothioate', 'ethyl N,N-dimethylcarbamimidothioate (PIN)').
     """
     from collections import OrderedDict
 
@@ -227,9 +231,8 @@ def _name_carbamimidate(mol: Any, match: "tuple[int, ...]") -> Optional[str]:
             prefix_parts.append(f"{loc_str}-{_mc(len(locs), nm, disp)}")
     n_prefix = '-'.join(prefix_parts)
 
-    if n_prefix:
-        return f"{alkyl_word} {n_prefix}carbamimidate"
-    return f"{alkyl_word} carbamimidate"
+    stem = "carbamimidothioate" if thio else "carbamimidate"
+    return f"{alkyl_word} {n_prefix}{stem}" if n_prefix else f"{alkyl_word} {stem}"
 
 
 def _retained_imidate_stem(mol: Any, c_carbonyl_idx: int, nh_idx: int,

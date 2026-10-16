@@ -3644,8 +3644,8 @@ def _identify_fused_substituent(
         if h_count == 0 and len(neighbors) == 2:
             c_neighbors = [n for n in neighbors if n.GetSymbol() == 'C']
             if len(c_neighbors) == 2:
-                alkyl_names = []
                 all_sub_atoms = [start_idx]
+                branches = []
                 for cn in c_neighbors:
                     alkyl_atoms = _bfs_alkyl_from(mol, cn.GetIdx(), excluded | {start_idx})
                     if alkyl_atoms is None:
@@ -3661,22 +3661,22 @@ def _identify_fused_substituent(
                             aname = get_alkyl_name(carbon_count)
                         except (ValueError, KeyError):
                             break
-                    alkyl_names.append(aname)
                     all_sub_atoms.extend(alkyl_atoms)
+                    branches.append((alkyl_atoms, aname))
                 else:
-                    # Both alkyl groups identified
-                    alkyl_names.sort()
-                    if alkyl_names[0] == alkyl_names[1]:
-                        from ..assembly.naming_utils import get_multiplier_prefix as _get_mp
-                        mp = _get_mp(2, alkyl_names[0])
-                        prefix_name = f'{mp}{alkyl_names[0]}amino'
-                    else:
-                        prefix_name = f'{alkyl_names[0]}({alkyl_names[1]}amino)'
-                    return {
-                        'name': prefix_name,
-                        'type': 'functional',
-                        'atoms': all_sub_atoms
-                    }
+                    # Both groups named: 'N-methylanilino' for C6H5-N<, (the Blue Book:
+                    # 26308); any other pair by the one amino-prefix assembler, (:7272)
+                    from ..assembly.composer import _assemble_decorated_amino_prefix
+                    from .anilino_nitrogen import anilino_for_branches
+                    prefix_name = (anilino_for_branches(mol, start_idx, branches)
+                                   or _assemble_decorated_amino_prefix(
+                                       [(n, False) for _, n in branches], enclose=False))
+                    if prefix_name:
+                        return {
+                            'name': prefix_name,
+                            'type': 'functional',
+                            'atoms': all_sub_atoms
+                        }
 
     # Sulfur groups
     if symbol == 'S':

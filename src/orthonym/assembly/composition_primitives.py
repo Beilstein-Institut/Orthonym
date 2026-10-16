@@ -489,6 +489,13 @@ def retained_acetic_systematic(retained: str) -> Optional[str]:
 # locants -- N and C-2 are both substitutable -- and acetaldehyde has its own, narrower arm.)
 RETAINED_C2_PARENT_BY_SUFFIX = {"oic acid": "acetic acid", "nitrile": "acetonitrile"}
 
+# (the Blue Book-32693) 'acetamide (PIN)' and (:33938-:33944) 'acetohydrazide
+# (PIN)', "can be substituted in the same way as corresponding amides": the two-carbon amide and hydrazide are
+# named on the retained word, never 'ethanamide' / 'ethanehydrazide'. Unlike acetic acid they KEEP their locants
+# (N and C-2 are both substitutable), so only the parent word changes. One home, read by the general assembler
+# (_handler_shared) and by the polyfunctional producer.
+RETAINED_C2_ACYL_BY_SUFFIX = {"amide": "acetamide", "hydrazide": "acetohydrazide"}
+
 
 def retained_acetic_from_prefixes(
     prefix_texts: List[str],

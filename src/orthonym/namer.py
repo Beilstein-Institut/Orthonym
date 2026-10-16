@@ -5554,18 +5554,13 @@ class Orthonym:
                 binding_proof=self._binding_proof,
             )
             self._pin_twin = tw
-        # Branch review fixes: the twin is the STRICT path, so it never runs the
-        # PIN tier's promotion re-run (``_name_with_pin_promotion``). The twin is a
-        # default-configuration instance at name-scope depth 1, so without this
-        # guard it re-ran with the promoted best-effort producers and reproduced
-        # the breadth name it exists to tell apart ('...-(2,6-dioxo-1H-pyrimidin-3-
-        # yl)propanoic acid' came out pin_verified at best-effort).
-        # The twin runs WITH the default tier's emission rule: a string the strict path
-        # builds but the default tier itself labels as not a verified PIN (it comes back
-        # as the NO_VERIFIED_PIN label, never equal to the name) must not certify a
-        # pin_verified label at a wider tier. A pin_verified label at a wider tier
-        # therefore requires that the default tier emits the same string.
-        _wrapped = _PIN_PROMOTION_WRAPPED.set(True)
+        # The twin is the default tier's own run, promotion re-run included (PB lane R): a name every
+        # piece of which a strict producer built is certified there and keeps pin_verified at a wider
+        # tier. It runs WITH the default tier's emission rule: a string the default tier labels as not
+        # a verified PIN (a re-run name that kept a breadth piece) comes back as the NO_VERIFIED_PIN
+        # label, never equal to the name, so it does not certify a wider tier's label.
+        from .assembly.metal_offer import METAL_OFFER_OWNED
+        _owned = METAL_OFFER_OWNED.set(True)      # the twin names the string it is given: no metal offer
         try:
             # Read as a string below, so it gets the label, not the caller's blank + warning.
             with _suspended():
@@ -5575,7 +5570,7 @@ class Orthonym:
             # did not produce this name" (conservative -> demote), never a crash.
             return None
         finally:
-            _PIN_PROMOTION_WRAPPED.reset(_wrapped)
+            METAL_OFFER_OWNED.reset(_owned)
 
     def name_tiered(self, smiles: Union[str, Chem.Mol]) -> dict:
         """Name one molecule and say how the name was made and checked.
@@ -9931,22 +9926,14 @@ class Orthonym:
                 else:
                     # Wave2 T3a: skeletal suffixes (-ol/-amine/-thiol/-imine,...)
                     # have no exocyclic-carbon form, so a ring-attached single
-                    # PCG carbon still cannot put the suffix on the ring.
-                    # Parent selection is eligible when the single carbon IS a
-                    # PG attachment atom and NO attachment atom is a ring atom
-                    # (else the ring expresses the suffix itself — e.g. a
-                    # sugar's ring -OH union keeps the ring parent).
-                    from .rules.parent_selection import (
-                        SKELETAL_SUFFIX_PGS,
-                        _pg_attachment_atoms,
-                    )
-                    if features.principal_group in SKELETAL_SUFFIX_PGS:
-                        _att: set = set()
-                        for _m in features.principal_group_atoms:
-                            _att.update(_pg_attachment_atoms(
-                                features.principal_group, _m))
-                        if _single in _att and not (_att & all_ring_atoms):
-                            _run_parent_selection = True
+                    # PCG carbon still cannot put the suffix on the ring; nor can
+                    # the sulfonic/sulfinic acid and amide suffixes.
+                    # Parent selection is eligible when the single carbon holds
+                    # the suffix and the ring does not (rules.parent_selection).
+                    from .rules.parent_selection import single_carbon_hosts_suffix
+                    _run_parent_selection = single_carbon_hosts_suffix(
+                        features.mol, features.principal_group,
+                        features.principal_group_atoms, _single, all_ring_atoms)
             if _run_parent_selection:
                 # a phase: delegate ring-type dispatch to helper.
                 # Replaces the prior inline fused-hetero-only block; new

@@ -42,8 +42,13 @@ class TestCompositeNSuffixes:
 @pytest.mark.unit
 class TestHydrazideNNPrefixes:
     @pytest.mark.parametrize("smiles,expected", [
-        ("CNNC(C)=O", "N'-methylethanehydrazide"),
-        ("CN(N)C(C)=O", "N-methylethanehydrazide"),
+        # (the Blue Book-33944): 'acetohydrazide (PIN)... can be substituted in the same way
+        # as corresponding amides'; the two rows spelled 'ethanehydrazide' and shipped it as pin_verified.
+        # change-asserted-value: Blue Book row 66.3.3.1 'N-methylacetohydrazide' (benchmarks/bb_conformance);
+        # independent check = tests/unit/rules/test_acetohydrazide_spelling.py (OPSIN read-back); mutation =
+        # dropping the 'hydrazide' entry of composition_primitives.RETAINED_C2_ACYL_BY_SUFFIX fails both.
+        ("CNNC(C)=O", "N'-methylacetohydrazide"),
+        ("CN(N)C(C)=O", "N-methylacetohydrazide"),
         ("CNNC(=S)C", "N'-methylethanethiohydrazide"),
         # hydrazinecarboxylic acid — carbamic_acid SMARTS tightened
         ("NNC(=O)O", "hydrazinecarboxylic acid"),
