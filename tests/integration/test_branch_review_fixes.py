@@ -30,28 +30,25 @@ DEFAULT_TIER_DECLINES = frozenset({
     "C/C(=C\\Cc1c(O)cc(O)c2c1O[C@H](c1ccc(O)c(O)c1)CC2=O)CO",
     "CC(=S)c1ccc(C(=O)O)cc1",
     "COC(=O)CC(=C(C)N)C(=O)OC",
-    "COc1c(C)cnc(CS(=O)c2nc3ccc(O)cc3[nH]2)c1C",
+    # (the two sulfinylbenzimidazoles left this set: the first run names them, RERUN_NOW_FIRST_RUN below)
     # PIN class program Task 2: the two spellings of '(3Z,6Z)-3-benzylidene-6-[(4-
     # methoxyphenyl)methylidene]piperazine-2,5-dione' are built by the strict path's
     # first run now (the decorated ring-yl fold at every tier) and ship pin_verified:
     # (the Blue Book) lactams as heterocyclic pseudoketones
     # "Method (1) generates preferred IUPAC names"; 'benzylidene' unsubstituted is a
     # preferred prefix,:16304).
-    "COc1ccc2[nH]c(S(=O)Cc3ncc(C)c(OC)c3C)nc2c1",
     "COc1cccc2c1C(=O)/C(=C(\\CO)[C@@H]1OC(=O)C[C@@H]1C)O2",
     "C[C@@H](CN(C[C@@H]1CCC=CC1)C)O",
     "C[C@H](CN(C[C@@H]1CCC=CC1)C[C@@H](C)O)O",
-    "NCc1csc(-c2cccs2)n1",
-    "N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O",
+    # (PB lane R, T5) the four uracil-yl rows 'N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O',
+    # 'OC(=O)Cc1c[nH]c(=O)[nH]c1=O', 'OC(=O)Cn1cc(C)c(=O)[nH]c1=O' and 'OC(=O)Cn1ccc(=O)[nH]c1=O' left this
+    # list: the azine ring-yl is built by ``assembly.strict_ring_prefix``, the Blue Book,
+    # 'pyridin-1(2H)-yl (preferred prefix)'), so the default tier ships them at pin_verified (section O).
     "O=C(CCc1cccc(OS(=O)(=O)O)c1)c1ccc(O)c(O)c1",
     "O=C(O)CC/C=C\\CC[C@H]1[C@@H](OCc2ccc(-c3ccccc3)cc2)CC(=O)[C@@H]1N1CCOCC1",
-    "O=C1CC(C2CCC(=O)O2)Oc2ccccc21",
     "O=C[C@H](O)[C@@H](O)[C@H](O)COP(=O)(O)O",
     "O=S(=O)(O)OC/C=C/c1ccc(O)cc1",
     "O=S(=O)(O)Oc1ccc2cccc(O)c2n1",
-    "OC(=O)Cc1c[nH]c(=O)[nH]c1=O",
-    "OC(=O)Cn1cc(C)c(=O)[nH]c1=O",
-    "OC(=O)Cn1ccc(=O)[nH]c1=O",
     # '([1,1':4',1''-terphenyl]-4-yl)methanol': an assembly of three rings numbered
     # with primed locants is not the PIN. (the Blue Book) "The
     # preferred numbering for ring assemblies composed of three or more identical
@@ -101,16 +98,39 @@ def _row(smiles, tier):
 # ---------------------------------------------------------------------------
 
 RERUN_ONLY = [
-    # a dev split / milestone1500
-    "COc1c(C)cnc(CS(=O)c2nc3ccc(O)cc3[nH]2)c1C",
-    "COc1ccc2[nH]c(S(=O)Cc3ncc(C)c(OC)c3C)nc2c1",
-    # dev2000
-    "N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O",
+    # a dev split / milestone1500: the two sulfinylbenzimidazoles left this list; the strict first run builds
+    # the PIN spelling 'methanesulfinyl' now (see RERUN_NOW_FIRST_RUN below)
+    # dev2000 ('N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O' left this list in PB lane R, T5: the azine ring-yl is the
+    # strict path's own name)
     "O=S(=O)(O)OC/C=C/c1ccc(O)cc1",
     # Blue Book row and a minimal analogue
     "CC(=S)c1ccc(C(=O)O)cc1",
-    "O=C1CC(C2CCC(=O)O2)Oc2ccccc21",
+    # (PB lane R) 'O=C1CC(C2CCC(=O)O2)Oc2ccccc21' left this list: the re-run's ketone-parent name
+    # holds no breadth piece (test J below), so it is the strict path's own name
 ]
+
+# A CH2 between a ring and the sulfur of a sulfinyl group is the parent of that group: the prefix is
+# 'methanesulfinyl', the Blue Book-28094) and the strict first run names the molecule
+# (rules.parent_selection.single_carbon_hosts_suffix), so the re-run is not needed and the name is the PIN.
+# Before, the first run spelled '...methyl]sulfinyl}' (the ring's methyl, a name of the same molecule that is
+# not the PIN) and only the re-run built '...methanesulfinyl'. change-asserted-value: above; read back
+# by assert_full_rt; mutation = tests/unit/rules/test_ring_methane_sulfonyl_suffix.py.
+RERUN_NOW_FIRST_RUN = {
+    "COc1c(C)cnc(CS(=O)c2nc3ccc(O)cc3[nH]2)c1C":
+        "2-[(4-methoxy-3,5-dimethylpyridin-2-yl)methanesulfinyl]-1H-1,3-benzimidazol-6-ol",
+    "COc1ccc2[nH]c(S(=O)Cc3ncc(C)c(OC)c3C)nc2c1":
+        "5-methoxy-2-[(4-methoxy-3,5-dimethylpyridin-2-yl)methanesulfinyl]-1H-1,3-benzimidazole",
+}
+
+
+@pytest.mark.parametrize("smiles,expected", sorted(RERUN_NOW_FIRST_RUN.items()))
+@pytest.mark.parametrize("tier", ["pin", "best-effort"])
+def test_a_sulfinyl_ch2_is_the_parent_and_the_name_is_the_pin(smiles, expected, tier):
+    row = _row(smiles, tier)
+    assert row["name"] == expected, row
+    assert row["tier"] == "pin_verified" and row["is_pin"], row
+    assert_full_rt(row["name"], smiles)
+
 
 # Paper conformance (user decision 2026-09-30; Methods, "Tiers": "The label
 # systematic_verified means a correct systematic name that is not the PIN"): a
@@ -133,15 +153,28 @@ def test_a_rerun_name_is_labelled_below_the_pin(smiles):
     assert_full_rt(row["name"], smiles)
 
 
-@pytest.mark.parametrize("smiles", [
-    "COc1c(C)cnc(CS(=O)c2nc3ccc(O)cc3[nH]2)c1C",
-    "N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O",
-    "O=C1CC(C2CCC(=O)O2)Oc2ccccc21",
-])
-def test_a_best_effort_twin_is_the_strict_path_without_the_rerun(smiles):
+def test_a_best_effort_twin_does_not_certify_a_name_a_breadth_piece_built():
+    # the Blue Book row of: the re-run's '4-(1-sulfanylideneethyl)benzoic acid' is built with a
+    # breadth piece and is not the PIN ('4-(ethanethioyl)benzoic acid', the Blue Book); the sulfinyl-
+    # benzimidazole used before is named by the strict first run since PB lane P
+    smiles = "CC(=S)c1ccc(C(=O)O)cc1"
     row = _row(smiles, "best-effort")
     assert not is_failure_name(row["name"]), row
     assert row["tier"] != "pin_verified" and not row["is_pin"], row
+    assert_full_rt(row["name"], smiles)
+
+
+@pytest.mark.parametrize("smiles", [
+    "N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O",
+    "O=C1CC(C2CCC(=O)O2)Oc2ccccc21",
+])
+def test_a_best_effort_twin_runs_the_rerun_so_a_certified_name_keeps_its_label(smiles):
+    # (PB lane R, T6) the twin is the default tier's own path, promotion re-run included: both rows are
+    # pin_verified at the default tier (the strict producers built every piece), so best-effort agrees
+    pin = _row(smiles, "pin")
+    row = _row(smiles, "best-effort")
+    assert pin["tier"] == "pin_verified" and row["name"] == pin["name"], (pin, row)
+    assert row["tier"] == "pin_verified" and row["is_pin"], row
     assert_full_rt(row["name"], smiles)
 
 
@@ -580,12 +613,16 @@ def test_g_a_bis_ylidene_diketopiperazine_is_a_piperazinedione(smiles, expected)
     "N[C@@H](Cn1ccc(=O)[nH]c1=O)C(=O)O",   # dev2000
     "OC(=O)Cn1ccc(=O)[nH]c1=O",             # minimal analogue
 ])
-def test_h_uracil_1_yl_with_indicated_hydrogen_is_not_labelled_a_pin(smiles):
-    for tier in ("pin", "best-effort"):
-        row = _row(smiles, tier)
-        assert not is_failure_name(row["name"]), (tier, row)
-        assert row["tier"] != "pin_verified" and not row["is_pin"], (tier, row)
-        assert_full_rt(row["name"], smiles)
+def test_h_uracil_1_yl_is_named_with_added_hydrogen_not_indicated_hydrogen(smiles):
+    # (PB lane R, T5) the name is the added-hydrogen form, the Blue Book), no
+    # '1H-pyrimidin-3-yl'; the PIN tier ships it at pin_verified and best-effort reads it back
+    row = _row(smiles, "pin")
+    assert "1H-pyrimidin" not in row["name"] and "1(2H)-yl" in row["name"], row
+    assert row["tier"] == "pin_verified" and row["is_pin"], row
+    assert_full_rt(row["name"], smiles)
+    be = _row(smiles, "best-effort")
+    assert be["name"] == row["name"] and be["tier"] == "pin_verified", be
+    assert_full_rt(be["name"], smiles)
 
 
 def test_h_the_guard_form():
@@ -648,9 +685,11 @@ def test_i_the_plain_chromanone_is_unchanged():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("smiles,expected,tier", [
-    # minimal analogue: built inside the PIN tier's promotion re-run (section A)
+    # minimal analogue: built inside the PIN tier's promotion re-run (section A); PB lane R: the
+    # re-run's name holds no breadth piece (the benzopyranone-as-prefix route of the oxolan-2-one
+    # parent is the one it leaves), so it is the strict path's own ketone-parent name, pin_verified
     ("O=C1CC(C2CCC(=O)O2)Oc2ccccc21",
-     "2-(5-oxooxolan-2-yl)-2,3-dihydro-4H-1-benzopyran-4-one", "pin_unverified"),
+     "2-(5-oxooxolan-2-yl)-2,3-dihydro-4H-1-benzopyran-4-one", "pin_verified"),
     # dev2000: the strict first run builds it
     ("C[C@H]1CC(=O)O[C@H]1[C@@]1(C)CC(=O)c2c(O)cccc2O1",
      "(2R)-5-hydroxy-2-methyl-2-[(2R,3S)-3-methyl-5-oxooxolan-2-yl]-2,3-dihydro-4H-"

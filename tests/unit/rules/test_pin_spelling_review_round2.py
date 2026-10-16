@@ -271,15 +271,17 @@ LABEL_ON_ONE_MEMBER_ROWS = [
     # roadmap N5b/N5d (name-quality lane L2): the carbazole takes its fusion name and
     # the phenyl group its prefix ('9-(2H5)phenyl-N,N-diphenyl-9-(9-phenyl-9H-carbazol-
     # 2-yl)-9H-fluoren-3-amine'), so the name keeps no part the label guard records as
-    # not the PIN: pin_unverified, is_pin False (a label, not a derivation of the PIN).
+    # not the PIN. (PB lane R, + T6) The fused ring-yl prefixes are built by
+    # ``assembly.strict_ring_prefix``, the strict twin builds the name: pin_verified (the last
+    # two rows; the first two carry a breadth piece and stay pin_unverified).
     # It was '...-9-[8-(cyclohexa-1,3,5-trien-1-yl)-8-azatricyclo[7.4.0.0^2,7]trideca-
     # 1(13),2,4,6,9,11-hexaen-5-yl]-...', systematic_verified.
     ("[2H]C1=C(C(=C(C(=C1[2H])[2H])C2(C3=C(C=C(C=C3)N(C4=CC=CC=C4)C5=CC=CC=C5)"
      "C6=CC=CC=C62)C7=CC8=C(C=C7)C9=CC=CC=C9N8C1=CC=CC=C1)[2H])[2H]",
      "9-(2H5)phenyl-N,N-diphenyl-9-(9-phenyl-9H-carbazol-2-yl)-9H-fluoren-3-amine",
-     "pin_unverified"),
+     "pin_verified"),
     ("[2H]C1=C(C(=C(C(=C1[2H])[2H])C2(C3=C(C=C(C=C3)N(C4=CC=CC=C4)C5=CC=CC6=CC=CC=C65)"
-     "C7=CC=CC=C72)C8=CC9=C(C=C8)SC1=CC=CC=C19)[2H])[2H]", None, "pin_unverified"),
+     "C7=CC=CC=C72)C8=CC9=C(C=C8)SC1=CC=CC=C19)[2H])[2H]", None, "pin_verified"),
 ]
 
 

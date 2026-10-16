@@ -39,9 +39,15 @@ def test_diamine_keeps_terminal_e():
 
 
 def test_alcohol_is_senior_to_amine():
-    #: with both -OH and -NH2, alcohol wins -> the amine path must NOT claim
-    # the suffix. (Conservatively abstains today rather than mis-claim -amine.)
-    assert _name("NC1CCc2ccc(O)cc2C1") == "unknown organic compound"
+    # (the Blue Book): class 17 hydroxy compounds before class 19 amines, so with both
+    # -OH and -NH2 the alcohol takes the suffix and the amine path must NOT claim it. It used to abstain
+    # ('unknown organic compound') because the tetralin-class veto withheld the right name whenever the
+    # hydro-fused producer refused; the name is the PIN now. change-asserted-value: independent check =
+    # the read-back below, mutation = tests/unit/perception/test_partial_sat_veto_scope.py.
+    smi = "NC1CCc2ccc(O)cc2C1"
+    name = _name(smi)
+    assert name == "7-amino-5,6,7,8-tetrahydronaphthalen-2-ol", name
+    assert _full(smi, name)
 
 
 def test_ol_and_plain_unchanged():

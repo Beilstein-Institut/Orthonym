@@ -45,12 +45,15 @@ _REGISTRY: dict = {}
 
 #: modules whose import registers the built-in checks
 BUILTIN_CHECK_MODULES = (
+    "orthonym.validation.spelling.checks_ring_prefix",
     "orthonym.validation.spelling.checks_hydrogen",
     "orthonym.validation.spelling.checks_marks",
     "orthonym.validation.spelling.checks_locants",
     "orthonym.validation.spelling.checks_parent",
     "orthonym.validation.spelling.checks_phane",
     "orthonym.validation.spelling.checks_assembly",
+    "orthonym.validation.spelling.checks_prefixes",
+    "orthonym.validation.spelling.checks_pseudohalide",
 )
 
 _loaded = False

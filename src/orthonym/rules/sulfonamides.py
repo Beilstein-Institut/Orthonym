@@ -342,6 +342,57 @@ def _parent_hydride_is_unsubstituted(mol: Any, s_idx: int) -> bool:
     return True
 
 
+def _ring_methane_parent(mol: Any, s_idx: int) -> Optional[Tuple[int, List[int]]]:
+    """(attachment atom, ring atoms) when R of R-SO2-N< is one acyclic CH2 and one unsubstituted
+    monocycle, with no stereo element anywhere; else None."""
+    if any(a.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED for a in mol.GetAtoms()) or any(
+            b.GetStereo() != Chem.BondStereo.STEREONONE for b in mol.GetBonds()):
+        return None
+    roots = [nb for nb in mol.GetAtomWithIdx(s_idx).GetNeighbors() if nb.GetAtomicNum() not in (7, 8)]
+    if len(roots) != 1:
+        return None
+    root = roots[0]
+    if (root.GetSymbol() != "C" or root.IsInRing() or root.GetTotalNumHs() != 2 or root.GetDegree() != 2
+            or root.GetHybridization() != Chem.HybridizationType.SP3):
+        return None
+    atts = [nb for nb in root.GetNeighbors() if nb.GetIdx() != s_idx]
+    if len(atts) != 1 or not atts[0].IsInRing():
+        return None
+    r_atoms = set(_branch_atoms(mol, atts[0].GetIdx(), root.GetIdx()))
+    for ring in mol.GetRingInfo().AtomRings():
+        if r_atoms == set(ring):
+            return atts[0].GetIdx(), list(ring)
+    return None
+
+
+def _ring_methane_name(mol: Any, branches: List[List[int]],
+                       parent: Tuple[int, List[int]]) -> Optional[str]:
+    """'N-methyl-1-phenylmethanesulfonamide': the ring prefix (locant 1) and the N prefixes in one block.
+
+     for the N locants, (f) / for the single alphanumerical list
+    ('N,4-dimethyl...':32879), for the enclosure. The ring is the substituent of
+    methanesulfonamide: the chain holds the principal group); the book's own
+    '(1-cyclohexylmethanesulfonamido)acetic acid' (:33024) cites the locant 1.
+    """
+    from ..assembly.substituent_enumerator import name_substituent
+    from .amides import _name_n_substituent
+    from .locanted_prefixes import locanted_prefix_block
+
+    att, ring = parent
+    ring_name = name_substituent(mol, set(ring), att)
+    if not ring_name or ring_name == "substituent" or " " in ring_name:
+        return None
+    pieces = [(ring_name, "1")]
+    for branch in branches:
+        carbons = sum(1 for idx in branch if mol.GetAtomWithIdx(idx).GetAtomicNum() == 6)
+        nm = _name_n_substituent(mol, branch, carbons)
+        if not nm:
+            return None
+        pieces.append((nm, "N"))
+    block = locanted_prefix_block(pieces)
+    return f"{block}methane{_PARENT_SUFFIX}" if block else None
+
+
 def _excised_parent_name(
     mol: Any, branches: List[List[int]], style: str,
 ) -> Optional[str]:
@@ -415,6 +466,12 @@ def n_substituted_sulfonamide_name(
             return ring_name
         # Fall through: the bare-ring excise path below is the proven backstop and
         # a substituted-ring parent is refused there anyway (never a wrong name).
+
+    # R = a CH2 that bears one unsubstituted ring ('1-phenylmethanesulfonamide'): the N and the
+    # ring locant are cited in one alphanumerical list, 'N-methyl-1-phenylmethanesulfonamide'.
+    ring_methane = _ring_methane_parent(mol, s_idx)
+    if ring_methane is not None:
+        return _ring_methane_name(mol, branches, ring_methane)
 
     # A substituted parent hydride needs the N and numerical locants merged into
     # one ordered prefix list; `N,4-dimethyl...` at:32879),

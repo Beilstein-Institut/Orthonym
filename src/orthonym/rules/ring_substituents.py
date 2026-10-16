@@ -5022,17 +5022,17 @@ def anilino_preferred_prefix(ring_prefix: Optional[str],
     # only unadorned form is the bare stem itself.
     if ring_decoration.endswith('-') or ring_decoration.endswith(','):
         return None
-    if ring_decoration and n_substituent:
-        # Both an N locant and ring locants would have to be merged into ONE
-        # alphanumerical prefix sequence. The derivation found no Blue
-        # Book worked example fixing that merge, so decline rather than invent an
-        # order. Measured 2026-07-28: production already abstains on this shape
-        # (e.g. Oc1cccc(N(C)c2ccc(C)cc2)c1 -> 'unknown organic compound'), so
-        # declining is byte-identical.
+    if n_substituent and (ring_decoration or (
+            n_substituent.endswith(_PHENYL_STEM) and n_substituent != _PHENYL_STEM)):
+        # An N locant and ring locants would have to be merged into ONE alphanumerical
+        # prefix sequence and no Blue Book example fixes that merge: decline.
+        # So is a substituted benzene on the nitrogen: the more substituted ring is the
+        # aniline, the Blue Book;:22250 '2-bromo-4-chloro-N-(2,4-
+        # dibromophenyl)aniline (PIN)'), 'N-(4-chlorophenyl)anilino' is never built.
         return None
     if n_substituent:
-        from ..assembly.naming_utils import _wrap_n_substituent
-        core = f'N-{_wrap_n_substituent(n_substituent)}{_ANILINO_STEM}'
+        from ..assembly.naming_utils import _wrap_n_substituent, enclose_if_compound
+        core = f'N-{_wrap_n_substituent(enclose_if_compound(n_substituent))}{_ANILINO_STEM}'
     else:
         core = f'{ring_decoration}{_ANILINO_STEM}'
     # the Blue Book bare vs the Blue Book enclosed: marks iff the prefix has its own locant.
@@ -5094,8 +5094,8 @@ def anilino_prefix_from_aniline_name(aniline_name: Optional[str],
     return core
 
 
-def anilino_prefix_from_n_branch(mol, n_idx: int, branch_atoms,
-                                 *, enclose: bool = True) -> Optional[str]:
+def anilino_prefix_from_n_branch(mol, n_idx: int, branch_atoms, *, enclose: bool = True,
+                                 n_substituent: Optional[str] = None) -> Optional[str]:
     """``anilino_preferred_prefix`` derived from the GRAPH rather than from a name.
 
     Entry point for the emission sites that had no unsubstituted-ring check at all
@@ -5118,6 +5118,8 @@ def anilino_prefix_from_n_branch(mol, n_idx: int, branch_atoms,
         branch_atoms: the complete N-substituent branch (the nitrogen itself may be
             included or not — it is normalised in).
         enclose: as for ``anilino_preferred_prefix``.
+        n_substituent: the OTHER substituent on the nitrogen, a prefix name ('methyl'); the
+            branch is then the ring branch alone, the Blue Book).
 
     Returns:
         The preferred prefix, or ``None`` — fail closed — when the branch is not
@@ -5157,11 +5159,11 @@ def anilino_prefix_from_n_branch(mol, n_idx: int, branch_atoms,
     if not rest:
         # Unsubstituted C6H5-NH-: the bare retained prefix (the Blue Book), which is
         # byte-identical to what these sites emitted before.
-        return anilino_preferred_prefix(_PHENYL_STEM, enclose=enclose)
+        return anilino_preferred_prefix(_PHENYL_STEM, n_substituent, enclose=enclose)
     decorated = decorated_ring_substituent_name(
         mol, candidate, attachment[0], expected_atoms=branch_set - {n_idx},
     )
-    return anilino_preferred_prefix(decorated, enclose=enclose)
+    return anilino_preferred_prefix(decorated, n_substituent, enclose=enclose)
 
 
 def ring_atom_fg_prefixes(

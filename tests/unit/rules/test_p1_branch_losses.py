@@ -60,9 +60,7 @@ from tests.support.default_tier import (  # noqa: E402
 # as not the PIN is declined at the default tier with NO_VERIFIED_PIN; for the
 # molecules below the test asserts that decline, the strict path's name and label,
 # and the same name at the best-effort tier (tests/support/default_tier.py).
-DEFAULT_TIER_DECLINES = frozenset({
-    "NCc1csc(-c2cccs2)n1",
-})
+DEFAULT_TIER_DECLINES = frozenset()   # PB lane R: 'NCc1csc(-c2cccs2)n1' left (pin_verified now)
 #... whose best-effort name is another one (it reads back exactly)
 BEST_EFFORT_NAMES_IT_OTHERWISE = frozenset()
 
@@ -172,9 +170,11 @@ def test_the_pin_tier_still_promotes_the_caller_s_molecule(monkeypatch):
     depths = _spy_promotion(monkeypatch, smiles)
     row = _dt_row(smiles)
     assert row["name"] == "1-[2-(thiophen-2-yl)-1,3-thiazol-4-yl]methanamine"
-    # branch review fixes: a re-run name is labelled below the PIN (a breadth
-    # producer built it), never pin_verified
-    assert row["tier"] == "pin_unverified" and not row["is_pin"]
+    # branch review fixes: a re-run name with a breadth piece is labelled below the PIN
+    # (a breadth producer built it). PB lane R: the ring-yl of this row is built by the strict
+    # producer (assembly.strict_ring_prefix), no breadth piece is kept, so the strict path's
+    # own label stands
+    assert row["tier"] == "pin_verified" and row["is_pin"]
     assert_full_rt(row["name"], smiles)
     # every default-tier naming of the caller's molecule (the declined call and the
     # strict path's, tests/support/default_tier.py) re-runs in the outermost name
@@ -185,9 +185,11 @@ def test_the_pin_tier_still_promotes_the_caller_s_molecule(monkeypatch):
 # ChEBI rows whose best-effort naming made the helper re-runs (trace at 6a78ea183,
 # fresh process: 1 and 15 nested promotion calls); names unchanged by the fix.
 PROMOTION_HELPER_ROWS = [
-    # ChEBI 45958
+    # ChEBI 45958. PB lane S (2026-10-16, change-asserted-value): was 'glutaminyllysylphenylalanine'; the
+    # substitutive name builds now (prefix_claims; method (1), the Blue Book-32998; OPSIN
+    # 2.9.0 full-InChIKey exact, java run outside the engine; the pre-fix tree names the retained form).
     ("NCCCC[C@H](NC(=O)[C@@H](N)CCC(N)=O)C(=O)N[C@@H](Cc1ccccc1)C(=O)O",
-     "glutaminyllysylphenylalanine"),
+     "(2S)-2-{(2S)-6-amino-2-[(2S)-2,5-diamino-5-oxopentanamido]hexanamido}-3-phenylpropanoic acid"),
     # ChEBI 105164. properfix a performance pass (review I4/): the mononuclear-N amino
     # assembler (``substituent_naming._located_fg_hetero_root``) now encloses the
     # SECOND and further branch even when it is simple,

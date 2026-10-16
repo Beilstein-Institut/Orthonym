@@ -118,9 +118,18 @@ def test_helper_competing_sulfonic_acid_R_fails_closed():
 
 
 def test_helper_acidnamer_migration_R_fails_closed():
-    # a review review: R = cyclohexylmethyl -> the gate-disabled acid namer mis-placed the
-    # SO3H onto the ring (`methylcyclohexanesulfonic acid`), a wrong constitution. Guard 2
-    # (run the acid sub-namer gate-ON) makes its own reject it -> fail closed.
+    # (The method keeps its historical name so the node id is stable.) a review review: R =
+    # cyclohexylmethyl -> the gate-disabled acid namer mis-placed the SO3H onto the ring
+    # (`methylcyclohexanesulfonic acid`), a wrong constitution; guard 2 (gate-ON)
+    # rejected it and the helper failed closed (None). The mis-placement is gone: a one-carbon
+    # chain that holds the sulfonic acid is the parent, rules.parent_selection.
+    # single_carbon_hosts_suffix), so the helper builds the book's prefix
+    # '1-cyclohexylmethanesulfonamido'. change-asserted-value: primary source the Blue Book,
+    # "Substituents of the types -NH-CO-R and -NH-SO2-R", "(1) (1-cyclohexylmethane
+    # sulfonamido)acetic acid" with "Method (1) generates preferred IUPAC names"; independent check:
+    # OPSIN reads '(1-cyclohexylmethanesulfonamido)benzene' back to the exact input (below); mutation:
+    # dropping the '1-' (a CH2 keeps its locant because the NH is a second substitutable position)
+    # makes the equality fail.
     m = Chem.MolFromSmiles("O=S(=O)(Nc1ccccc1)CC2CCCCC2")  # -NH-SO2-CH2-cyclohexyl
     n_idx = next(a.GetIdx() for a in m.GetAtoms() if a.GetSymbol() == 'N'
                  and any(nb.GetSymbol() == 'S' for nb in a.GetNeighbors()))
@@ -128,7 +137,13 @@ def test_helper_acidnamer_migration_R_fails_closed():
                 if len(r) == 6 and all(m.GetAtomWithIdx(i).GetIsAromatic() for i in r)
                 and any(nb.GetIdx() in r for nb in m.GetAtomWithIdx(n_idx).GetNeighbors()))
     frag = set(range(m.GetNumAtoms())) - benz
-    assert sulfonamido_prefix_from_n_branch(m, n_idx, frag, benz) is None
+    prefix = sulfonamido_prefix_from_n_branch(m, n_idx, frag, benz)
+    assert prefix == "1-cyclohexylmethanesulfonamido"
+    from rdkit.Chem import inchi
+    from orthonym.validation.opsin_roundtrip import opsin_parse
+    parsed = opsin_parse(f"({prefix})benzene")
+    assert parsed and (inchi.MolToInchiKey(Chem.MolFromSmiles(parsed))
+                       == inchi.MolToInchiKey(m))
 
 
 def test_helper_acidnamer_drop_R_fails_closed():
@@ -136,11 +151,11 @@ def test_helper_acidnamer_drop_R_fails_closed():
     # acetamidomethyl -> the gate-disabled acid namer DROPPED the acetamido
     # (`ethanesulfonic acid`) and guard 2 (gate-ON) rejected it -> fail closed (None).
     # That drop is gone: the helper now builds the prefix with the acetamido kept,
-    # 'acetamidomethanesulfonamido', the BB pattern of "Substituents of the
+    # '1-acetamidomethanesulfonamido' (the locant of a substituted CH2, the Blue Book), the BB pattern of "Substituents of the
     # types -NH-CO-R and -NH-SO2-R" (the Blue Book; examples:33019 '3-
     # (methanesulfonamido)propanoic acid (PIN)',:33024 '(1-cyclohexylmethanesulfonamido)
     # acetic acid'). change-asserted-value: the new value is checked independently below
-    # (OPSIN reads '(acetamidomethanesulfonamido)benzene' back to the exact input, so
+    # (OPSIN reads '(1-acetamidomethanesulfonamido)benzene' back to the exact input, so
     # nothing is dropped -- the very property the old guard enforced), a capability gain
     # like test_helper_hetarene_now_names_after_v51_r2 below, not a relaxation.
     m = Chem.MolFromSmiles("O=S(=O)(Nc1ccccc1)CNC(C)=O")  # -NH-SO2-CH2-NHC(=O)CH3
@@ -151,7 +166,7 @@ def test_helper_acidnamer_drop_R_fails_closed():
                 and any(nb.GetIdx() in r for nb in m.GetAtomWithIdx(n_idx).GetNeighbors()))
     frag = set(range(m.GetNumAtoms())) - benz
     prefix = sulfonamido_prefix_from_n_branch(m, n_idx, frag, benz)
-    assert prefix == "acetamidomethanesulfonamido"
+    assert prefix == "1-acetamidomethanesulfonamido"
     from rdkit.Chem import inchi
     from orthonym.validation.opsin_roundtrip import opsin_parse
     parsed = opsin_parse(f"({prefix})benzene")

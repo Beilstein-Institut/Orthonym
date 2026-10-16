@@ -73,11 +73,16 @@ def test_a_name_the_code_records_as_not_the_pin_is_declined_everywhere():
 
 def test_a_name_only_a_breadth_producer_built_is_declined():
     # the PIN tier's promotion re-run (pin_unverified: "a name in PIN form that only a
-    # breadth producer built"); (the Blue Book)
-    smi = "NCc1csc(-c2cccs2)n1"
+    # breadth producer built"). PB lane R: 'NCc1csc(-c2cccs2)n1', the Blue Book)
+    # left this test: its ring-yl is built by the strict producer now (assembly.strict_ring_prefix,
+    # tests/integration/test_pb_r_strict_ring_prefix.py) and it is pin_verified; the sulfinyl
+    # prefix of this benzimidazole is still a breadth piece
+    # (PB merge) the sulfinylbenzimidazole used before is named by the strict first run since lane P ('methanesulfinyl',;
+    # the dihydropyridazinyl prefix of this aminoethanol is still a breadth piece
+    smi = "CN(CCO)C1=CNNC=C1"
     assert_default_tier_declines(smi)
     assert strict_path_row(smi)["tier"] == "pin_unverified"
-    assert_best_effort_gives(smi, "1-[2-(thiophen-2-yl)-1,3-thiazol-4-yl]methanamine")
+    assert_best_effort_gives(smi, "2-[(1,2-dihydropyridazin-4-yl)(methyl)amino]ethan-1-ol")
 
 
 @pytest.mark.parametrize("smiles,expected", [

@@ -78,9 +78,10 @@ from typing import Any, Dict, List, Optional
 
 from ...data.chain_names import get_chain_prefix
 from ...data.multipliers import multiplier_table
+from .prefix_claims import reconcile_prefix_claims
 from ...rules.locants import get_bond_locants, get_functional_group_locants
 from ...rules.seniority import get_prefix, get_suffix
-from ..composition_primitives import RETAINED_C2_PARENT_BY_SUFFIX
+from ..composition_primitives import RETAINED_C2_ACYL_BY_SUFFIX, RETAINED_C2_PARENT_BY_SUFFIX
 from ..naming_utils import (
     BRANCH_HANDLED_FGS,
     SIMPLE_MULTIPLIERS,
@@ -1715,7 +1716,7 @@ def _generate_prefixes(features: Any) -> List["NameFragment"]:
     # If the same base prefix name appears multiple times (from different sources),
     # merge them into a single entry with combined count and appropriate multiplier.
     # This prevents stacking like "dihydroxyhydroxy" -> should be "trihydroxy".
-    prefixes = _merge_duplicate_prefixes(prefixes)
+    prefixes = _merge_duplicate_prefixes(reconcile_prefix_claims(features, prefixes))
 
     return prefixes
 
@@ -3178,13 +3179,13 @@ def _assemble_fragments(
         # Build unsaturation infix with locants for compounds with functional groups
         unsaturation_infix = _build_unsaturation_infix(double_locants, triple_locants)
 
-        if (stem == "eth" and suffix_text == "amide" and count == 1
+        if (stem == "eth" and suffix_text in RETAINED_C2_ACYL_BY_SUFFIX and count == 1
                 and not double_locants and not triple_locants):
             # (the Blue Book-32693): 'acetamide' is the
             # retained PIN of the two-carbon monoamide and can be substituted
             # ('N-phenylacetamide (PIN)',:32859); 'ethanamide' never is. Its
-            # locants stay: N and C-2 are both substitutable.
-            name = "acetamide"
+            # locants stay: N and C-2 are both substitutable ('acetohydrazide',:33944).
+            name = RETAINED_C2_ACYL_BY_SUFFIX[suffix_text]
         else:
             name = format_suffix_with_locants(
                 stem,

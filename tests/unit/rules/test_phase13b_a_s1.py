@@ -67,11 +67,11 @@ class TestFusedCatalogCoverageGuard:
     fused ring system as a substructure (structure-loss hallucination)."""
 
     def test_pentacene_subset_match_rejected(self):
-        # bare pentacene contains a naphthacene substructure; the raw impl matches
+        # bare pentacene contains a tetracene substructure; the raw impl matches
         # it, but the coverage guard rejects (does not cover the 5th ring).
         mol = Chem.MolFromSmiles("c1ccc2cc3cc4cc5ccccc5cc4cc3cc2c1")
         raw = _match_fused_heterocycle_core_impl(mol)
-        assert raw is not None and raw[0] == "naphthacene"
+        assert raw is not None and raw[0] == "tetracene"
         assert match_fused_heterocycle_core(mol) is None
 
     def test_picene_subset_match_rejected(self):
@@ -81,7 +81,7 @@ class TestFusedCatalogCoverageGuard:
         assert match_fused_heterocycle_core(mol) is None
 
     @pytest.mark.parametrize("smi,expected", [
-        ("c1ccc2cc3cc4ccccc4cc3cc2c1", "naphthacene"),       # exact -> still matches
+        ("c1ccc2cc3cc4ccccc4cc3cc2c1", "tetracene"),         # exact -> still matches
         ("c1ccc2c(c1)c1ccccc1c1ccccc21", "triphenylene"),    # branched PAH entry
         ("c1ccc2c(c1)ccc1c3ccccc3ccc21", "chrysene"),        # 18-atom chrysene entry
         ("c1ccc2[nH]c3ccccc3c2c1", "9H-carbazole"),          # heterocycle unaffected

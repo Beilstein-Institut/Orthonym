@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
-from ..assembly.composition_primitives import RETAINED_C2_PARENT_BY_SUFFIX
+from ..assembly.composition_primitives import RETAINED_C2_ACYL_BY_SUFFIX, RETAINED_C2_PARENT_BY_SUFFIX
 from ..assembly.naming_utils import (
     BRANCH_HANDLED_FGS,
     format_suffix_with_locants,
@@ -3761,7 +3761,7 @@ def name_polyfunctional(features: Any) -> Optional[str]:
     # are both substitutable ('N-carbamoyl-2-phenylacetamide (PIN)',:33364), so
     # only the parent word changes.
     _acetamide_parent = (
-        suffix == 'amide'
+        suffix in RETAINED_C2_ACYL_BY_SUFFIX
         and chain_length == 2 and count == 1
         and not double_locants and not triple_locants
         and not (getattr(features, 'is_cyclic', False)
@@ -3828,7 +3828,7 @@ def name_polyfunctional(features: Any) -> Optional[str]:
     )
     def _systematic_assembly(prefixes):
         if _acetamide_parent:
-            _n = 'acetamide'
+            _n = RETAINED_C2_ACYL_BY_SUFFIX[suffix]
         else:
             _n = format_suffix_with_locants(
                 stem, unsaturation, suffix, suffix_locants, multiplier

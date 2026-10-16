@@ -149,8 +149,10 @@ ROWS = [
     # an acid-stem prefix with a substituent is a substituted prefix: 'bis' (c),
     # the Blue Book); the unsubstituted one takes 'di'
     ("Cc1ccc(S(=O)(=O)N2CCN(S(=O)(=O)c3ccc(C)cc3)CC2)cc1", "1,4-bis(4-methylbenzene-1-sulfonyl)"),
-    # a sulfonate ester on a methyl group is a branch of that group
-    ("COS(=O)(=O)CC1CCC1", "[(methoxysulfonyl)methyl]"),
+    # a sulfonate ester on a methyl group is a branch of that group. The row was 'COS(=O)(=O)CC1CCC1', whose
+    # PIN is the ester itself, 'methyl cyclobutylmethanesulfonate' class 9, the ring-bearing CH2 is
+    # the parent: rules.parent_selection.single_carbon_hosts_suffix); the branch needs a senior group beside it.
+    ("COS(=O)(=O)CC1CCC1C(=O)O", "[(methoxysulfonyl)methyl]"),
     # the centre of a sulfamide is never a skeletal atom of a chain, however many heteroatoms
     # the chain holds, the Blue Book;,:23348)
     ("CCOC(=O)NS(=O)(=O)N(C)Cc1cccc(C#N)c1", "{[(ethoxycarbonyl)sulfamoyl](methyl)amino}methyl"),

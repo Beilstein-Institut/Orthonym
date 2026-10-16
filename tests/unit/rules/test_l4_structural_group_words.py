@@ -65,8 +65,11 @@ ROWS = [
      "heptan-2-yl [(5-chloroquinolin-8-yl)oxy]acetate"),
     ("CCCCCCCCCCCCC1=C(OC(C)=O)C(=O)c2ccccc2C1=O",
      "3-dodecyl-1,4-dioxo-1,4-dihydronaphthalen-2-yl acetate"),
+    # PB: the cation is the senior class, class 6 cations before class 7 acids and their
+    # esters), so the ester is cited as an acyloxy prefix of the methanaminium parent
+    # ('N,N,N-trimethylmethanaminium (PIN)', the Blue Book), as main names 'CC(=O)OC[N+](C)(C)C'
     ("CCC(C(CC)C(=O)OC[N+](C)(C)C)C(=O)N",
-     "(trimethylazaniumyl)methyl 3-carbamoyl-2-ethylpentanoate"),
+     "[(3-carbamoyl-2-ethylpentanoyl)oxy]-N,N,N-trimethylmethanaminium"),
     # an alcohol with several hydroxy groups: the linking oxygen is the one that rebuilds the parent
     ("O=C(O[C@H]1Cc2c(O)cc(O)cc2O[C@@H]1c1ccc(O)c(O)c1)c1cc(O)c(O)c(O)c1",
      "(2R,3S)-2-(3,4-dihydroxyphenyl)-5,7-dihydroxy-3,4-dihydro-2H-1-benzopyran-3-yl "

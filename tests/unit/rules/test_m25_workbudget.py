@@ -114,7 +114,10 @@ def _name_best_effort(smiles: str, timeout_s: int = _WALL_KILL_S) -> str:
     return -> the hang is back) fails the calling test."""
     try:
         proc = subprocess.run(
-            [sys.executable, "-m", "orthonym", smiles, "--emit-tier", "best-effort"],
+            # --on-failure label: since issue #45 the CLI prints an empty name by default;
+            # these checks read the '(no name — <code>)' label.
+            [sys.executable, "-m", "orthonym", smiles, "--emit-tier", "best-effort",
+             "--on-failure", "label"],
             capture_output=True, text=True, timeout=timeout_s,
         )
     except subprocess.TimeoutExpired:

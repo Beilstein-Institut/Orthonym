@@ -302,7 +302,9 @@ def test_fluorenamine_n_prefixes_in_one_series():
     # the labelled phenyl is cited before the unlabelled one (,
     assert name == ("9-(dibenzo[b,d]thiophen-2-yl)-N-(naphthalen-1-yl)-"
                     "9-(2H5)phenyl-N-phenyl-9H-fluoren-3-amine"), name
-    assert tier == "pin_unverified", tier
+    # PB lane R: the fused ring-yl prefixes (dibenzo[b,d]thiophen-2-yl, naphthalen-1-yl) are built by
+    # ``assembly.strict_ring_prefix``, so the strict twin builds the name and it is a certified PIN
+    assert tier == "pin_verified", tier
 
 
 def test_join_pah_prefixes_hyphenates_before_any_locant():

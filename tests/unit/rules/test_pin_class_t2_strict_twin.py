@@ -66,6 +66,12 @@ PIN_ROWS = [
     ("O=C(O)c1ccc(CC(N)=O)cc1", "4-(2-amino-2-oxoethyl)benzoic acid"),
     ("NC(=O)CCc1ccc(C(=O)O)cc1", "4-(3-amino-3-oxopropyl)benzoic acid"),
     ("NC(=O)C(C)c1ccc(C(=O)O)cc1", "4-(1-amino-1-oxopropan-2-yl)benzoic acid"),
+    # PB lane R (T1, T4, T6): the ring-yl prefixes are built by assembly.strict_ring_prefix, the strict
+    # twin runs the promotion re-run, so both tiers ship the Blue Book PIN at pin_verified
+    ("CC1=CCC(C=CC(C)N(C)C)CC1",
+     "N,N-dimethyl-4-(4-methylcyclohex-3-en-1-yl)but-3-en-2-amine"),       #:26269
+    ("[CH3][Sn]1([CH3])[CH2]CC(B2C3CCCC2CCC3)[CH2]1",
+     "3-(9-borabicyclo[3.3.1]nonan-9-yl)-1,1-dimethylstannolane"),         #:37486
     # fix-all 2026-10-09: the strict path builds and verifies this Blue Book PIN now (was
     # an XFAIL_PIN_ROWS row); OPSIN 2.9.0 full InChIKey exact
     ("COc1cc2c(Oc3ccc4[nH]c(C)cc4c3F)ncnc2cc1OCCCN1CCCC1",
@@ -78,10 +84,6 @@ XFAIL_PIN_ROWS = [
     ("O=C(O)c1ccc(CSO)cc1", "4-[(hydroxysulfanyl)methyl]benzoic acid"),    #:29962
     ("O=C1CCCCC1OOC1(O)CCCCC1OO",
      "2-[(2-hydroperoxy-1-hydroxycyclohexyl)peroxy]cyclohexan-1-one"),     #:28154
-    ("CC1=CCC(C=CC(C)N(C)C)CC1",
-     "N,N-dimethyl-4-(4-methylcyclohex-3-en-1-yl)but-3-en-2-amine"),       #:26269
-    ("[CH3][Sn]1([CH3])[CH2]CC(B2C3CCCC2CCC3)[CH2]1",
-     "3-(9-borabicyclo[3.3.1]nonan-9-yl)-1,1-dimethylstannolane"),         #:37486
     # "4-[(4-fluoro-2-methyl-1H-indol-5-yl)oxy]-6-methoxy-7-[3-(pyrrolidin-1-yl)
     # propoxy]quinazoline" (:19437) -- moved to PIN_ROWS 2026-10-09 (fix-all): the
     # strict path now builds and verifies it.

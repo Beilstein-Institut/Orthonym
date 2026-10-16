@@ -23,6 +23,7 @@ References:
     IUPAC 2013 (compound substituent enclosing marks)
 """
 
+import contextvars
 import logging
 import re
 from typing import Dict, List, Optional, Set, Tuple
@@ -38,6 +39,12 @@ from .naming_utils import SIMPLE_MULTIPLIERS, alpha_sort_key, get_alkyl_name, ha
 from ..perception.smarts_cache import compiled as _compiled_smarts
 
 logger = logging.getLogger(__name__)
+
+#: A writer for a branch of a located substituent chain that the strict namer declines: ``f(mol,
+#: atoms, root) -> name | None``. Set by ``rules.terminal_fragment`` around its principal-chain
+#: step, so that step takes the chain from the deriver and the branch from its own writer.
+BRANCH_FALLBACK: contextvars.ContextVar = contextvars.ContextVar(
+    "orthonym_located_branch_fallback", default=None)
 
 
 # ============================================================================
@@ -5225,7 +5232,13 @@ def sulfonamido_prefix_from_n_branch(mol, n_idx: int, sub_atoms,
     stem = _acid_stem_oxide_prefix(mol, r_idx, s_idx, 'sulfonyl')
     if not stem or not stem.endswith('sulfonyl'):
         return None
-    return stem[:-len('sulfonyl')] + 'sulfonamido'
+    prefix = stem[:-len('sulfonyl')] + 'sulfonamido'
+    # licences: a substituted CH2 keeps its locant ('(1-cyclohexylmethanesulfonamido)acetic
+    # acid', the Blue Book) because the NH is a second substitutable position, as for 1-phenylmethanesulfonamide
+    r_at = mol.GetAtomWithIdx(r_idx)
+    if prefix != 'methanesulfonamido' and prefix.endswith('methanesulfonamido') and r_at.GetTotalNumHs() == 2:
+        prefix = '1-' + prefix
+    return prefix
 
 
 # The substitutive retry below is for an acid FRAGMENT whose recursive name is a
@@ -5363,18 +5376,18 @@ def acyl_amido_prefix_from_branch(mol, n_idx: int, carbonyl_c: int,
             return None
         amido = acid_name_to_amido_prefix(acid_name)
         if not amido and _is_retained_peptide_name(acid_name):
-            # A peptide acid fragment comes back as its retained Chapter name
-            # ('prolylalanine'), which has no '-oic acid' to turn into '-amido', so
-            # every tripeptide failed here and fell back to the non-PIN retained
-            # peptide name. Name the acid substitutively (PEPTIDE class excluded,
-            # as routing.dispatch_table._handle_peptide does for the whole
-            # molecule): '(2S)-2-[(2S)-pyrrolidine-2-carboxamido]propanoic acid' ->
-            # '...propanamido' method (1), the Blue Book).
-            # The whole name is still full-InChIKey re-verified by the caller.
+            # A peptide acid fragment comes back as its retained Chapter name ('prolylalanine'),
+            # which has no '-oic acid' to turn into '-amido', so every tripeptide fell back to the
+            # non-PIN retained name. Name the acid substitutively (PEPTIDE class excluded, as
+            # routing.dispatch_table._handle_peptide does): '...propanamido' method (1),
+            # the Blue Book). The whole name is still full-InChIKey re-verified by the caller.
             alt = _substitutive_peptide_acid_name(frag_smi)
             if alt:
                 acid_name = alt
                 amido = acid_name_to_amido_prefix(alt)
+        if not amido:  # an acyl holding a second COOH (Asp, Glu): 'carboxy' on the amide chain
+            from .acyl_amido_polyacid import polyacid_acyl_amido_prefix
+            return polyacid_acyl_amido_prefix(mol, n_idx, carbonyl_c, sub_set, verify_acid)
         if amido and verify_acid:
             if not fragment_acid_name_verified(acid_name, frag_smi):
                 return None
@@ -7013,6 +7026,8 @@ def _located_fg_assemble(mol, sub_atoms, attach_idx, carbon_set, ring_info, with
                 except Exception as exc:  # noqa: BLE001
                     logger.debug("located-fg branch naming failed: %s", exc)
                     return None
+                if (not bname or bname == 'substituent') and BRANCH_FALLBACK.get() is not None:
+                    bname = BRANCH_FALLBACK.get()(mol, sorted(frag), nidx)
                 if not bname or bname == 'substituent':
                     return None
                 groups[bname].append(chain_pos[c])
@@ -7298,6 +7313,13 @@ def _located_fg_hetero_root(mol, sub_atoms, attach_idx):
         if not subs:
             return 'amino'
         from .prefix_derivation import built
+        from ..rules.anilino_nitrogen import anilino_for_branches
+        _anilino = anilino_for_branches(mol, attach_idx, [
+            (sorted(_fg_branch_atoms(mol, h, attach_idx, sub_set)), r)
+            for h, r in zip(heavy, subs)])
+        if _anilino is not None:
+            # C6H5-N<: (the Blue Book), (:26308)
+            return built(_anilino, substituted=True)
         if len(subs) == 1:
             # One branch: no citation-order ambiguity only governs
             # the SECOND and further substituent of a mononuclear parent), so the
@@ -8849,12 +8871,11 @@ def _name_substituent_fragment_uncached(
                     allow_mancude=_ring_mancude,
                 )
                 if not _ring_nm and not _ring_mancude:
-                    # Breadth Job 1 (M01): the ring chokepoint's composition
-                    # branches (decorated ring-yl, ring-on-chain with folded
-                    # decorations, decorated fused ring) at the PIN tier, kept
-                    # only when every token is PIN vocabulary.
-                    from ..rules.pin_vocabulary import promote_at_pin_tier
-                    _ring_nm = promote_at_pin_tier(
+                    # Breadth Job 1 (M01) + PB lane R: the ring chokepoint's composition
+                    # branches at the PIN tier (``assembly.strict_ring_prefix``).
+                    from .strict_ring_prefix import pin_tier_ring_prefix
+                    _ring_nm = pin_tier_ring_prefix(
+                        mol, sorted(sub_atoms), attach_idx,
                         lambda: name_ring_system_substituent(
                             mol, sorted(sub_atoms), attach_idx,
                             allow_enumerator_fallback=False,

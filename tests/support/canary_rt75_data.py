@@ -358,7 +358,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "NCCCC[C@H](NC(=O)[C@@H](N)CCC(N)=O)C(=O)N[C@@H](CS)C(=O)O",
-        "L-glutaminyl-L-lysyl-L-cysteine",
+        "(2R)-2-{(2S)-6-amino-2-[(2S)-2,5-diamino-5-oxopentanamido]hexanamido}-3-sulfanylpropanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-glutaminyl-L-lysyl-L-cysteine' (known-defect name 'glutaminyllysylcysteine')
     ),
     (
         "Oc1ccnc2ccccc12",
@@ -442,7 +442,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC(C)C[C@H](N)C(=O)N[C@@H](Cc1cnc[nH]1)C(=O)N[C@@H](CC(N)=O)C(=O)O",
-        "L-leucyl-L-histidyl-L-asparagine",
+        "(2S)-4-amino-2-{(2S)-2-[(2S)-2-amino-4-methylpentanamido]-3-(1H-imidazol-5-yl)propanamido}-4-oxobutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-leucyl-L-histidyl-L-asparagine' (known-defect name 'leucylhistidylasparagine')
     ),
     (
         "C/C(C=O)=C\\CC/C(C)=C/C=O",
@@ -1237,7 +1237,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "NC(=O)CC[C@H](NC(=O)CNC(=O)[C@@H](N)CO)C(=O)O",
-        "L-serylglycyl-L-glutamine",
+        "(2S)-5-amino-2-{2-[(2S)-2-amino-3-hydroxypropanamido]acetamido}-5-oxopentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-serylglycyl-L-glutamine' (known-defect name 'serylglycylglutamine')
     ),
     (
         "CC(C)C[C@H](N)C(=O)N[C@@H](C)C(=O)N[C@H](C(=O)O)C(C)C",
@@ -1285,7 +1285,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "C[C@@H](O)[C@H](NC(=O)CN)C(=O)N[C@@H](CC(N)=O)C(=O)O",
-        "glycyl-L-threonyl-L-asparagine",
+        "(2S)-4-amino-2-[(2S,3R)-2-(2-aminoacetamido)-3-hydroxybutanamido]-4-oxobutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'glycyl-L-threonyl-L-asparagine' (known-defect name 'glycylthreonylasparagine')
     ),
     (
         "C[C@H](NC(=O)[C@H](CCCCN)NC(=O)[C@@H](N)Cc1c[nH]c2ccccc12)C(=O)O",
@@ -1305,7 +1305,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "C[C@H](NC(=O)[C@@H](N)CS)C(=O)N[C@H](C(=O)O)[C@@H](C)O",
-        "L-cysteinyl-L-alanyl-L-threonine",
+        "(2S,3R)-2-{(2S)-2-[(2R)-2-amino-3-sulfanylpropanamido]propanamido}-3-hydroxybutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-cysteinyl-L-alanyl-L-threonine' (known-defect name 'cysteinylalanylthreonine')
     ),
     (
         "CCCCCCCCCCCCC(C)CCCC(C)CCCC(C)CCCCCCCCCCCC",
@@ -1373,11 +1373,11 @@ CANARY_COMPOUNDS = [
     ),
     (
         "C[C@@H](O)[C@H](NC(=O)[C@@H](N)Cc1c[nH]c2ccccc12)C(=O)N[C@@H](CC(N)=O)C(=O)O",
-        "L-tryptophyl-L-threonyl-L-asparagine",
+        "(2S)-4-amino-2-{(2S,3R)-2-[(2S)-2-amino-3-(1H-indol-3-yl)propanamido]-3-hydroxybutanamido}-4-oxobutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-tryptophyl-L-threonyl-L-asparagine' (known-defect name 'tryptophylthreonylasparagine')
     ),
     (
         "CC[C@H](C)[C@H](NC(=O)[C@@H](NC(=O)[C@@H](N)CC(N)=O)[C@@H](C)O)C(=O)O",
-        "L-asparaginyl-L-threonyl-L-isoleucine",
+        "(2S,3S)-2-{(2S,3R)-2-[(2S)-2,4-diamino-4-oxobutanamido]-3-hydroxybutanamido}-3-methylpentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-asparaginyl-L-threonyl-L-isoleucine' (known-defect name 'asparaginylthreonylisoleucine')
     ),
     (
         "N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CS)C(=O)N[C@@H](CS)C(=O)O",
@@ -1409,7 +1409,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "C[C@@H](O)[C@H](N)C(=O)N[C@@H](CCC(N)=O)C(=O)N[C@@H](CC(=O)O)C(=O)O",
-        "L-threonyl-L-glutaminyl-L-aspartic acid",
+        "(2S)-2-{(2S)-5-amino-2-[(2S,3R)-2-amino-3-hydroxybutanamido]-5-oxopentanamido}butanedioic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-threonyl-L-glutaminyl-L-aspartic acid' (known-defect name 'threonylglutaminylaspartic acid')
     ),
     (
         "CCC/C=C/C/C=C/C/C=C/CCCCC(=O)O",
@@ -1810,7 +1810,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC(C)C[C@H](NC(=O)[C@@H](N)CC(=O)O)C(=O)N[C@@H](CC(=O)O)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-aspartyl-L-leucyl-L-aspartic acid",
+        "(2S)-2-{(2S)-2-[(2S)-2-amino-3-carboxypropanamido]-4-methylpentanamido}butanedioic acid",  # PB-S S3 method (1):32995 "Method (1) generates preferred IUPAC names":32998;:54470 carboxy form; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-aspartyl-L-leucyl-L-aspartic acid' (known-defect name 'aspartylleucylaspartic acid')
     ),
     (
         "CC(C)C[C@H](NC(=O)CNC(=O)[C@@H](N)Cc1c[nH]c2ccccc12)C(=O)O",  # aromatic,heterocycle,fused-ring,polyfunctional,medium
@@ -1871,11 +1871,11 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC(C)C[C@H](NC(=O)[C@H](CC(N)=O)NC(=O)[C@@H](N)CCCCN)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-lysyl-L-asparaginyl-L-leucine",
+        "(2S)-2-{(2S)-4-amino-2-[(2S)-2,6-diaminohexanamido]-4-oxobutanamido}-4-methylpentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-lysyl-L-asparaginyl-L-leucine' (known-defect name 'lysylasparaginylleucine')
     ),
     (
         "CC(C)C[C@H](N)C(=O)N[C@@H](Cc1cnc[nH]1)C(=O)N[C@@H](CCC(N)=O)C(=O)O",  # aromatic,heterocycle,polyfunctional,medium
-        "L-leucyl-L-histidyl-L-glutamine",
+        "(2S)-5-amino-2-{(2S)-2-[(2S)-2-amino-4-methylpentanamido]-3-(1H-imidazol-5-yl)propanamido}-5-oxopentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-leucyl-L-histidyl-L-glutamine' (known-defect name 'leucylhistidylglutamine')
     ),
     (
         "CC/C=C\\C/C=C\\C/C=C\\CCCCCCCCCCCC(=O)O",  # acyclic,medium
@@ -1946,7 +1946,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "NC(=O)CC[C@H](NC(=O)[C@H](Cc1ccccc1)NC(=O)[C@@H](N)CCC(N)=O)C(=O)O",  # aromatic,polyfunctional,medium
-        "L-glutaminyl-L-phenylalanyl-L-glutamine",
+        "(2S)-5-amino-2-{(2S)-2-[(2S)-2,5-diamino-5-oxopentanamido]-3-phenylpropanamido}-5-oxopentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-glutaminyl-L-phenylalanyl-L-glutamine' (known-defect name 'glutaminylphenylalanylglutamine')
     ),
     (
         "O=C(CCc1cccc(O)c1)c1cc(O)ccc1O",  # aromatic,medium
@@ -2121,11 +2121,11 @@ CANARY_COMPOUNDS = [
     ),
     (
         "C[C@@H](O)[C@H](N)C(=O)N[C@@H](Cc1c[nH]c2ccccc12)C(=O)N[C@@H](CC(N)=O)C(=O)O",  # aromatic,heterocycle,fused-ring,polyfunctional,medium
-        "L-threonyl-L-tryptophyl-L-asparagine",
+        "(2S)-4-amino-2-{(2S)-2-[(2S,3R)-2-amino-3-hydroxybutanamido]-3-(1H-indol-3-yl)propanamido}-4-oxobutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-threonyl-L-tryptophyl-L-asparagine' (known-defect name 'threonyltryptophylasparagine')
     ),
     (
         "CC(C)[C@H](N)C(=O)N[C@@H](CC(N)=O)C(=O)N[C@@H](CC(=O)O)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-valyl-L-asparaginyl-L-aspartic acid",
+        "(2S)-2-{(2S)-4-amino-2-[(2S)-2-amino-3-methylbutanamido]-4-oxobutanamido}butanedioic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-valyl-L-asparaginyl-L-aspartic acid' (known-defect name 'valylasparaginylaspartic acid')
     ),
     (
         "CCCCCCCC(=O)OCC(=O)[C@@]1(O)CC[C@H]2[C@@H]3CCC4=CC(=O)CC[C@]4(C)[C@H]3[C@@H](O)C[C@@]21C",  # fused-ring,polyfunctional,large,steroid
@@ -2191,7 +2191,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC[C@H](C)[C@H](N)C(=O)N[C@@H](CCC(N)=O)C(=O)N[C@@H](CC(C)C)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-isoleucyl-L-glutaminyl-L-leucine",
+        "(2S)-2-{(2S)-5-amino-2-[(2S,3S)-2-amino-3-methylpentanamido]-5-oxopentanamido}-4-methylpentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-isoleucyl-L-glutaminyl-L-leucine' (known-defect name 'isoleucylglutaminylleucine')
     ),
     (
         "CC(C)[C@H](NC(=O)[C@@H](N)CCC(N)=O)C(=O)O",  # acyclic,polyfunctional,medium
@@ -2731,7 +2731,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC(C)C[C@H](N)C(=O)N[C@@H](CCC(N)=O)C(=O)N[C@@H](CC(N)=O)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-leucyl-L-glutaminyl-L-asparagine",
+        "(2S)-4-amino-2-{(2S)-5-amino-2-[(2S)-2-amino-4-methylpentanamido]-5-oxopentanamido}-4-oxobutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-leucyl-L-glutaminyl-L-asparagine' (known-defect name 'leucylglutaminylasparagine')
     ),
     (
         "CC(=O)OCCc1ccccc1",  # aromatic,small
@@ -2957,7 +2957,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "C[C@@H](O)[C@H](NC(=O)[C@@H](NC(=O)[C@@H](N)CCCNC(=N)N)[C@@H](C)O)C(=O)N[C@@H](CC(=O)O)C(=O)O",  # acyclic,polyfunctional,large
-        "L-arginyl-L-threonyl-L-threonyl-L-aspartic acid",
+        "(2S)-2-[(2S,3R)-2-{(2S,3R)-2-[(2S)-2-amino-5-(carbamimidoylamino)pentanamido]-3-hydroxybutanamido}-3-hydroxybutanamido]butanedioic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-arginyl-L-threonyl-L-threonyl-L-aspartic acid' (known-defect name 'arginylthreonylthreonylaspartic acid')
     ),
     (
         "CCCCC/C=C\\C/C=C\\C/C=C\\C/C=C\\CCCCCC(=O)OC[C@H](O)COC(=O)CCC/C=C\\C/C=C\\C/C=C\\CCCCCCCC",  # acyclic,large
@@ -3025,7 +3025,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC(C)C[C@H](NC(=O)[C@H](C)N)C(=O)N[C@H](C(=O)N[C@@H](CCC(N)=O)C(=O)O)[C@@H](C)O",  # acyclic,polyfunctional,medium
-        "L-alanyl-L-leucyl-L-threonyl-L-glutamine",
+        "(2S)-5-amino-2-[(2S,3R)-2-{(2S)-2-[(2S)-2-aminopropanamido]-4-methylpentanamido}-3-hydroxybutanamido]-5-oxopentanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-alanyl-L-leucyl-L-threonyl-L-glutamine' (known-defect name 'alanylleucylthreonylglutamine')
     ),
     (
         "CCc1cnc(C)cn1",  # aromatic,heterocycle,small
@@ -3033,7 +3033,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC[C@H](C)[C@H](NC(=O)[C@@H](N)CS)C(=O)N[C@@H](CC(=O)O)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-cysteinyl-L-isoleucyl-L-aspartic acid",
+        "(2S)-2-{(2S,3S)-2-[(2R)-2-amino-3-sulfanylpropanamido]-3-methylpentanamido}butanedioic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-cysteinyl-L-isoleucyl-L-aspartic acid' (known-defect name 'cysteinylisoleucylaspartic acid')
     ),
     (
         "CC[C@H](C)[C@H](NC(=O)CN)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)O",  # aromatic,polyfunctional,medium
@@ -3045,7 +3045,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "NCCCC[C@H](NC(=O)[C@H](CC(N)=O)NC(=O)[C@@H](N)CC(=O)O)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-aspartyl-L-asparaginyl-L-lysine",
+        "(2S)-6-amino-2-{(2S)-4-amino-2-[(2S)-2-amino-3-carboxypropanamido]-4-oxobutanamido}hexanoic acid",  # PB-S S3 method (1):32995 "Method (1) generates preferred IUPAC names":32998;:54470 carboxy form; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-aspartyl-L-asparaginyl-L-lysine' (known-defect name 'aspartylasparaginyllysine')
     ),
     (
         "C[C@@H](O)[C@H](O)[C@H](O)[C@@H](N)C=O",  # acyclic,polyfunctional,small
@@ -3113,7 +3113,7 @@ CANARY_COMPOUNDS = [
     ),
     (
         "CC(C)[C@H](NC(=O)[C@H](CCC(N)=O)NC(=O)[C@@H](N)[C@@H](C)O)C(=O)O",  # acyclic,polyfunctional,medium
-        "L-threonyl-L-glutaminyl-L-valine",
+        "(2S)-2-{(2S)-5-amino-2-[(2S,3R)-2-amino-3-hydroxybutanamido]-5-oxopentanamido}-3-methylbutanoic acid",  # PB-S S1 method (1):32995, "Method (1) generates preferred IUPAC names":32998; controller ruling, peptides are not PINs; OPSIN 2.9.0 full InChIKey exact, fresh java run outside the engine); was 'L-threonyl-L-glutaminyl-L-valine' (known-defect name 'threonylglutaminylvaline')
     ),
     (
         "N[C@@H](CC(=O)O)C(=O)N[C@@H](Cc1cnc[nH]1)C(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)O",  # aromatic,heterocycle,polyfunctional,large

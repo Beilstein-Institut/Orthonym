@@ -227,6 +227,15 @@ _UNCERTIFIED_PIN_NAMES = contextvars.ContextVar(
 # uncertified PIN names, with the same lifetime and roll-back rule.
 _SPLIT_VERIFIED_NAMES = contextvars.ContextVar(
     "orthonym_prov_split_verified_names", default=())
+# PB lane R: the names ``rules.pin_vocabulary.promote_at_pin_tier`` KEPT while the PIN tier's
+# promotion re-run ran, i.e. pieces a best-effort composition producer built. The re-run's name
+# stays certified (no ``pin_promotion_rerun`` flag) when this is empty: every piece of it came
+# from a strict producer (``assembly.strict_ring_prefix``). Name-scoped like the lists above (it
+# survives ``restore_provenance`` and is replayed by ``nested_memo``), and kept apart from
+# ``_UNCERTIFIED_PIN_NAMES`` because ``name_carries_non_pin_part`` would drop the re-run name
+# itself if it read these.
+_BREADTH_PROMOTED_NAMES = contextvars.ContextVar(
+    "orthonym_prov_breadth_promoted_names", default=())
 # Branch review fixes (2026-09-28): the shipped name was built by the PIN tier's
 # promotion re-run (``Orthonym._name_with_pin_promotion``), i.e. with a best-effort
 # composition producer admitted under the PIN-vocabulary guard. Such a name is not
@@ -328,7 +337,8 @@ def clear_provenance() -> None:
     _touch("source", "opsin", "stereo_unexpressed", "gate_outcome",
            "gate_outcome_name", "general_ring_prefix", "suffix_free_prefix_name",
            "non_pin_fragments", "pin_promotion_rerun", "non_pin_labels",
-           "non_pin_label_rules", "uncertified_pin_names", "split_verified_names")
+           "non_pin_label_rules", "uncertified_pin_names", "split_verified_names",
+           "breadth_promoted_names")
     _SOURCE.set(None)
     _OPSIN.set(None)
     _STEREO_UNEXPRESSED.set(False)
@@ -348,6 +358,7 @@ def clear_provenance() -> None:
     _NON_PIN_LABEL_RULES.set(())
     _UNCERTIFIED_PIN_NAMES.set(())
     _SPLIT_VERIFIED_NAMES.set(())
+    _BREADTH_PROMOTED_NAMES.set(())
 
 
 def restore_provenance(snapshot: dict) -> None:
@@ -396,10 +407,14 @@ def restore_provenance(snapshot: dict) -> None:
     _kept_split = tuple(snapshot.get("split_verified_names") or ())
     _SPLIT_VERIFIED_NAMES.set(_kept_split + tuple(
         f for f in _SPLIT_VERIFIED_NAMES.get() if f not in _kept_split))
+    _kept_breadth = tuple(snapshot.get("breadth_promoted_names") or ())
+    _BREADTH_PROMOTED_NAMES.set(_kept_breadth + tuple(
+        f for f in _BREADTH_PROMOTED_NAMES.get() if f not in _kept_breadth))
     _touch("source", "opsin", "stereo_unexpressed", "gate_outcome",
            "gate_outcome_name", "general_ring_prefix", "suffix_free_prefix_name",
            "non_pin_fragments", "pin_promotion_rerun", "non_pin_labels",
-           "non_pin_label_rules", "uncertified_pin_names", "split_verified_names")
+           "non_pin_label_rules", "uncertified_pin_names", "split_verified_names",
+           "breadth_promoted_names")
 
 
 class isolated_provenance:
@@ -422,6 +437,9 @@ class isolated_provenance:
     _VARS = (_SOURCE, _OPSIN, _STEREO_UNEXPRESSED, _GATE_OUTCOME, _GATE_OUTCOME_NAME,
              _GENERAL_RING_PREFIX, _SUFFIX_FREE_PREFIX_NAME, _NON_PIN_FRAGMENTS,
              _PIN_PROMOTION_RERUN, _NON_PIN_LABELS, _UNCERTIFIED_PIN_NAMES, _SPLIT_VERIFIED_NAMES)
+    # not ``_BREADTH_PROMOTED_NAMES``: ``assembly.memo`` replays no provenance, so a breadth piece built
+    # in the body and served from the memo later would ship unrecorded; a record that outlives the body
+    # only ever adds a piece ``record_pin_promotion_rerun`` looks for in the final name
 
     def __enter__(self):
         self._values = [(var, var.get()) for var in self._VARS]
@@ -561,9 +579,28 @@ def record_general_ring_prefix() -> None:
 
 def record_pin_promotion_rerun() -> None:
     """Mark the name about to ship as built by the PIN tier's promotion re-run
-    (see ``_PIN_PROMOTION_RERUN``): labelled pin_unverified, never pin_verified."""
+    (see ``_PIN_PROMOTION_RERUN``): labelled pin_unverified, never pin_verified. Only when a breadth
+    piece the re-run kept (``record_breadth_promotion``) is part of the name: a name whose every piece
+    a strict producer built (``assembly.strict_ring_prefix``) is the strict path's own name. A piece
+    kept in a route the re-run then left does not count (the label would depend on the input atom
+    order); with no name to read the whole call is flagged."""
+    pieces = _BREADTH_PROMOTED_NAMES.get()
+    name = _GATE_OUTCOME_NAME.get()
+    if not pieces or (name and not any(piece in name for piece in pieces)):
+        return
     _PIN_PROMOTION_RERUN.set(True)
     _touch("pin_promotion_rerun")
+
+
+def record_breadth_promotion(name: str) -> None:
+    """Record a name ``promote_at_pin_tier`` kept: a piece a best-effort producer built (see
+    ``_BREADTH_PROMOTED_NAMES``)."""
+    if not name:
+        return
+    cur = _BREADTH_PROMOTED_NAMES.get()
+    if name not in cur:
+        _BREADTH_PROMOTED_NAMES.set(cur + (name,))
+    _touch("breadth_promoted_names")
 
 
 def record_non_pin_fragment(fragment: str) -> None:
@@ -722,4 +759,5 @@ def get_provenance() -> dict:
         "non_pin_label_rules": _NON_PIN_LABEL_RULES.get(),
         "uncertified_pin_names": _UNCERTIFIED_PIN_NAMES.get(),
         "split_verified_names": _SPLIT_VERIFIED_NAMES.get(),
+        "breadth_promoted_names": _BREADTH_PROMOTED_NAMES.get(),
     }

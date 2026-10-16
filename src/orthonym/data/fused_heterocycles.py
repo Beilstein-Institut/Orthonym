@@ -1456,9 +1456,9 @@ FUSED_HETEROCYCLE_DATA: Dict[str, Dict[str, Any]] = {
         'parent_atoms': 18,
         'iupac_locants': {0: 3, 1: 2, 2: 1, 3: '12b', 4: '4a', 5: 4, 6: '4b', 7: 5, 8: 6, 9: 7, 10: 8, 11: '8a', 12: '8b', 13: 9, 14: 10, 15: 11, 16: 12, 17: '12a'},
     },
-    # naphthacene
+    # tetracene -- "Polyacenes" (the Blue Book): 'tetracene (PIN) (formerly naphthacene)'
     'c1ccc2cc3cc4ccccc4cc3cc2c1': {
-        'name': 'naphthacene',
+        'name': 'tetracene',
         'tautomer_locant': None,
         'ring_system': 'tetracyclic-carbocyclic',
         'parent_atoms': 18,
@@ -2537,7 +2537,7 @@ def _match_covers_ring_systems(mol, atom_mapping) -> bool:
     SEPARATE ring system, so a legitimate cyclic substituent does not trip this.
 
     This is the guard that stops a SMALLER catalog pattern from matching a LARGER
-    fused ring system as a substructure (e.g. the 4-ring naphthacene pattern
+    fused ring system as a substructure (e.g. the 4-ring tetracene pattern
     matching inside 5-ring pentacene, or chrysene inside picene) — a structure-
     loss hallucination that otherwise yields a wrong parent name. 13B(a).
     """
@@ -2757,7 +2757,7 @@ def match_fused_heterocycle_core(
     catalog match is accepted ONLY if it covers the whole fused ring system it
     touches — a base/retained ring system name must span the entire fused
     system, not a sub-part). Without this, a larger non-cataloged PAH whose
-    skeleton contains a cataloged subset (pentacene contains naphthacene, picene
+    skeleton contains a cataloged subset (pentacene contains tetracene, picene
     contains chrysene) spuriously matched the smaller entry. 13B(a) S1.
 
      : also verifies the input's indicated hydrogen matches the matched

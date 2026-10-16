@@ -875,6 +875,17 @@ def gate_nonsuffix_nacyl_float(amine_smiles: Optional[str],
     return float_name
 
 
+def _amide_reference_tokens() -> str:
+    """The name tokens (a regex alternation) that count as one reference to an amide bond in the
+    multi-amide check of ``_name_quality_is_acceptable``. The PIN tier spells C6H5-NH- 'anilino'
+    , the Blue Book: "The prefix name 'anilino' is retained as the preferred
+    prefix"), so there it counts; the wider tiers keep the count they had, as a name that cites it
+    there comes from a general producer this check refused."""
+    from ..rules.pin_vocabulary import at_pin_tier
+    return ("carbohydrazide|hydrazide|hydrazid|amino|amido|amide|acetamid|formamid"
+            + ("|anilino" if at_pin_tier() else ""))
+
+
 def _name_quality_is_acceptable(name: str, mol) -> bool:
     """Check if an existing name is good enough (no decomposition needed).
 
@@ -1034,8 +1045,8 @@ def _name_quality_is_acceptable(name: str, mol) -> bool:
 
         if distinct_amide_carbonyls >= 2:
             # Count how many amide-related patterns the name captures.
-            # Each named amide bond should produce "amino", "amido",
-            # "amide", "acetamid", "formamid", or similar.
+            # Each named amide bond should produce "amino", "amido", "amide", "acetamid",
+            # "formamid" (the PIN tier also "anilino",, or similar.
             # Multiplier prefixes (di-, tri-, tetra-) before amide tokens
             # indicate multiple groups, so count them accordingly.
             _MULT_MAP = {'di': 2, 'tri': 3, 'tetra': 4, 'penta': 5}
@@ -1050,8 +1061,7 @@ def _name_quality_is_acceptable(name: str, mol) -> bool:
             # this can only RAISE amide_refs (make the gate more lenient), never
             # newly reject a name that passed before.
             for m in re.finditer(
-                r'(di|tri|tetra|penta)?'
-                r'(carbohydrazide|hydrazide|hydrazid|amino|amido|amide|acetamid|formamid)',
+                r'(di|tri|tetra|penta)?(' + _amide_reference_tokens() + r')',
                 name, re.IGNORECASE,
             ):
                 prefix = m.group(1)

@@ -874,6 +874,12 @@ def _acid_stem_oxide_prefix(
             mol, sub_carbon, sulfur_idx, oxide_kind
         )
     stem, _kind, _atoms = side
+    from .naming_utils import should_omit_locant_one
+    if _kind == 'chain' and not should_omit_locant_one(
+            context="prefix", chain_length=len(_atoms), is_monosubstituted=True):
+        # '(propane-1-sulfonyl)benzene (PIN)' (the Blue Book): the locant of the carbon the group
+        # derives from is cited for a chain of three or more carbons
+        return f"{stem}-1-{oxide_kind}"
     return f"{stem}{oxide_kind}"
 
 

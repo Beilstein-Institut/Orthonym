@@ -2300,7 +2300,7 @@ def name_partially_saturated_monocyclic_heterocycle(
     # WRONG hyper-unsaturated name (measured: a 13-membered ring with ONE
     # real ring C=C came back as a 6-double-bond "...hexaene" + decahydro
     # prefix). name_heterocycle's own `ring_size > 10` branch (replacement
-    # nomenclature via _orient_macrocycle_for_replacement) already numbers
+    # nomenclature via orient_macrocycle_for_replacement) already numbers
     # the ACTUAL ring double bond(s) correctly and is reached once this
     # declines.
     if n > 10:
@@ -2635,7 +2635,8 @@ def name_heterocycle(mol, ring_atoms, principal_group_atoms=None) -> Optional[st
     # conjugated macrocycle RDKit reads as aromatic) so a polyene is named with
     # ALL its bonds + locants instead of a single bare 'ene'.
     if ring_size > 10:
-        macro_het, double_locants = _orient_macrocycle_for_replacement(
+        from .macrocycle_orientation import orient_macrocycle_for_replacement
+        macro_het, double_locants = orient_macrocycle_for_replacement(
             mol, ring_atoms, principal_group_atoms)
         if macro_het is None:
             # Could not enumerate -> fall back to the heteroatom-only orientation.
@@ -3090,98 +3091,6 @@ def _macrocycle_ordered_ring(mol, ring_set: Set[int]) -> Optional[List[int]]:
     if start not in {nb.GetIdx() for nb in mol.GetAtomWithIdx(cur).GetNeighbors()}:
         return None
     return order
-
-
-def _macrocycle_db_locant(p: int, q: int, ring_size: int) -> int:
-    """Locant cited for a ring double bond between adjacent positions p, q:
-    the lower locant, except the ring-closure (1, N) bond which is cited as N."""
-    if {p, q} == {1, ring_size}:
-        return ring_size
-    return min(p, q)
-
-
-def _orient_macrocycle_for_replacement(
-    mol, ring_atoms, principal_group_atoms=None
-) -> Tuple[Optional[List[Tuple[int, str]]], Optional[List[int]]]:
-    """Number a >10-membered heteromonocycle for replacement ("a") nomenclature.
-
-    Returns ``(heteroatom_locants, double_bond_locants)`` where the numbering
-    minimises, in order (IUPAC 2013 /: the heteroatom locant
-    set, then the heteroatoms by element seniority, then the PRINCIPAL
-    CHARACTERISTIC GROUP locant set (c) — the suffix, e.g. the ``-2,6-dione``
-    carbons), then the ring double-bond locant set.
-
-     M4: threading ``principal_group_atoms`` (the in-ring suffix-bearing atoms)
-    into the key is the fix for the macrolactam/macrolactone class whose in-ring
-    ``ene`` was numbered on a DIFFERENT direction than the composer's suffix
-    locants — the two disagreed and the spliced name was internally inconsistent
-    (OPSIN-unparseable → abstain). With the suffix ranked ABOVE unsaturation the
-    numberer picks the same direction the composer uses, so the name round-trips.
-    Empty ``principal_group_atoms`` (a bare ring / crown ether) leaves the key
-    unchanged, so the previously-passing cases are byte-identical (no regression),
-    and any residual mismatch still fails the OPSIN validity gate → abstain.
-
-    The ring is *kekulised* first so a fully-conjugated macrocycle that RDKit
-    perceives as aromatic (e.g. the V-6 azacyclotrideca-hexaene) yields its
-    localised double bonds instead of zero (the bug that made the old path emit
-    a single bare ``ene``). Returns ``(None, None)`` if the ring cannot be
-    ordered/kekulised, so the caller can fall back safely.
-    """
-    pg_atoms = set(principal_group_atoms or ())
-    ring_set = set(ring_atoms)
-    ring_size = len(ring_set)
-    het = [a for a in ring_set if mol.GetAtomWithIdx(a).GetSymbol() != 'C']
-    if not het:
-        return None, None
-
-    kmol = Chem.Mol(mol)
-    try:
-        Chem.Kekulize(kmol, clearAromaticFlags=True)
-    except Exception:
-        return None, None
-
-    order = _macrocycle_ordered_ring(kmol, ring_set)
-    if order is None or len(order) != ring_size:
-        return None, None
-
-    ring_double_bonds: List[Tuple[int, int]] = []
-    for bond in kmol.GetBonds():
-        if bond.GetBondType() != Chem.BondType.DOUBLE:
-            continue
-        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-        if i in ring_set and j in ring_set:
-            ring_double_bonds.append((i, j))
-
-    best = None
-    for start in range(ring_size):
-        for direction in (1, -1):
-            seq = [order[(start + k * direction) % ring_size] for k in range(ring_size)]
-            loc = {a: idx + 1 for idx, a in enumerate(seq)}
-            het_set = sorted(loc[a] for a in het)
-            seniority = sorted(
-                (HETEROATOM_PRIORITY.get(kmol.GetAtomWithIdx(a).GetSymbol(), 999), loc[a])
-                for a in het
-            )
-            dbl = sorted(
-                _macrocycle_db_locant(loc[i], loc[j], ring_size)
-                for i, j in ring_double_bonds
-            )
-            # (c): the principal characteristic group takes low locants
-            # BEFORE unsaturation. Only in-ring suffix atoms carry a ring locant
-            # (an exocyclic -carboxylic-acid carbon is filtered by ``a in loc``);
-            # empty -> ```` -> no effect on the key (no regression).
-            pg_key = tuple(sorted(loc[a] for a in pg_atoms if a in loc))
-            key = (het_set, seniority, pg_key, dbl)
-            if best is None or key < best[0]:
-                best = (key, loc, dbl)
-
-    loc = best[1]
-    dbl = best[2]
-    heteroatom_locants = sorted(
-        ((loc[a], kmol.GetAtomWithIdx(a).GetSymbol()) for a in het),
-        key=lambda t: t[0],
-    )
-    return heteroatom_locants, dbl
 
 
 def _table_1_5_prefix(element: str) -> Optional[str]:
