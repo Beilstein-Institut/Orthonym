@@ -156,9 +156,19 @@ def test_the_flag_does_not_leak_between_namings(monkeypatch):
 @pytest.mark.parametrize("frag_smiles,attach", [
     ("NS(=O)=O", 0),
     # (2H-1,3-benzodioxole left this list: a fused ring system with a ring heteroatom has its
-    # fusion name at every tier,, the Blue Book; dibenzo[b,f]oxepine has no
-    # parent table, so only the best-effort vocabulary names it)
-    ("c1ccc2c(c1)C=Cc1ccccc1O2", 0),
+    # fusion name at every tier,, the Blue Book. dibenzo[b,f]oxepine left it too:
+    # the fused PIN offer and the multiplied-component fusion build name it at both flags,
+    # 'dibenzo[b,f]oxepin-2-yl', pinned in test_dibenzo_oxepine_is_named_at_both_flags below.
+    # Both rows below were probed on the tree before and after those lanes: refused at
+    # allow_mancude=False, named at True, and the best-effort name read back by OPSIN to the
+    # fragment's radical InChIKey. A row here is the kind a later fusion/von Baeyer build can
+    # remove again; this test then fails loudly, as its docstring says, and the row is replaced.)
+    #
+    # a saturated tricycle: its von Baeyer substituent name is a best-effort-vocabulary name
+    ("C1CC2CC1C1CCC21", 0),
+    # a fused hydrocarbon ring carrying the oxo/hydro decoration of a quinone: the mancude
+    # vocabulary names '9,10-dioxo-9,10-dihydroanthracen-2-yl'
+    ("c1ccc2c(c1)C(=O)c1ccccc1C2=O", 0),
 ])
 def test_the_two_flags_really_do_differ_for_these_fragments(frag_smiles, attach):
     """The premise, asserted rather than assumed. If a vocabulary fix later makes
@@ -175,6 +185,36 @@ def test_the_two_flags_really_do_differ_for_these_fragments(frag_smiles, attach)
         f"{at_false!r}, so this fragment no longer demonstrates the gap")
     assert at_true not in (None, "substituent"), (
         f"premise broken: allow_mancude=True no longer names {frag_smiles}")
+
+
+@pytest.mark.opsin_gate
+def test_dibenzo_oxepine_is_named_at_both_flags(opsin_gate):
+    """The row that left the premise test above, pinned for what it is now: a gain.
+
+    ``c1ccc2c(c1)C=Cc1ccccc1O2`` used to be a fragment only the best-effort vocabulary named (as the
+    von Baeyer ``2-oxatricyclo[9.4.0.0^3,8]pentadeca-...-6-yl``); the PIN-default flag refused it
+    and the PIN tier abstained for the whole molecule. It is named by fusion nomenclature at both
+    flags and both tiers now (the ``pin_verified`` label needs the OPSIN gate on; the suite's
+    gate-off default labels the same name ``pin_unverified``). Attachment atom 0 is the position
+    para to the carbon bearing the ring oxygen: locant 2 of the fusion numbering (1-4, 4a, O5, 5a,
+    6-9, 9a, 10, 11, 11a).
+
+    Governing text: "Identical attached components" (the Blue Book), whose example
+    'dibenzo[c,e]oxepine (PIN)' (:13481) is the same construction (oxepine base component, two
+    benzo prefixes) with the other pair of peripheral bonds; "Five-membered ring
+    requirement" (:23708): "Fusion nomenclature gives preferred IUPAC names only to compounds
+    having at least two rings of at least five or more members" (:23710), which three rings of 6, 7
+    and 6 members satisfy."""
+    mol = Chem.MolFromSmiles("c1ccc2c(c1)C=Cc1ccccc1O2")
+    frag = list(range(mol.GetNumAtoms()))
+    for allow_mancude in (False, True):
+        assert se.name_substituent(
+            mol, frag, 0, allow_mancude=allow_mancude) == "dibenzo[b,f]oxepin-2-yl"
+    for tier in ("pin", "best-effort"):
+        row = Orthonym(style="pin", **_emit_tier_flags(tier)).name_tiered(
+            "c1ccc2c(c1)C=Cc1ccccc1O2")
+        assert row["name"] == "dibenzo[b,f]oxepine", (tier, row["name"])
+        assert row["tier"] == "pin_verified", (tier, row["tier"])
 
 
 # --------------------------------------------------------------------------

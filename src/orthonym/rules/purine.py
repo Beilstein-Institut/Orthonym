@@ -82,6 +82,15 @@ def name_substituted_purine(mol) -> Optional[str]:
         if not _core_is_own_ring_system(mol, ring_atoms, get_ring_systems):
             continue
 
+        # The parent written below is the MANCUDE purine with one indicated hydrogen ('7H-purine'):
+        # (the Blue Book) "a mancude ring or ring system, i.e., one that contains the
+        # maximum number of noncumulative double bonds". The any-bond SMARTS also matches a hydro
+        # state ('NC1=NC(N)c2[nH]cnc2N1', sp3 C6), which would be named '7H-purine-2,6-diamine' (the
+        # hydro prefixes dropped, a different molecule): the builder names that state.
+        from ..perception.mancude import is_mancude_ring_system
+        if is_mancude_ring_system(mol, ring_atoms) is not True:
+            continue
+
         loc_to_idx = {loc: midx for midx, loc in atom_mapping.items()}
         sat = _purine_indicated_h(mol, loc_to_idx, core_atoms)
         if sat is None:

@@ -403,17 +403,8 @@ _LIST_NAME_NOT_THE_PIN = {
 
 # SMILES -> (Blue-Book-derived PIN, reason) for pin_verified names that are not the PIN.
 _PIN_TARGET = {
-    # s28 (canary row 133, DK-INDH)
-    "COc1c(O)c(O)cc2c1CO[C@@H](C)C2=O": (
-        "(3S)-6,7-dihydroxy-8-methoxy-3-methyl-1H-2-benzopyran-4(3H)-one",
-        "DEFECT (DK-INDH): ships '(3S)-6,7-dihydroxy-8-methoxy-3-methyl-3,4-dihydro-"
-        "1H-2-benzopyran-4-one' at pin_verified. No 4H-2-benzopyran isomer exists, so "
-        "the indicated hydrogen takes C1 and the ketone takes added indicated hydrogen: "
-        "P-58.2.3.1.4 (BlueBookV2.md:24841) -> P-58.2.3.1.3 (:24806) (1)/(3); P-58.2.2 "
-        "(:24687) added hydrogen is preferred to hydro prefixes; BB 'hexahydro-1H-2-"
-        "benzopyran-1,3(4H)-dithione (PIN)' (:32549), '3,4-dihydronaphthalen-1(2H)-one "
-        "(PIN)' (:3276). Producer: partial_saturation.name_cyclic_oxo_compound. "
-        ".planning/TODO-2026-09-24.md 'Open from T12 fix round 2 (wp6)'."),
+    # (s28 / canary row 133, DK-INDH, left this table in LO3: the PIN builder's name is offered in
+    # place of the fused namer's hydro-prefix name, and the row is a plain expected-name row above)
 }
 
 

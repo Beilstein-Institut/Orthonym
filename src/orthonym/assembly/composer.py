@@ -63,6 +63,7 @@ from ..rules.fused_rings import (
     name_fused_heterocycle,
     name_ortho_fused_bicyclic,
 )
+from ..rules.fused_pin_offer import name_fused_with_pin_offer
 
 # Partial saturation imports for fused heterocycles
 from ..rules.partial_saturation import (
@@ -4233,9 +4234,9 @@ def _assemble_complex_ring_name(mol, features):
         # 2,3,9-trioxa-5,8-methanocyclopenta[cd]azulene — skeletal-'a' + methano
         # bridge — classifies 'polycyclic-bridged' and would decline). The
         # exact-SMILES lookup inside name_fused_heterocycle only returns a bare
-        # closed-structure catalog name; it is fail-closed for anything not in
-        # the table (returns None -> normal dispatch continues).
-        _fh = name_fused_heterocycle(mol)
+        # closed-structure catalog name; fail-closed otherwise (None -> normal dispatch
+        # continues). LO3: the PIN builder's name replaces a known non-PIN one.
+        _fh = name_fused_with_pin_offer(mol, _fused_core_covers_ring_system)
         if _fh is not None:
             _fname, _fring_atoms, _fmap, _fsubs = _fh
             if _fused_core_covers_ring_system(mol, _fmap):

@@ -67,7 +67,9 @@ def test_names_that_were_right_stay_byte_identical(smiles, expected):
 NATURAL_PRODUCT_PARENTS = [
     ("CC[C@H]1C[C@H]2c3[nH]c4ccccc4c3CCN2C[C@@H]1CC", "corynan"),
     ("c1ccc2c3c([nH]c2c1)[C@@H]1C[C@@H]2CCCC[C@H]2CN1CC3", "yohimban"),
-    ("C1CCN2C[C@@H]3C[C@@H](CN4CCCC[C@@H]34)[C@H]2C1", "sparteine"),
+    # sparteine: the strict path builds its bridged fused PIN since LO4c (poly_fusion; the Blue Book)
+    ("C1CCN2C[C@@H]3C[C@@H](CN4CCCC[C@@H]34)[C@H]2C1",
+     "(7S,7aR,14S,14aS)-dodecahydro-2H,6H-7,14-methanodipyrido[1,2-a:1',2'-e][1,5]diazocine"),
     ("CC[C@H]1C[C@@H]2C[C@H]3c4[nH]c5ccccc5c4CCN(C2)[C@@H]13", "ibogamine"),
     ("CC[C@@]12CCCN3CC[C@]4(c5ccccc5N[C@@H]4CC1)[C@H]32", "aspidospermidine"),
     ("c1ccc2c(c1)CC[C@@]13CCCC[C@@]21CCN3", "hasubanan"),
@@ -85,13 +87,32 @@ def test_natural_product_parents_keep_winning(smiles, expected):
 # retained non-PIN names of the older hetero producer win, as before: the default tier declines
 # them (NO_VERIFIED_PIN) and best-effort keeps the name. Listed as a divergence, not changed here.
 @pytest.mark.parametrize("smiles,retained", [
-    ("OC1CCC2CCCCN2C1", "quinolizidin-3-ol"),
-    ("O=C1CCC2CCCN12", "pyrrolizidin-3-one"),
     ("OC(=O)CC1CCC2CCCN2C1", "(indolizidin-6-yl)acetic acid"),
 ])
 def test_a_retained_non_pin_name_still_comes_first(smiles, retained):
     assert name_best_effort(smiles)["name"] == retained
     assert default_tier_row(smiles)["tier"] == "abstain"
+
+
+# LO3 (rules/fused_pin_offer.py): where the older producer's retained name is recorded as not a
+# PIN and the builder names the molecule, the builder's name is offered and ships.
+# (the Blue Book): "Retained fusion names are used for the fully unsaturated compounds (see
+#; they are the preferred IUPAC names. Preferred IUPAC names for the partially saturated
+# and fully saturated compounds are formed by using 'hydro' prefixes."; (:17024),
+#:17026: "Total hydrogenation is indicated by the appropriate multiplicative prefixes... but
+# locants are omitted"; 'quinolizidine' / 'pyrrolizidine' have no hit in the book. The
+# indicated-hydrogen spelling of a ketone on the saturated ring follows (:24768)
+# 'tetrahydro-4H-pyran-4-one (PIN)'. OPSIN 2.9.0 reads both names back to the input.
+@pytest.mark.parametrize("smiles,pin", [
+    ("OC1CCC2CCCCN2C1", "octahydro-2H-quinolizin-3-ol"),
+    ("O=C1CCC2CCCN12", "hexahydro-3H-pyrrolizin-3-one"),
+])
+def test_the_builder_name_replaces_a_retained_non_pin_name(smiles, pin):
+    assert_full_rt(pin, smiles)
+    be = name_best_effort(smiles)
+    assert (be["name"], be["tier"]) == (pin, "pin_verified"), be
+    row = default_tier_row(smiles)
+    assert (row["name"], row["tier"]) == (pin, "pin_verified"), row
 
 
 # isotopically labelled inputs with a hetero ring system: the label is stripped before naming and
@@ -109,7 +130,7 @@ def test_isotopic_hetero_inputs_keep_their_name(smiles, expected):
 
 
 @pytest.mark.parametrize("smiles", [
-    "O=C1OC2=C(C=CC=C2)C(=O)c2ccccc12",         # three components: no fusion parent
+    "O=C1OC2=C(C=CC=C2)C(=O)c2ccccc12",         # three components (dibenzo[b,e]oxepine-6,11-dione, named since LO4c)
     "CC1=CC(=O)c2c(C)c3[o+]c4ccccc4cc3cc2O1",   # ring cation
 ])
 def test_declined_classes_never_get_a_wrong_name(smiles):

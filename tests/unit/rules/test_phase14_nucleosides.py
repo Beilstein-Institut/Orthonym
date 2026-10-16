@@ -128,7 +128,9 @@ def test_5_methylcytidine_deterministic():
     ("CC1(C)CC[C@]2(C)CC[C@]3(C)[C@H](CC[C@@H]4[C@@]5(C)CCCC(C)(C)[C@@H]5CC[C@]43C)[C@@H]2C1", "oleanane"),
     ("CC(C)CCC[C@@H](C)[C@H]1CC[C@@]2(C)[C@@H]3CC[C@H]4C(C)(C)CCC[C@]4(C)[C@H]3CC[C@]12C", "lanostane"),
     ("c1ccc2c3c([nH]c2c1)[C@@H]1C[C@@H]2CCCC[C@H]2CN1CC3", "yohimban"),
-    ("C1CCN2C[C@@H]3C[C@@H](CN4CCCC[C@@H]34)[C@H]2C1", "sparteine"),
+    # sparteine: the strict path builds its bridged fused PIN since LO4c (poly_fusion; the Blue Book)
+    ("C1CCN2C[C@@H]3C[C@@H](CN4CCCC[C@@H]34)[C@H]2C1",
+     "(7S,7aR,14S,14aS)-dodecahydro-2H,6H-7,14-methanodipyrido[1,2-a:1',2'-e][1,5]diazocine"),
     ("C1=C2CN3CC[C@]45c6ccccc6N6CC[C@H](OC1)[C@@H]([C@H]64)[C@H]2C[C@H]35", "strychnidine"),
     ("CCCCCCCC[C@H]1CCC[C@@H]1CCCCCCC", "prostane"),
     ("CCCCCCCC[C@H]1OCCC[C@@H]1CCCCCCC", "thromboxane"),

@@ -57,7 +57,22 @@ The order, each step a whole criterion before the next, the first that differs d
    part that is never the PIN spelling but that the PIN tier's promotion re-run still ships.
 
 The caller keeps the form that comes first by canonical SMILES where none of these decides, so one species
-gets one name whichever drawing it came from (the contributor guide core principle 4)."""
+gets one name whichever drawing it came from (the contributor guide core principle 4).
+
+**A form that no producer names is not ranked, and it does not lower the label of the name the species gets**
+(decision LO9, `internal notes`): an unnamed form has the rank (0, 0),
+below every label. ``pin_verified`` says that the shipped name is the PIN of the structure, which the Blue Book's
+criteria decide; whether every drawing of the structure could be named is not one of them. INTRODUCTION
+(the Blue Book),:42411: "in zwitterionic compounds anionic centers are preferred for lower locants and become
+the parent structure, into which the cationic part is substituted"; CHOICE OF A PARENT STRUCTURE (:42330),
+(a) "parent with the maximum number of cationic, including cationic suffixes" (:42334). So the form whose cation sits
+in the parent (a ring 'ium', '2-amino-4,5-dihydro-1,3-thiazol-3-ium-4-carboxylate') stands over the form whose cation
+can only be a prefix ('2-azaniumylidene-1,3-thiazolidine-4-carboxylate', CATIONIC PREFIX NAMES,:42290)
+whether or not that prefix name could be built, and the label stays. An unnamed form of the same ring cation with
+other locants is another matter: it can outrank the survivor on (b), (c), (f), which nobody computed. That
+is closed by naming the form (``rules/azolium_cations.azolium_hydron_site_name`` for an azolium that carries a
+principal group; the rule of this module then ranks it), never by withdrawing the label of a name for which the
+Blue Book gives no proof that it is not the PIN."""
 from __future__ import annotations
 
 import re

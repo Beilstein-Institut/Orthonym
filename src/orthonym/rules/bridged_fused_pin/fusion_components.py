@@ -175,7 +175,9 @@ def ring_cycle(km, ring: FrozenSet[int]) -> Optional[List[int]]:
 
 def ortho_rings(km) -> Optional[List[FrozenSet[int]]]:
     """The rings of an ortho-fused skeleton (every atom in at most two rings, two rings share
-    nothing or one bond), or None (peri-fusion and interior atoms are slice S2c-3)."""
+    nothing or one bond), or None (peri-fusion and interior atoms are slice S2c-3). An atom with
+    four ring bonds may lie in three rings, two of which meet only there
+    (``tetravalent_fusion_atoms``)."""
     km = Chem.Mol(km)
     if not km.GetRingInfo().NumRings():
         Chem.FastFindRings(km)
@@ -184,17 +186,82 @@ def ortho_rings(km) -> Optional[List[FrozenSet[int]]]:
         return None
     if set().union(*rings) != set(range(km.GetNumAtoms())):
         return None
-    for a in range(km.GetNumAtoms()):
-        if sum(1 for r in rings if a in r) > 2:
-            return None
+    tetra = tetravalent_fusion_atoms(km, rings)
+    if tetra is None:
+        return None
     for i, x in enumerate(rings):
         for y in rings[i + 1:]:
             s = x & y
+            if len(s) == 1 and next(iter(s)) in tetra:
+                continue                  # two rings that meet only at a tetravalent fusion atom
             if len(s) not in (0, 2):
                 return None
             if len(s) == 2 and km.GetBondBetweenAtoms(*tuple(s)) is None:
                 return None
     return sorted(rings, key=lambda r: tuple(sorted(r)))
+
+
+def tetravalent_fusion_atoms(km, rings: Sequence[FrozenSet[int]]) -> Optional[FrozenSet[int]]:
+    """The atoms with four ring bonds that lie in three rings, or None when an atom lies in
+    three rings otherwise. (the Blue Book) "Both terminal fusion atom locants
+    for ortho-fusion must be cited even if one is a fusion atom" ('naphtho[1,8a-b]azirine
+    (PIN)',:14011): a ring ortho-fused on a bond whose end is a fusion atom of the parent makes
+    that atom the member of three rings with four ring bonds. Of its three rings one shares a
+    bond with each of the other two, which meet at the atom only."""
+    out = set()
+    for a in range(km.GetNumAtoms()):
+        around = [r for r in rings if a in r]
+        if len(around) <= 2:
+            continue
+        if len(around) != 3 or km.GetAtomWithIdx(a).GetDegree() != 4:
+            return None
+        if sum(1 for r in around if all(len(r & o) == 2 for o in around if o is not r)) != 1:
+            return None
+        out.add(a)
+    return frozenset(out)
+
+
+def periphery_numbering_ok(km, numbering: Dict[int, object]) -> bool:
+    """True when ``numbering`` (skeleton atom -> locant) of a skeleton with a tetravalent fusion
+    atom is a peripheral numbering. (the Blue Book) "numbering of peripheral atoms
+    ... starts from... the nonfused atom most counterclockwise in the ring selected and proceeds in
+    a clockwise direction around the system, including fusion heteroatoms but not fusion carbon
+    atoms. Each fusion carbon atom is given the same number as the immediately preceding nonfusion
+    skeletal atom, modified by a Roman letter". The skeleton's atoms all lie on its periphery (the
+    three rings around the tetravalent atom leave no interior atom), so the locants must run
+    1, 2,... around that one cycle from a nonfusion atom that follows a fusion atom, a fusion
+    carbon taking the letters a, b,... after the number before it. A skeleton without a tetravalent
+    fusion atom is not judged here (``compute_fused_numbering`` and the tables check those); the
+    engine has no numbering of its own for a tetravalent one, so this is the check on OPSIN's."""
+    rings = ortho_rings(km)
+    if rings is None or not tetravalent_fusion_atoms(km, rings):
+        return True
+    per = peripheral_cycle(km, frozenset(range(km.GetNumAtoms())), rings)
+    if per is None or len(per) != km.GetNumAtoms():
+        return False
+    n = len(per)
+    shared = {a for a in per if sum(1 for r in rings if a in r) >= 2}
+    fusion = {a for a in shared if km.GetAtomWithIdx(a).GetAtomicNum() == 6}
+    first = [a for a in per if str(numbering.get(a)) == "1"]
+    if len(first) != 1:
+        return False
+    i = per.index(first[0])
+    for walk in ([per[(i + k) % n] for k in range(n)], [per[(i - k) % n] for k in range(n)]):
+        if walk[0] in shared or walk[-1] not in shared:
+            continue                      # 1 is a nonfusion atom, right after a fusion atom
+        count = letter = 0
+        for a in walk:
+            if a in fusion:
+                letter += 1
+                want = f"{count}{chr(96 + letter)}"
+            else:
+                count, letter = count + 1, 0
+                want = str(count)
+            if str(numbering.get(a)) != want:
+                break
+        else:
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------------------

@@ -795,7 +795,9 @@ def analyze_spiro_universal(
     ``cage_atoms`` selects the spiro ring system inside ``mol`` (defaults to all
     ring atoms). ``free_valence_atoms`` (original indices) biases the monospiro
     numbering to give the free valence the lowest locant, substituent
-    use). ``allow_mancude`` lifts the aromatic-spiro refusal, emitting the
+    use). ``prefix_atoms`` (original indices, one per prefix) adds (f) and then (g)
+    to the numbering, (g) asked of ``mol``, the molecule that carries the prefixes.
+    ``allow_mancude`` lifts the aromatic-spiro refusal, emitting the
     kekulized ene-locant form; when False an aromatic spiro fails closed
     (deferring to the retained-ring-name PIN path). Every result is put through
     ``audit_spiro_descriptor`` (fail-closed on any structural mismatch).
@@ -865,13 +867,23 @@ def analyze_spiro_universal(
         # one entry per prefix (original indices), mapped onto the cage submol
         prefix_sub = [mol_to_sub[a] for a in prefix_atoms if a in mol_to_sub]
 
+    # (f), then (g) "lowest locants for the substituent cited first as a prefix in the name"
+    # (the Blue Book,:3307): the prefixes are those of ``mol``, so a tie the earlier tiers
+    # leave goes to (g) of the whole molecule (``spiro._select_spiro_numbering``)
+    whole = (mol, sub_to_mol) if prefix_sub else None
     if len(spiro_sub) == 1:
         center = next(iter(spiro_sub))
         numbering = get_spiro_numbering(
-            sub, center, suffix_ring_atoms=fv_sub, prefix_ring_atoms=prefix_sub)
+            sub, center, suffix_ring_atoms=fv_sub, prefix_ring_atoms=prefix_sub,
+            whole_molecule=whole)
     else:
+        # the polyspiro key does not rank ring multiple bonds (e)), so the prefix tiers
+        # follow it for a saturated cage only, where no earlier tier is left unranked
+        saturated = all(b.GetBondType() == Chem.BondType.SINGLE for b in sub.GetBonds())
         numbering = _get_polyspiro_numbering(
-            sub, spiro_sub, suffix_ring_atoms=fv_sub)
+            sub, spiro_sub, suffix_ring_atoms=fv_sub,
+            prefix_ring_atoms=prefix_sub if saturated else None,
+            whole_molecule=whole if saturated else None)
     # numbering must cover exactly the (ring-only) submol atoms
     if not numbering or set(numbering.keys()) != set(range(sub.GetNumAtoms())):
         return None

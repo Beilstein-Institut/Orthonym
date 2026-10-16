@@ -75,6 +75,54 @@ def _bare_parent(mol, ring_system, centre):
     return parent, ring
 
 
+def _azolium_candidate(mol, ring_system, centre, substituted):
+    """``(sort key, name)`` of the azolium ``mol`` named on the parent hydride whose added hydron is at
+    ``centre`` (``_bare_parent``, the ring with every substituent replaced by hydrogen), the prefixes
+    cited in the numbering of that parent; None when the parent has no name, its numbering and the
+    indicated hydrogen of its stem name two nitrogens, or a substituent cannot be named. ``substituted``
+    are the ring nitrogens that carry a substituent. The key is the choice the rules leave between the
+    nitrogens that can be the centre: the locant of the 'ium', the set of the prefix locants (f)),
+    the locants of each prefix in alphabetical order ((g))."""
+    from ..assembly.naming_utils import alpha_sort_key, prefix_citation_sort_key
+    built = _bare_parent(mol, ring_system, centre)
+    if built is None:
+        return None
+    parent, ring_sorted = built
+    try:
+        from ..namer import Orthonym
+        stem = Orthonym(style='pin', _disable_opsin_validity_gate=True
+                        ).name(Chem.MolToSmiles(parent))
+    except (RecursionError, ValueError, RuntimeError):
+        return None
+    if not stem or is_failure_name(stem):
+        return None
+    parent_locants = _ring_iupac_locants(parent)
+    if not parent_locants or len(parent_locants) != len(ring_sorted):
+        return None
+    locants = {ring_sorted[k]: v for k, v in parent_locants.items() if k < len(ring_sorted)}
+    if len(locants) != len(ring_sorted) or centre not in locants:
+        return None
+    # The indicated hydrogen the stem cites is the nitrogen it numbers: a stem that names
+    # another position than the numbering used for the prefixes would join two numberings.
+    m = re.match(r'^(\d+)H-', stem)
+    nh = [i for i in ring_sorted if i != centre and i in substituted]
+    if m and (len(nh) != 1 or str(locants[nh[0]]) != m.group(1)):
+        return None
+    groups = _p74_ring_substituent_groups(mol, ring_system, locants, set())
+    prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, set())
+    if groups is None or prefix is None:
+        return None
+    name = (f"{_join_prefix_stem(prefix, _elide_terminal_e(stem))}"
+            f"-{locants[centre]}-ium")
+    lk = _ring_locant_order_key
+    every = sorted((lk(x) for locs in groups.values() for x in locs))
+    # tokens of one alphanumerical key ('(1R)-1-chloroethyl', '(1S)-...') in the citation order (R first), so the
+    # numbering that gives the prefix cited first the lower locant is the one chosen: (g) then (j)
+    by_token = tuple(tuple(sorted(lk(x) for x in groups[t]))
+                     for t in sorted(groups, key=lambda t: (alpha_sort_key(t), prefix_citation_sort_key(t))))
+    return (lk(locants[centre]), every, by_token, name), name
+
+
 def azolium_demote_name(mol, ring_system, center_idx):
     """ (heading the Blue Book): "A cation derived formally by adding one or more
     hydrons to any position of a neutral parent hydride... is named by replacing the final
@@ -113,51 +161,47 @@ def azolium_demote_name(mol, ring_system, center_idx):
         return ''
     if any(a.GetFormalCharge() for a in mol.GetAtoms() if a.GetIdx() != center_idx):
         return ''
-    from ..assembly.naming_utils import alpha_sort_key
     from .charged_router import _cation_name_rt_ok
     candidates = []
     for centre in azolium_hydron_centres(mol, ring_system, center_idx):
-        built = _bare_parent(mol, ring_system, centre)
-        if built is None:
-            continue
-        parent, ring_sorted = built
-        try:
-            from ..namer import Orthonym
-            stem = Orthonym(style='pin', _disable_opsin_validity_gate=True
-                            ).name(Chem.MolToSmiles(parent))
-        except (RecursionError, ValueError, RuntimeError):
-            continue
-        if not stem or is_failure_name(stem):
-            continue
-        parent_locants = _ring_iupac_locants(parent)
-        if not parent_locants or len(parent_locants) != len(ring_sorted):
-            continue
-        locants = {ring_sorted[k]: v for k, v in parent_locants.items() if k < len(ring_sorted)}
-        if len(locants) != len(ring_sorted) or centre not in locants:
-            continue
-        # The indicated hydrogen the stem cites is the nitrogen it numbers: a stem that names
-        # another position than the numbering used for the prefixes would join two numberings.
-        m = re.match(r'^(\d+)H-', stem)
-        nh = [i for i in ring_sorted if i != centre and i in others + [center_idx]]
-        if m and (len(nh) != 1 or str(locants[nh[0]]) != m.group(1)):
-            continue
-        groups = _p74_ring_substituent_groups(mol, ring_system, locants, set())
-        if groups is None:
-            continue
-        prefix = _p74_ring_substituent_prefix(mol, ring_system, locants, set())
-        if prefix is None:
-            continue
-        name = (f"{_join_prefix_stem(prefix, _elide_terminal_e(stem))}"
-                f"-{locants[centre]}-ium")
-        lk = _ring_locant_order_key
-        every = sorted((lk(x) for locs in groups.values() for x in locs))
-        by_token = tuple(tuple(sorted(lk(x) for x in groups[t]))
-                         for t in sorted(groups, key=alpha_sort_key))
-        candidates.append(((lk(locants[centre]), every, by_token, name), name))
+        built = _azolium_candidate(mol, ring_system, centre, others + [center_idx])
+        if built is not None:
+            candidates.append(built)
     for _key, name in sorted(candidates):
         if _cation_name_rt_ok(name, mol):
             return name
     return ''
+
+
+def azolium_hydron_site_name(mol, ring_system, cation_idx):
+    """The azolium whose added hydron sits on ``cation_idx`` (``[nH+]``) and whose other ring nitrogen
+    carries the substituent (``Nc1c[nH+]cn1C``): (heading the Blue Book),:41368, "A cation
+    derived formally by adding one or more hydrons to any position of a neutral parent hydride", PIN
+    '1H-imidazol-3-ium' (:41396), the substituents replacing hydrogens, so the substituted nitrogen is the
+    indicated-hydrogen position of the parent hydride. (:42219): "This is consistent with the
+    choice of lowest locants for corresponding neutral compounds (see "; with (b) the indicated
+    hydrogen (:3246) and (c) the 'ium' (:3256) at 1 and 3 in both numberings, (f) (:3301) "detachable
+    alphabetized prefixes, all considered together in a series of increasing numerical order" gives
+    '5-amino-1-methyl-1H-imidazol-3-ium' ({1,5}), not '4-amino-3-methyl-' ({3,4}). The producers of ``ions``
+    decline a ring that carries a principal group (amino, carboxy, hydroxy, cyano...) as a suffix, so
+    this drawing had no name and the form choice shipped the other drawing's, with the 'ium' on the
+    substituted nitrogen (decision LO9). Read back by OPSIN with the hydron on the same atom
+    (``_cation_name_rt_ok``); '' (decline) for another ring, a second ring NH or substituted nitrogen, or any
+    other charge."""
+    cation = mol.GetAtomWithIdx(cation_idx)
+    if (cation.GetAtomicNum() != 7 or not cation.GetIsAromatic() or cation.GetFormalCharge() != 1
+            or cation.GetTotalNumHs() != 1 or cation.GetDegree() != 2):
+        return ''
+    others = [mol.GetAtomWithIdx(i) for i in ring_system if i != cation_idx
+              and mol.GetAtomWithIdx(i).GetAtomicNum() not in (1, 6)]
+    substituted = [a.GetIdx() for a in others if a.GetAtomicNum() == 7 and a.GetIsAromatic()
+                   and a.GetDegree() == 3 and not a.GetTotalNumHs()]
+    if (len(substituted) != 1 or any(a.GetTotalNumHs() for a in others)
+            or any(a.GetFormalCharge() for a in mol.GetAtoms() if a.GetIdx() != cation_idx)):
+        return ''
+    built = _azolium_candidate(mol, ring_system, cation_idx, substituted)
+    from .charged_router import _cation_name_rt_ok
+    return built[1] if built is not None and _cation_name_rt_ok(built[1], mol) else ''
 
 
 def azolium_zwitterion_name(mol, ring_system, cation_idx, anchor):

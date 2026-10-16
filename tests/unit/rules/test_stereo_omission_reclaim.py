@@ -41,9 +41,12 @@ RECLAIM_CASES = [
     # ions._lowest_cation_locant_renumbering). The substituent is spelled
     # without locants: '(C6H5)2C2* diphenylmethylidene (PIN)',
     # the Blue Book). OPSIN 2.9.0: full InChIKey and canonical SMILES
-    # exact. 'quinolizidine' is not a PIN; this is the best-effort tier.
+    # exact. LO3: the ring is 'octahydro-2H-quinolizine' (the PIN builder's name, offered in place
+    # of the catalogue name 'quinolizidine', which has no Blue Book standing:
+    # the Blue Book "Preferred IUPAC names for the partially saturated and fully saturated
+    # compounds are formed by using 'hydro' prefixes"; was '...-5-methylquinolizidin-5-ium bromide').
     ("C[N@+]12CCCC[C@@H]1CCC(=C(C3=CC=CC=C3)C4=CC=CC=C4)C2.[Br-]",
-     "(5R,9aR)-3-(diphenylmethylidene)-5-methylquinolizidin-5-ium bromide"),
+     "(5R,9aR)-3-(diphenylmethylidene)-5-methyloctahydro-2H-quinolizin-5-ium bromide"),
     ("[B-](/C/1=C/C=C\\C/C=C\\C1)(C2=CC=CC=C2)(C3=CC=CC=C3)C4=CC=CC=C4",
      "(1Z,3Z,6Z)-(cycloocta-1,3,6-trien-1-yl)triphenylboranuide"),
     # D3: the plain C1 methyl is spelled 'methyl' (not 'methan-1-yl');

@@ -25,7 +25,7 @@ from rdkit import Chem
 from orthonym import Orthonym
 from orthonym.cli import _emit_tier_flags
 from orthonym.errors import is_failure_name
-from tests.support.producer_pairs import STEREO_COMPOSED
+from tests.support.producer_pairs import RELATIVE_STEREO, STEREO_COMPOSED
 
 # The suite switches the OPSIN validity gate off unless a test asks for it; the producers of the
 # shipped configuration are the ones with the gate on.
@@ -225,6 +225,19 @@ class _Oracle:
         for nm, pos in _MODULE_STEPS:
             wrap(namer, nm, step_of(nm, pos, False))
 
+        # the cis/trans conversion of a ring pair's name: it turns one name into a
+        # list of names, each of them a step from the name it was given
+        import orthonym.rules.relative_stereo as relative_stereo
+
+        def convert(orig):
+            def w(name, *a, **k):
+                out = orig(name, *a, **k)
+                for candidate in out:
+                    oracle.step("convert_pair_blocks", name, candidate)
+                return out
+            return w
+        wrap(relative_stereo, "convert_pair_blocks", convert)
+
     def restore(self):
         for entry, handler in self._undo:
             object.__setattr__(entry, "handler", handler)
@@ -308,6 +321,19 @@ def test_producer_of_a_name_with_composed_stereo(oracle, record_property, smiles
     composed = [e for e in oracle.rows[id(row)][1] if e[0] == "step" and e[1] == "_try_compose_input_stereo"
                 and e[3] == row["name"]]
     assert composed, "the shipped name is not the result of a composition: the row does not test the step"
+
+
+# The rows whose name is the cis/trans name of a ring pair: the oracle sees the conversion
+# as a step (``convert_pair_blocks``), and the shipped label is the one of the name with lowercase r/s
+# that the conversion started from.
+@pytest.mark.parametrize("smiles,tier,expected", RELATIVE_STEREO,
+                         ids=[f"{expected}-{i}" for i, (_s, _t, expected) in enumerate(RELATIVE_STEREO)])
+def test_producer_of_a_relative_stereo_name(oracle, record_property, smiles, tier, expected):
+    row = _check(oracle, record_property, smiles, tier)
+    assert row["producer"] == expected, row
+    made = [e for e in oracle.rows[id(row)][1] if e[0] == "step" and e[1] == "convert_pair_blocks"
+            and e[3] == row["name"]]
+    assert made, "the shipped name is not the result of the conversion: the row does not test the step"
 
 
 def test_the_fixture_is_what_the_plan_says():

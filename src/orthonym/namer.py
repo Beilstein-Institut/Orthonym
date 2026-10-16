@@ -5632,7 +5632,11 @@ class Orthonym:
                 tier built a name that is not a verified PIN (a wider tier returns
                 it).
             ``stereo_unexpressed``
-                True when a stereocentre of the input is not stated in the name.
+                True when the input configures a stereo element (a stereocentre or a
+                double bond) that the name does not state: OPSIN's read-back of the name
+                configures fewer elements than the input does. A name of any producer;
+                it changes no name, tier or label. A name OPSIN cannot read has no
+                read-back and is not flagged.
             ``suffix_free_prefix_name``
                 True when the name states the principal characteristic group as a
                 prefix with no suffix.
@@ -5760,6 +5764,7 @@ class Orthonym:
     def _name_tiered_impl(self, smiles: str) -> dict:
         from .metrics.producer_trail import close_trail, lookup, open_trail
         from .metrics.provenance import clear_provenance, get_provenance
+        from .validation.stereo_stated import name_states_fewer_stereo
         clear_provenance()
         self._default_tier_row = None
         token = open_trail(smiles)
@@ -5772,6 +5777,10 @@ class Orthonym:
             row = (dict(stash[1]) if stash is not None and stash[0] == name
                    else self._tier_row_and_pin_form(smiles, name, get_provenance())[0])
             row["producer"] = None if row.get("tier") == "abstain" else lookup(row.get("name"))
+            # LO10: a name of any producer that leaves out stereo the input configures (the row's own flag
+            # covers the general engine alone); the name, tier and label are the row's, unchanged.
+            if row.get("tier") != "abstain" and name_states_fewer_stereo(smiles, row.get("name")):
+                row["stereo_unexpressed"] = True
             return row
         finally:
             close_trail(token)

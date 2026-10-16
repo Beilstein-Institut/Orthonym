@@ -17,6 +17,7 @@ stereodescriptor itself on its own numbering, because the numbering choice depen
  (b)-(g), the Blue Book-:3307) and the composer's complex-ring enrichment adds
 prefixes only.
 """
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 
@@ -55,6 +56,11 @@ class BridgedParent:
             return self.hydro + ("-" if stem[:1].isdigit() or stem[:1] == "[" else "") + stem
         return "-".join(head + [stem])
 
+
+#: the most identical suffixes one name cites: the multiplying prefixes of (Table 1.4),
+#: as in 'benzenehexol (PIN, ' (the Blue Book); a bridged fused polyol cites five
+#: and more ('-pentol'), the tetrodotoxin skeleton among them
+MAX_SUFFIX_COUNT = 12
 
 # The suffixes the package spells -ol, -carboxylic acid,
 # -amine,...), keyed by the principal-group names of rules/seniority.py.
@@ -96,12 +102,14 @@ _SUFFIX_STEM = {**_PARTIAL_SAT_PCG_SUFFIX, "one": ("one", True), "yl": ("yl", Tr
 #: seniority order difference between ketones and pseudoketones"; (:32112) "A
 #: lactone, as a pseudoketone, ranks lower in the seniority of classes than an acid or an
 #: ester, but higher than an alcohol, amine, or imine."
-_PSEUDOKETONE_CLASSES = ("anhydride", "ester", "secondary_amide", "tertiary_amide", "imide")
+_PSEUDOKETONE_CLASSES = ("anhydride", "ester", "secondary_amide", "tertiary_amide", "imide", "hydrazide")
 
 
 def _cyclic_in(mol, system: Set[int], match) -> bool:
     """True when every carbonyl carbon of the group and every heteroatom bonded to one of
-    them in the match lies in the ring system (the -CO-X- unit is part of the ring)."""
+    them in the match lies in the ring system (the -CO-X- unit is part of the ring), and every
+    nitrogen of the match does (the N-N of a ring hydrazide: (a), the Blue Book,
+    "cyclic compounds in which a carbonyl group in a ring is bonded to one or two skeletal heteroatoms")."""
     atoms = set(match)
     carbonyl = {a for a in atoms if mol.GetAtomWithIdx(a).GetAtomicNum() == 6 and any(
         b.GetBondType() == Chem.BondType.DOUBLE and b.GetOtherAtom(mol.GetAtomWithIdx(a)).GetAtomicNum() == 8
@@ -111,7 +119,8 @@ def _cyclic_in(mol, system: Set[int], match) -> bool:
     hetero = {nb.GetIdx() for c in carbonyl for nb in mol.GetAtomWithIdx(c).GetNeighbors()
               if nb.GetIdx() in atoms and nb.GetAtomicNum() != 6
               and mol.GetBondBetweenAtoms(c, nb.GetIdx()).GetBondType() == Chem.BondType.SINGLE}
-    return bool(hetero) and (carbonyl | hetero) <= set(system)
+    return bool(hetero) and (carbonyl | hetero) <= set(system) and all(
+        mol.GetAtomWithIdx(a).GetAtomicNum() != 7 or a in system for a in atoms)
 
 
 def _pseudoketone_principal(mol, system: Set[int], groups) -> Optional[str]:
@@ -142,9 +151,11 @@ def _pseudoketone_principal(mol, system: Set[int], groups) -> Optional[str]:
 #: is the engine's choice, not this builder's.
 _UNRANKED_PARENT_CLASSES = ("urea", "thiourea", "guanidine", "carbamate", "carbamimidate", "cyanamide")
 
-#: the prefix the substituent namer spells for a guanidine group on the ring system, which the Blue
-#: Book does not print:34266 gives 'carbamimidoylamino'); a name that carries it is
-#: valid but never a PIN, so it is recorded as a non-PIN fragment (name-scoped, demote not delete)
+#: the prefix the fragment namer spells for a guanidine group on the ring system, which the Blue
+#: Book does not print:34266 gives 'carbamimidoylamino', the spelling the enumerator's
+#: namer gives an acyclic N-attached group, ``polycyclics.exocyclic_substituent_name``); a name that
+#: carries it is valid but never a PIN, so it is recorded as a non-PIN fragment (name-scoped, demote
+#: not delete)
 _GUANIDINE_PREFIX_SPELLED = "guanidinyl"
 
 
@@ -155,6 +166,20 @@ def _unranked_groups_outside(mol, groups, system: Set[int]) -> Set[str]:
     (``_pseudoketone_principal``), not a parent of its own."""
     return {cls for cls in _UNRANKED_PARENT_CLASSES for match in groups.get(cls) or ()
             if any(mol.GetAtomWithIdx(a).GetDegree() > 1 for a in match if a not in system)}
+
+
+#: suffixes that may stand twice on one ring atom: a geminal diol ('...-10,10-diol') names a ring atom
+#: with two hydroxy groups, the hydrate of a ketone. "Citation of locants" (the Blue Book)
+#: "if any locants are essential... then all locants must be cited": the locant is cited once per
+#: group, as the book's 'cyclohexane-1,1-dicarboximidamide (PIN)' (:34236) shows for a suffix repeated
+#: on one ring atom. The atom then needs two hydrogen atoms in the parent, as a ketone does (``_lacking``).
+_GEMINAL_KINDS = ("ol",)
+
+
+def _each(atoms):
+    """The suffix atoms once per group (``principal_suffix`` returns a Counter of the ring
+    atoms: a geminal diol atom counts twice); a plain set of atoms once each."""
+    return atoms.elements() if isinstance(atoms, Counter) else atoms
 
 
 def principal_suffix(mol, system: Set[int]):
@@ -205,15 +230,15 @@ def principal_suffix(mol, system: Set[int]):
     if kind is None:
         return None
     patt = Chem.MolFromSmarts(_SUFFIX_SMARTS[kind])
-    on_ring: Set[int] = set()
+    on_ring: Counter = Counter()
     exo: Set[int] = set()
     off_ring_hosts: List[int] = []
     for match in mol.GetSubstructMatches(patt):
         host, rest = match[0], match[1:]
         if host in system and not any(r in system for r in rest):
-            if host in on_ring:
+            if host in on_ring and kind not in _GEMINAL_KINDS:
                 return None            # two such groups on one ring atom
-            on_ring.add(host)
+            on_ring[host] += 1
             exo.update(rest)
         else:
             off_ring_hosts.append(host)
@@ -240,14 +265,15 @@ def principal_suffix(mol, system: Set[int]):
     for h in off_ring_hosts:
         if h in frag_of:
             counts[frag_of[h]] = counts.get(frag_of[h], 0) + 1
-    if counts and max(counts.values()) > len(on_ring):
+    if counts and max(counts.values()) > sum(on_ring.values()):
         return None
     return ("suffix", kind, on_ring, exo)
 
 
 def _stereo_outside(mol, atom_to_locant: Dict[int, Any]) -> bool:
-    """True when a stereocentre or a stereogenic double bond lies outside the ring
-    system: the package cites stereodescriptors on the ring-system locants only."""
+    """True when a stereocentre or a stereogenic double bond lies outside the ring system. The
+    package cites descriptors on the ring-system locants only; those of a substituent are cited
+    by the substituent namer at the front of its prefix (``_outside_stereo_spelled``)."""
     from rdkit.Chem import FindMolChiralCenters
     for idx, _ in FindMolChiralCenters(mol, includeUnassigned=False, useLegacyImplementation=False):
         if idx not in atom_to_locant:
@@ -257,6 +283,18 @@ def _stereo_outside(mol, atom_to_locant: Dict[int, Any]) -> bool:
                 b.GetBeginAtomIdx() in atom_to_locant and b.GetEndAtomIdx() in atom_to_locant):
             return True
     return False
+
+
+def _outside_stereo_spelled(mol, name: str) -> bool:
+    """True when OPSIN reads ``name`` back to ``mol`` with every stereogenic unit outside the ring
+    system: NAMING OF STEREOISOMERS (the Blue Book), "When they relate to substituent
+    groups, they are cited at the front of the corresponding prefix" (:44643,
+    '[(1R)-1-chloropropyl]benzene (PIN)'). The prefix speller cites a substituent's descriptors
+    when it can; a prefix that leaves one out reads back to another stereoisomer, so the name is
+    declined here and the molecule keeps the older producers' name (``fused_pin_offer._reads_back``
+    gives False without a JVM, so a name is never shipped unproved)."""
+    from ..fused_pin_offer import _reads_back
+    return _reads_back(mol, name)
 
 
 def _stereo_from_rules_4_and_5(mol, atom_to_locant: Dict[int, Any]) -> bool:
@@ -285,7 +323,7 @@ def _prefix_groups(mol, atom_to_locant, exclude: Set[int]) -> List[Tuple[str, Li
     them -- the same naming call ``_partial_sat_substituent_prefix`` makes, used here
     only to rank numberings by (g) (:3307)."""
     from ...assembly.naming_utils import alpha_sort_key
-    from ...assembly.substituent_naming import name_substituent_fragment
+    from ..polycyclics import exocyclic_substituent_name
     ring_set = set(atom_to_locant)
     halo = {"F": "fluoro", "Cl": "chloro", "Br": "bromo", "I": "iodo"}
     groups: Dict[str, List[int]] = {}
@@ -305,7 +343,7 @@ def _prefix_groups(mol, atom_to_locant, exclude: Set[int]) -> List[Tuple[str, Li
                 seen.add(c)
                 frag.append(c)
                 stack.extend(nb.GetIdx() for nb in mol.GetAtomWithIdx(c).GetNeighbors())
-            name = name_substituent_fragment(mol, frag, j, list(ring_set)) or "?"
+            name = exocyclic_substituent_name(mol, frag, j, list(ring_set)) or "?"
             groups.setdefault(name, []).append(idx)
     return sorted(groups.items(), key=lambda kv: alpha_sort_key(kv[0]))
 
@@ -324,8 +362,8 @@ def _assemble(mol, system: Set[int], parent: BridgedParent, suffix, added=frozen
     status, kind, ring_atoms, exo = suffix
     suffix_text, elide = "", False
     if status == "suffix":
-        locs = sorted((a2l[a] for a in ring_atoms), key=numbering.loc_key)
-        mult = multiplier_table(4, one="").get(len(locs))
+        locs = sorted((a2l[a] for a in _each(ring_atoms)), key=numbering.loc_key)
+        mult = multiplier_table(MAX_SUFFIX_COUNT, one="").get(len(locs))
         if mult is None:
             return None
         stem, elides = _SUFFIX_STEM[kind]
@@ -369,8 +407,11 @@ def _lacking(state, kind, atoms) -> FrozenSet[int]:
     (preferred prefix)';:7467 '1-(3,4-dihydroquinolin-1(2H)-yl)ethan-1-one')."""
     if kind is None:
         return frozenset()
-    n_h = 2 if kind == "one" else 1
-    return frozenset(a for a in atoms if hydro.lacks_hydrogen(state, a, n_h))
+
+    def needed(a):
+        # a ketone needs two; any other suffix one per group, two for a geminal diol (``_GEMINAL_KINDS``)
+        return 2 if kind == "one" else atoms[a] if isinstance(atoms, Counter) else 1
+    return frozenset(a for a in atoms if hydro.lacks_hydrogen(state, a, needed(a)))
 
 
 def _options(mol, system: Set[int]):
@@ -432,6 +473,38 @@ def _reading_exists(mol) -> bool:
     """``has_bridged_fused_reading`` without the error guard."""
     system = selection.ring_system(mol)
     return bool(system) and bool(selection.best_splits(mol, system))
+
+
+def has_unchecked_parent_numbering(mol) -> bool:
+    """True when a bridged fused reading of ``mol`` names a fused parent that OPSIN numbers
+    (``parents`` source ending '+opsin', not a table) and whose skeleton has a tetravalent fusion
+    atom (``fusion_components.tetravalent_fusion_atoms``, the 'naphtho[1,8a-b]azirine' topology of
+    , the Blue Book). Nothing checks such a numbering: the engine's
+    ``compute_fused_numbering`` has no such atom in its grid, so ``parents._parent_for_key`` has no
+    second source to agree with OPSIN's, and ``fusion_components.periphery_numbering_ok`` only checks
+    that the locants run round the periphery,:12501). A parent of the tables (the
+    morphinan '[1]benzofuro[3,2-e]isoquinoline', source 'derived_table') carries its own numbering.
+    Under the builder's error guard, as ``has_bridged_fused_reading``: an internal error answers False."""
+    if mol is None:
+        return False
+    from ..bridged_fused import builder_declining_on_error
+    return bool(builder_declining_on_error(_numbering_unchecked, mol))
+
+
+def _numbering_unchecked(mol) -> bool:
+    """``has_unchecked_parent_numbering`` without the error guard."""
+    from . import fusion_components, parents
+    system = selection.ring_system(mol)
+    for split in (selection.best_splits(mol, system) if system else None) or ():
+        residual = set(split.residual)
+        skeleton = Chem.MolFromSmiles(Chem.MolToSmiles(parents._skeleton(mol, residual)[0]))
+        rings = fusion_components.ortho_rings(skeleton)
+        if rings is None or not fusion_components.tetravalent_fusion_atoms(skeleton, rings):
+            continue
+        parent = parents.fused_parent(mol, residual)
+        if parent is not None and parent.source.endswith("+opsin"):
+            return True
+    return False
 
 
 def build(mol) -> Optional[Tuple[str, Set[int], Dict[int, Any], bool]]:
@@ -535,7 +608,7 @@ def _name_options(mol, system: Set[int], options):
             ih, added, hydro_atoms = got
             key = (nb.attachment_set, nb.citation_order,                      # (a), (b)
                    numbering.locant_tuple(a2l[a] for a in ih),                 # (b)
-                   numbering.locant_tuple(a2l[a] for a in pcg_atoms),          # (c)
+                   numbering.locant_tuple(a2l[a] for a in _each(pcg_atoms)),   # (c)
                    numbering.locant_tuple(a2l[a] for a in added),              # (d)
                    numbering.locant_tuple(a2l[a] for a in hydro_atoms),        # (e)
                    numbering.locant_tuple(a2l[a] for a in sub_atoms))          # (f)
@@ -548,6 +621,8 @@ def _name_options(mol, system: Set[int], options):
     name, parent, bps = picked
     if any(_tautomer_sensitive(mol, set(s[5]) | set(s[7]), s[6]) for s in scored) \
             and not _same_tautomer(mol, name):
+        return None
+    if _stereo_outside(mol, parent.atom_to_locant) and not _outside_stereo_spelled(mol, name):
         return None
     for bp in bps:
         if not bp.is_pin_form:
@@ -589,7 +664,7 @@ def _choose(mol, system, scored, suffix, exo, kind, pcg_atoms):
     results = {}
     for key, sp, bps, state, nb, ih, hydro_atoms, added, need in tied:
         a2l = nb.atom_to_locant
-        if _stereo_outside(mol, a2l) or _stereo_from_rules_4_and_5(mol, a2l):
+        if _stereo_from_rules_4_and_5(mol, a2l):
             return None
         htext = hydro.hydro_text(state, hydro_atoms, a2l, ih, need)
         btext = prefixes.bridge_text(nb.bridge_locants)

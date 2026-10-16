@@ -867,7 +867,7 @@ def _dispiro_numbering_candidates(
 def _get_polyspiro_numbering(
     mol, spiro_atoms: Set[int], suffix_ring_atoms: Optional[Set[int]] = None,
     prefix_ring_atoms: Optional[List[int]] = None,
-    rank_full_molecule: bool = False,
+    rank_full_molecule: bool = False, whole_molecule=None,
 ) -> Optional[Dict[int, int]]:
     """Generate IUPAC numbering for a polyspiro system.
 
@@ -877,7 +877,7 @@ def _get_polyspiro_numbering(
     polyspiro substituent's attachment point gets the lowest locant available
     once the heteroatom placement (if any) is settled.
 
-    ``prefix_ring_atoms`` and ``rank_full_molecule``: as in
+    ``prefix_ring_atoms``, ``rank_full_molecule`` and ``whole_molecule``: as in
     ``get_spiro_numbering`` (f), then (g) and (j) for a numbering of
     the whole molecule)."""
     ri = mol.GetRingInfo()
@@ -938,7 +938,7 @@ def _get_polyspiro_numbering(
     ring_set = set().union(*(set(r) for r in ring_chain))
     return _select_spiro_numbering(
         mol, candidates, _key, _canon_key, ring_set, prefix_list, suffix_set,
-        rank_full_molecule)
+        rank_full_molecule, whole_molecule)
 
 
 def _spiro_exocyclic_prefix_atoms(mol, ring_atoms: Set[int]) -> List[int]:
@@ -986,7 +986,7 @@ def _spiro_cip_locant_key(mol, mapping: Dict[int, int]) -> tuple:
 
 def _select_spiro_numbering(
     mol, candidates, key, canon_key, ring_set: Set[int], prefix_atoms,
-    suffix_set: Set[int], rank_full_molecule: bool,
+    suffix_set: Set[int], rank_full_molecule: bool, whole_molecule=None,
 ) -> Dict[int, int]:
     """The numbering with the lowest ``key``; a tie goes to (g), then (j),
     when the numbering is one of the whole molecule, then to the canonical ranks.
@@ -1005,25 +1005,37 @@ def _select_spiro_numbering(
     first and this key does not model it. Only for ``rank_full_molecule``: the
     callers that number a ring-only submolecule would read prefix names and CIP
     labels of a different molecule. Without it the result equals the old
-    ``min(candidates, key=(key, canon_key))``."""
+    ``min(candidates, key=(key, canon_key))``.
+
+    ``whole_molecule`` = ``(molecule, submolecule atom -> atom of it)``: the general engine numbers
+    the ring-only submolecule of its spiro parent and asks (g) of the molecule that carries the
+    prefixes. (j) is not asked there: the submolecule has no CIP labels."""
     best = min(key(m) for m in candidates)
     tied = [m for m in candidates if key(m) == best]
-    if len(tied) > 1 and rank_full_molecule:
+    if len(tied) > 1 and (rank_full_molecule or whole_molecule is not None):
+        full, to_full = whole_molecule or (mol, None)
+
+        def _at(a: int) -> int:
+            return a if to_full is None else to_full[a]
+
         try:
             from .heterocycles import _ring_prefix_names
             names = _ring_prefix_names(
-                mol, set(ring_set), set(prefix_atoms), set(suffix_set))
+                full, {_at(a) for a in ring_set}, {_at(a) for a in prefix_atoms},
+                {_at(a) for a in suffix_set})
         except Exception:
             names = None
         if names is not None:
             isotopic = any(a.GetIsotope() for a in mol.GetAtoms())
 
             def _g_j(mapping: Dict[int, int]):
+                at = {_at(a): loc for a, loc in mapping.items()}
                 g_key = tuple(sorted(
-                    (name, mapping[idx])
-                    for idx, lst in names.items() if idx in mapping
+                    (name, at[idx])
+                    for idx, lst in names.items() if idx in at
                     for name in lst))
-                j_key = () if isotopic else _spiro_cip_locant_key(mol, mapping)
+                j_key = (() if isotopic or whole_molecule is not None
+                         else _spiro_cip_locant_key(mol, mapping))
                 return (g_key, j_key)
 
             return min(tied, key=lambda m: (_g_j(m), canon_key(m)))
@@ -1072,7 +1084,7 @@ def _spiro_ring_traversals(
 def get_spiro_numbering(
     mol, spiro_center: int, suffix_ring_atoms: Optional[Set[int]] = None,
     prefix_ring_atoms: Optional[List[int]] = None,
-    rank_full_molecule: bool = False,
+    rank_full_molecule: bool = False, whole_molecule=None,
 ) -> Dict[int, int]:
     """
     Generate IUPAC numbering for a monospiro system.
@@ -1094,6 +1106,9 @@ def get_spiro_numbering(
     and yields the correct lowest-locant PIN. Without the suffix tier, a
     symmetric carbocyclic spiro substituent flipped between equivalent locants
     (spiro[5.5]undecan-3-yl vs -9-yl) by SMILES order.
+
+    ``prefix_ring_atoms`` (f)), ``rank_full_molecule`` and ``whole_molecule`` (then (g),
+    and (j) for a numbering of the whole molecule): see ``_select_spiro_numbering``.
 
     Returns a dict mapping atom index to IUPAC locant (1-indexed), or {} when
     the spiro centre is not in exactly two rings.
@@ -1201,7 +1216,7 @@ def get_spiro_numbering(
     # (5) (g) and (j) for a numbering of the whole molecule.
     return _select_spiro_numbering(
         mol, candidates, _key, _canon_key, ring_atom_set, prefix_list,
-        suffix_set, rank_full_molecule)
+        suffix_set, rank_full_molecule, whole_molecule)
 
 
 def get_spiro_substituents(

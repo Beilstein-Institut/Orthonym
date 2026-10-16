@@ -273,7 +273,9 @@ def n_aryl_parent_check(mol, name):
 # ------------------------------------------------------------------ / principal characteristic group
 #: (rank, class, SMARTS); a lower rank is senior, Table 4.1,:18162-:18219). A carbamate
 #: R-NH-CO-O-R' is an ester (class 9); an acyl on a ring nitrogen and a lactam or lactone
-#: carbonyl are ring ketones ('cyclic amides are named as heterocycles',:18184)
+#: carbonyl are ring ketones ('cyclic amides are named as heterocycles',:18184). A guanidine
+#: ranks with the amides, class 11: "In the presence of a characteristic group having seniority
+#: over guanidine (see item 11 in ",:34266)
 _CLASS_SMARTS = [
     (6, 'acid', '[CX3](=[O,S])[OX2H1,SX2H1]'),
     (6, 'acid', '[SX4](=O)(=O)[OX2H1]'),
@@ -285,6 +287,7 @@ _CLASS_SMARTS = [
     (9, 'acid_halide', '[CX3](=O)[F,Cl,Br,I]'),
     (10, 'amide', '[CX3](=O)-!@[NX3;!R;!$(N-N)]'),
     (10, 'amide', '[SX4](=O)(=O)-!@[NX3;!R;!$(N-N)]'),
+    (10, 'guanidine', '[NX3;!R][CX3;!R](=[NX2;!R])[NX3;!R]'),
     (13, 'nitrile', '[#6][CX2]#[NX1]'),
     (14, 'aldehyde', '[CX3H1](=O)[#6]'),
     (15, 'ketone', '[#6][CX3](=O)[#6]'),

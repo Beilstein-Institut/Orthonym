@@ -32,6 +32,7 @@ from rdkit import Chem
 from ...perception.automorphisms import skeleton_automorphisms
 from ...perception.mancude import is_mancude_ring_system, max_matching_size
 from .derived_parents import DERIVED_PARENTS
+from .fusion_components import periphery_numbering_ok
 from .parent_table import BB_PARENTS
 
 Locant = Union[int, str]
@@ -39,9 +40,11 @@ Locant = Union[int, str]
 #: (the Blue Book): "Anthracene, phenanthrene, acridine, carbazole, xanthene and
 #: its chalcogen analogues, purine, and cyclopenta[a]phenanthrene are exceptions; traditional
 #: numberings are retained." Of these, the parents whose fusion carbon atoms carry plain
-#: numbers (the steroid numbering 5, 8, 9, 10, 13, 14) are listed here; the others keep their
-#: lettered fusion locants.
-TRADITIONAL_NUMBERING = frozenset({"cyclopenta[a]phenanthrene"})
+#: numbers (the steroid numbering 5, 8, 9, 10, 13, 14) are listed here, and purine, whose fusion carbons
+#: are C4 and C5 Numbering (a), the Blue Book: "when the numbering of a system is fixed,
+#: for example in purine, anthracene, and phenanthrene, this numbering must be used, both in PINs and in
+#: general nomenclature"); the others keep their lettered fusion locants.
+TRADITIONAL_NUMBERING = frozenset({"cyclopenta[a]phenanthrene", "purine"})
 
 #: Fused parent names (indicated hydrogen dropped) that the Blue Book prints as PINs, with
 #: the line of the Blue Book that shows it. A name outside this table, outside
@@ -334,6 +337,12 @@ def _parent_for_key(key: str) -> Optional[Tuple[str, Tuple[Tuple[int, Locant], .
             made = hetero_fusion.hetero_component_name(key_mol)
             struct = hetero_fusion.opsin_structure(made, key_mol.GetNumAtoms()) if made else None
             source = "hetero_fusion_name+opsin"
+        if made is None:
+            # LO4c: a parent with two or more first-order attached components (``poly_fusion``)
+            from . import hetero_fusion, poly_fusion
+            made = poly_fusion.polycomponent_name(key_mol)
+            struct = hetero_fusion.opsin_structure(made, key_mol.GetNumAtoms()) if made else None
+            source = "poly_fusion_name+opsin"
         pm = Chem.MolFromSmiles(struct[0]) if struct else None
         iso = _iso(pm, key_mol) if pm is not None else None
         if iso is not None:
@@ -352,7 +361,8 @@ def _parent_for_key(key: str) -> Optional[Tuple[str, Tuple[Tuple[int, Locant], .
     name = candidates[0][0]
     maps = [(c[1], c[2]) for c in candidates] + [(m, "fusion_numbering") for m in checks]
     maps = [(m, src) for m, src in maps
-            if _locant_types_ok(key_mol, m, name in TRADITIONAL_NUMBERING)]
+            if _locant_types_ok(key_mol, m, name in TRADITIONAL_NUMBERING)
+            and periphery_numbering_ok(key_mol, m)]
     if not maps:
         return None
     fixed, source = maps[0]

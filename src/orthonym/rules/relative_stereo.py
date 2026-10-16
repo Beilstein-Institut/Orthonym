@@ -218,8 +218,14 @@ def convert_pair_blocks(name: str, mol, records: Sequence) -> List[str]:
 
     The candidates are in a fixed order (the senses of the leftmost block vary slowest,
     ``cis`` first). A candidate names the right molecule only if OPSIN reads it back to the
-    input's full InChIKey; the caller checks that, which also picks the sense."""
+    input's full InChIKey; the caller checks that, which also picks the sense.
+
+    Each candidate is a string built from ``name``, so the producer that built ``name`` for the
+    whole molecule is the one that built the candidate: the label of ``name`` in the producer
+    record of the call (``metrics.producer_trail``) passes to every candidate, which is what makes
+    the row of a molecule that ships a ``cis``/``trans`` name say which code built it."""
     from ..assembly.naming_utils import enclosing_opener, renest_group_and_ancestors
+    from ..metrics.producer_trail import carried
     from ..perception.stereo import assign_stereochemistry
 
     blocks = [r for r in records if _holds_pseudoasymmetric_code(r.text)]
@@ -253,7 +259,7 @@ def convert_pair_blocks(name: str, mol, records: Sequence) -> List[str]:
             if opener is not None:
                 candidate = renest_group_and_ancestors(candidate, opener)
         if candidate not in out:
-            out.append(candidate)
+            out.append(carried(name, candidate))
     return out
 
 

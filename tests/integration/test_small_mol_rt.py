@@ -366,9 +366,14 @@ class TestStereo:
         assert "propyl" in name
 
     def test_050_methoxyisochromanone(self):
-        """#50: isochroman-4-one -> PIN 3,4-dihydro-1H-2-benzopyran-4-one (,."""
+        """#50: isochroman-4-one -> PIN 1H-2-benzopyran-4(3H)-one (3), the Blue Book:
+        the principal characteristic group the indicated hydrogen cannot accommodate takes 'added
+        indicated hydrogen';:24689 prefers it to hydro prefixes; '3,4-dihydronaphthalen-1(2H)-one
+        (PIN)',:3276). LO3: was '3,4-dihydro-1H-2-benzopyran-4-one' , the hydro-prefix form
+        of the fused namer, which the canary table recorded as the defect DK-INDH."""
         name = name_compound("COc1c(O)c(O)cc2c1CO[C@@H](C)C2=O")
-        assert "3,4-dihydro-1H-2-benzopyran" in name
+        assert "1H-2-benzopyran-4(3H)-one" in name
+        assert "dihydro" not in name.replace("dihydroxy", "")
         assert "methoxy" in name
 
     def test_055_butanoyloxycyclohexadiene(self):

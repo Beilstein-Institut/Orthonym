@@ -117,7 +117,8 @@ from tests.support.default_tier import (  # noqa: E402
 # molecules below the test asserts that decline, the strict path's name and label,
 # and the same name at the best-effort tier (tests/support/default_tier.py).
 DEFAULT_TIER_DECLINES = frozenset({
-    "C1CCN2CCCCC2C1",
+    # ('C1CCN2CCCCC2C1' left this set in LO3: the default tier names it 'octahydro-2H-quinolizine',
+    # the PIN, see END_TO_END_NAMES)
 })
 #... whose best-effort name is another one (it reads back exactly)
 BEST_EFFORT_NAMES_IT_OTHERWISE = frozenset()
@@ -190,6 +191,20 @@ CONTROL_CASES = [
 ]
 
 _RT_NAMES = {name: smi for smi, name, _ in ACCEPT_CASES}
+
+# LO3: the name the FULL namer ships where it differs from the retained name the recognizer
+# finds. 'quinolizidine' has no Blue Book standing: "Retained fusion names are used
+# for the fully unsaturated compounds (see; they are the preferred IUPAC names. Preferred
+# IUPAC names for the partially saturated and fully saturated compounds are formed by using
+# 'hydro' prefixes." (the Blue Book), and "Polycyclic mancude compounds"
+# (:17024): "Total hydrogenation is indicated by the appropriate multiplicative prefixes
+# indicating the total number of hydrogen atoms attached, but locants are omitted" (:17026),
+# on the retained quinolizine (Table 2.8 (15),:11582; "the PIN is 4H-quinolizine"). The
+# builder's name for the saturated parent is verified (OPSIN reads it back to C1CCN2CCCCC2C1)
+# and is now offered in place of the catalogue name that the fused namer records as not a PIN
+# (rules/fused_pin_offer.py); ASSUMED (no book example): '2H' is the lowest indicated-hydrogen
+# locant that exists for quinolizine (1H would leave C4 without a double-bond partner).
+END_TO_END_NAMES = {"quinolizidine": "octahydro-2H-quinolizine"}
 
 
 # --------------------------------------------------------------------------
@@ -425,6 +440,7 @@ def test_pin_names_accept_cases_directly(smiles, expected, _general, production_
     above) is simply no longer NEEDED for these two, because pin handles them."""
     pin = Orthonym(style="pin")
     out = _dt_obj_name(pin, Chem.CanonSmiles(smiles))
+    expected = END_TO_END_NAMES.get(expected, expected)
     assert out == expected, (
         f"expected pin to name {smiles!r} as {expected!r}, got {out!r}")
 
@@ -435,19 +451,22 @@ def test_complete_prefers_retained_name(smiles, expected, _general,
     comp = Orthonym(style="pin", general_fallback=True,
                      allow_aromatic_general=True)
     out = comp.name(Chem.CanonSmiles(smiles))
+    expected = END_TO_END_NAMES.get(expected, expected)
     assert out == expected, f"{smiles}: complete gave {out!r} != {expected!r}"
 
 
 def test_valid_tier_names_quinolizidine_directly(production_gate):
     """ change-asserted-value (was...keeps_von_baeyer_name...): the PIN/valid
-    parent path now recognizes quinolizidine directly, so `valid` ships the
-    retained name 'quinolizidine' (RT-exact), NOT the old von-Baeyer residual
-    '1-azabicyclo[4.4.0]decane'. A conformance improvement, tier-independent."""
+    parent path now recognizes quinolizidine directly, so `valid` ships a name for
+    it (RT-exact), NOT the old von-Baeyer residual '1-azabicyclo[4.4.0]decane'. A
+    conformance improvement, tier-independent. LO3: the name is the PIN
+    'octahydro-2H-quinolizine' (see END_TO_END_NAMES), no longer the catalogue
+    name 'quinolizidine'."""
     smi, expected, _general_name = ACCEPT_CASES[1]  # quinolizidine
     valid = Orthonym(style="pin", general_fallback=True,
                       allow_aromatic_general=False)
     out = valid.name(Chem.CanonSmiles(smi))
-    assert out == expected
+    assert out == END_TO_END_NAMES[expected]
 
 
 @pytest.mark.parametrize("smiles,retained_candidate,general_name",

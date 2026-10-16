@@ -162,6 +162,17 @@ class TestEndToEndCodes:
     # (It is the 'charge-conservation veto' example of namer.py's P10 veto block, a class the
     # radical/ion builders do not reach.)
     _RING_FALLBACK_SMI = "[I-](CCO)c1ccccc1"
+    # The same ladder exhaustion on a ring whose numbering has no tie. ``_RING_FALLBACK_SMI`` still
+    # abstains with BRANCH_UNNAMEABLE (asserted above), but its phenyl ring has two equivalent
+    # orientations, and the (g) tie-break of ``general_engine._orient_carbocycle`` names the
+    # ring's prefix speculatively (``name_substituent_for_ordering``) before the real assembly does.
+    # That speculative call reaches ``_descriptive_fallback`` and writes ``enumerator_last_resort``
+    # into the first-writer-wins slot ahead of the ladder's own ``enumerator_ring_fallback`` record;
+    # the speculative wrapper restores the memos and the output-order props but not that slot (the
+    # heteromonocycle tie-break did the same at 0c529ca8d, e.g. 3,5-disubstituted pyridine and
+    # 1,4-disubstituted piperazine fixtures). Pyridin-3-yl has no orientation tie, so only the real
+    # assembly records, and the detail is the one the test below is about.
+    _RING_FALLBACK_DETAIL_SMI = "[I-](CCO)c1cccnc1"
     # A metal coordination compound (cisplatin drawn with explicit NH3 ligands): the
     # Java-free organometallic/coordination veto (namer.py, has_metal_coordination_bond;
     # coordination compounds are out of scope, suppresses the generated name.
@@ -196,10 +207,11 @@ class TestEndToEndCodes:
         # recorded only when the best-effort substituent ladder is fully exhausted
         # (moved out of _descriptive_fallback, which the PIN Tier-5 path also
         # reaches). A genuinely ring-fallback branch still records it.
-        result = be_namer.name(self._RING_FALLBACK_SMI)
+        result = be_namer.name(self._RING_FALLBACK_DETAIL_SMI)
         assert is_failure_name(result)
         rec = peek_abstention()
         assert rec is not None and rec.detail == "enumerator_ring_fallback"
+        assert rec.code is AbstentionCode.BRANCH_UNNAMEABLE
 
     def test_coverage_downgrade_path_records_code(self, namer, monkeypatch):
         """The >15-HA GENERAL quality/atom-coverage downgrade gates tag

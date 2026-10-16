@@ -97,10 +97,22 @@ def test_descriptors_decided_by_sequence_rules_4_and_5_are_declined(smiles):
 @pytest.mark.parametrize("smiles", [
     "COC(=O)C1CC2CC1c1ccccc12",          # ester: functional class name
     "OCC(O)C1CC2CC1c1ccccc12",           # two -OH on the chain: the chain is the parent
-    "C[C@H](Cl)C1=CC2CC1c1ccccc12",      # a stereocentre outside the ring system
 ])
 def test_declined(smiles):
     assert _name(smiles) is None
+
+
+def test_a_stereocentre_outside_the_ring_system_is_cited_in_the_prefix():
+    # LO4a: this input was declined ("a stereocentre outside the ring system") until the builder
+    # proved its own name. NAMING OF STEREOISOMERS (the Blue Book),:44643: "When they
+    # relate to substituent groups, they are cited at the front of the corresponding prefix"
+    # ('[(1R)-1-chloropropyl]benzene (PIN)'). OPSIN 2.9.0 reads the name back to the input's full
+    # InChIKey and to its canonical SMILES (``bridged_fused_pin._outside_stereo_spelled``).
+    from tests.support.rt_assert import name_is_rt_exact
+    smiles = "C[C@H](Cl)C1=CC2CC1c1ccccc12"
+    name = _name(smiles)
+    assert name == "2-[(1S)-1-chloroethyl]-1,4-dihydro-1,4-methanonaphthalene", name
+    assert name_is_rt_exact(name, smiles)
 
 
 def test_a_tie_between_different_bridges_declines(monkeypatch):

@@ -376,10 +376,10 @@ CANARY_KNOWN_DEFECTS = {
         "unknown organic compound",
         "DK-NOTEXACT", (68,),
     ),
-    "COc1c(O)c(O)cc2c1CO[C@@H](C)C2=O": (
-        "(3S)-6,7-dihydroxy-8-methoxy-3-methyl-3,4-dihydro-1H-2-benzopyran-4-one",
-        "DK-INDH", (133,),
-    ),
+    # (canary call 133, DK-INDH, left this table in LO3: the PIN builder's name
+    # '(3S)-6,7-dihydroxy-8-methoxy-3-methyl-1H-2-benzopyran-4(3H)-one' is offered in place of the
+    # fused namer's hydro-prefix name, which that namer records as not a PIN, and it is the
+    # strict-xfail target the row carried; the fixture holds it now)
     "CC(=O)O[C@H]1CC[C@]2(C)C3=C(CC[C@H]2C1(C)C)[C@]1(C)C[C@@H](O)[C@H]([C@@H](C/C=C/C(C)(C)O)C(=O)O)[C@@]1(C)CC3": (
         # fix-all merge: the acid is the '-21-oic acid' suffix now (acids rank above esters,
         #, the acetate an '(acetyloxy)' prefix; OPSIN 2.9.0 full InChIKey
@@ -838,9 +838,7 @@ _LABEL_DEFECTS_HISTORY = {
 # SMILES -> the Blue-Book-derived PIN (OPSIN 2.9.0 full-InChIKey exact, fresh run outside
 # the engine) for known-defect rows whose current name is RT-exact but not the PIN.
 _KNOWN_DEFECT_PIN_TARGETS = {
-    # 133, DK-INDH (reason above)
-    "COc1c(O)c(O)cc2c1CO[C@@H](C)C2=O":
-        "(3S)-6,7-dihydroxy-8-methoxy-3-methyl-1H-2-benzopyran-4(3H)-one",
+    # 133, DK-INDH: fixed in LO3 (rules/fused_pin_offer.py); the target is the fixture's name now
     # 149, DK-ETHANAMINE: (b) (:2891) omits the locant; '(1)
     # N,N-diethylethanamine (PIN)' (:26235). The row predates the branch (Task 1 name,
     # CANARY.csv changed_since_task1 = no).

@@ -2062,6 +2062,29 @@ def _nitro_group_atoms(mol, n_idx: int, ring_idx: int) -> Optional[Set[int]]:
     return {n_idx} | {o.GetIdx() for o in oxygens}
 
 
+def exocyclic_substituent_name(mol, sub_atoms, attach_idx, ring_atoms) -> Optional[str]:
+    """The prefix of the substituent that hangs on a ring system by ``attach_idx`` (its atoms
+    ``sub_atoms``), or None. A substituted amino group with no ring in it (N-attached, more than one
+    heavy neighbour) is spelled by the enumerator's namer: the fragment namer reads such a fragment as
+    a carbon chain and writes 'aminomethyl' for 'methylamino' and 'amino-N-methylmethyl' for
+    'dimethylamino' amines as prefixes, enclosing: '(dimethylamino)',
+    'ethyl(methyl)amino'; the guanidine is 'carbamimidoylamino',, the Blue Book).
+    An N-aryl fragment ('4-chloroanilino') keeps the fragment namer, which spells it right (the
+    enumerator's best-effort spelling is '[(4-chlorophenyl)amino]'), and so does a nitrogen with a
+    heteroatom neighbour: the enumerator reads N(OH)2 as 'nitro' (another molecule)."""
+    from ..assembly.substituent_naming import name_substituent_fragment
+    atom = mol.GetAtomWithIdx(attach_idx)
+    if (atom.GetSymbol() == 'N' and atom.GetDegree() > 1 and not atom.GetFormalCharge()
+            and all(n.GetAtomicNum() == 6 for n in atom.GetNeighbors() if n.GetIdx() in sub_atoms)
+            and not any(mol.GetAtomWithIdx(a).IsInRing() for a in sub_atoms)):
+        from ..assembly.substituent_enumerator import name_substituent
+        from ..errors import is_refusal_sentinel
+        name = name_substituent(mol, sub_atoms, attach_idx, allow_mancude=False)
+        if name and not is_refusal_sentinel(name):
+            return name
+    return name_substituent_fragment(mol, sub_atoms, attach_idx, ring_atoms)
+
+
 def _partial_sat_substituent_prefix(
     mol, atom_to_locant: Dict[int, Any],
     exclude_atoms: Optional[Set[int]] = None,
@@ -2094,7 +2117,6 @@ def _partial_sat_substituent_prefix(
     them twice. It is an out-parameter rather than a recomputation so there is
     exactly one answer to "what does this name already account for"."""
     from ..assembly.naming_utils import alpha_sort_key, format_substituent_prefix
-    from ..assembly.substituent_naming import name_substituent_fragment
 
     exclude = exclude_atoms or set()
     ring_set = set(atom_to_locant)
@@ -2136,9 +2158,7 @@ def _partial_sat_substituent_prefix(
                 for nn in mol.GetAtomWithIdx(cur).GetNeighbors():
                     if nn.GetIdx() not in seen:
                         stack.append(nn.GetIdx())
-            sub_name = name_substituent_fragment(
-                mol, sub_atoms, n.GetIdx(), list(ring_set)
-            )
+            sub_name = exocyclic_substituent_name(mol, sub_atoms, n.GetIdx(), list(ring_set))
             if not sub_name or ' ' in sub_name:
                 return None  # un-nameable substituent -> fail closed
             grouped[sub_name].append(atom_to_locant[idx])

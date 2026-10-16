@@ -37,7 +37,7 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
 : The reason code of a decline, for example `UNSUPPORTED_ELEMENT` or, at the default tier, `NO_VERIFIED_PIN` (the engine built a checked name that is not a verified PIN). See [Declines](../declines.md).
 
 `stereo_unexpressed`
-: `true` when a stereocentre of your structure is not stated in the name.
+: `true` when your structure configures a stereo element (a stereocentre, or a double bond drawn with `/` and `\`) that the name does not state. The check counts the stereo elements that OPSIN's read-back of the name configures (the read-back the final check keeps, so a name it has read is not read again): fewer than your structure configures sets the flag. It is for a name of any producer, and it changes nothing else: not the name, not the tier, not `is_pin`. A Preferred IUPAC Name can carry it. `C[N+](C)=C/C=C/C=C/N1CCCC1` gives `1-[5-(dimethylamino)penta-2,4-dien-1-ylidene]pyrrolidin-1-ium`, {tier}`pin_verified`, with the flag `true`: the two double bonds you configured are single bonds in this form of the cation, so the name cannot state them, and the standard InChIKey does not see them, so the read-back still matches. The flag is `false` when the read-back states every element, and when there is no read-back, because OPSIN cannot read the name (a name with lowercase `r` and `s`, a name from an exact-match list): the flag does not guess from the text of the name.
 
 `suffix_free_prefix_name`
 : `true` when the name states the principal characteristic group as a prefix with no suffix, a form the recommendations do not allow.
@@ -65,6 +65,7 @@ $ orthonym "Cn1cnc2c1c(=O)n(C)c(=O)n2C" --provenance
 
 - **The deepest builder.** `producer` names the code that built the string, not the class that passed the molecule on. A peptide whose name an inner handler composed shows that handler, not `outer:peptide`. When two codes return the same name, the first one to return it is reported, which is the innermost.
 - **Another drawing of a metal compound.** A metal compound that is named through another drawing of it ([Metal compounds](../tiers.md#metal-compounds)) shows the code that built the name of that drawing: `Cl[Zn]Cl` is named through its ionic drawing and gives `outer:salt`, a bare zinc atom gives `outer:metal_atom`.
+- **The `cis` or `trans` name of a ring pair.** At `best-effort`, a name with `cis` or `trans` is made from the name with lowercase `r` and `s` that a code built for the whole molecule ([Tiers](../tiers.md)). The row names that code: `trans-cyclohexane-1,4-diol` gives `inner:general_acyclic`, the code that built `(1r,4r)-cyclohexane-1,4-diol` at the default tier.
 - **`null` when no name ships.** The default tier can build a name and withhold it (`NO_VERIFIED_PIN`, see [Declines](../declines.md)). Nothing ships then, so no code is named; a wider tier returns the name, and its row names the code.
 - **A diagnostic, not a contract.** The ids follow the code's class and handler ids and can change in any release: count with them, do not parse them.
 - **Only the row has it.** `Orthonym.name_tiered` and `--provenance` return the key; `name_compound` returns the bare name.

@@ -97,6 +97,10 @@ BOOK_FUSION_NAMES = [
     ('c1ccc2c(c1)c1c(c3ccccc32)OPO1', 'phenanthro[9,10-d][1,3,2]dioxaphosphole'),  #:46286
     ('C1=COc2ccc3cc[nH]c3c2OC1', '[1,4]dioxepino[2,3-g]indole'),  #:49192
     ('C1=Cc2cc3cccc-3cn2C1', 'cyclopenta[f]indolizine'),  #:49192
+    # (:13996) "Both terminal fusion atom locants for ortho-fusion must be cited even if one is a
+    # fusion atom", example (:14011) 'naphtho[1,8a-b]azirine (PIN)': C8a has four ring bonds and lies in three
+    # rings (LO4b). This row stood in the declined list below, against the book's own PIN.
+    ('C1=CC2=CC=CC3=NC23C=C1', 'naphtho[1,8a-b]azirine'),  #:14011
 ]
 
 
@@ -169,12 +173,12 @@ def test_the_book_benzo_names_are_rebuilt_by_the_rules(smiles, name):
 
 @pytest.mark.parametrize("smiles,why", [
     ("C1=CC2=CC=CC3C=CC=C[PH]23C=C1", "5lambda5-phosphinino[2,1-d]phosphinolizine :12476: P in three rings"),
-    ("C1=CC2=CC=CC3=NC23C=C1", "naphtho[1,8a-b]azirine :14011: C8a in three rings"),
     ("C1=CC2=CCS[SH]2S1", "7lambda4-[1,2]dithiolo[5,1-e][1,2]dithiole :14545: a lambda4 sulfur"),
 ])
 def test_the_book_names_outside_the_class_bounds_are_declined(smiles, why):
-    # an atom common to three rings, and the lambda-convention:12452), are
-    # outside the S2c-1 class (slice S2c-3); the producer never guesses them
+    # an interior atom common to three rings (peri-fusion), and the lambda-convention:12452),
+    # are outside the S2c-1 class (slice S2c-3); the producer never guesses them. An atom with four ring
+    # bonds in three rings is not peri-fusion,:14011): it is in BOOK_FUSION_NAMES above.
     assert hetero_fusion.rule_name(_skeleton(smiles)) is None, why
 
 

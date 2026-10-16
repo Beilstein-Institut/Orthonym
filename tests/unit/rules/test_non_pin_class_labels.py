@@ -28,7 +28,11 @@ what it is: a name-scoped provenance record (``record_non_pin_fragment``) moves 
   9,:18182) outrank alcohols (class 17,:18190); (:31696,:31698).
 - 'quinolizidine' / 'pyrrolizidine' / 'indolizidine' (0 Blue Book hits): the parents
   are quinolizine (:11582-11584), pyrrolizine (:11628) and indolizine (:11622), and
-  saturated compounds take 'hydro' prefixes,:24221).
+  saturated compounds take 'hydro' prefixes,:24221). The bare parents left
+  this list in LO3 (the PIN builder's name is offered in place of the catalogue name and
+  ships as the PIN: 'octahydro-2H-quinolizine', 'hexahydro-1H-pyrrolizine',
+  'octahydroindolizine', see ``_CONTROLS``); a substituted one whose arm the builder cannot
+  spell ('(quinolizidin-1-yl)methanol') still ships the catalogue name.
 - A bare '(R)-'/'(S)-' on a substituent whose name carries locants:
   (:44624) "In preferred IUPAC names, stereodescriptors, preceded by a locant, must be
   cited"; only a group with no locants drops it (:45031); '[(1R)-1-chloropropyl]benzene
@@ -58,9 +62,6 @@ from tests.support.default_tier import (  # noqa: E402
 # molecules below the test asserts that decline, the strict path's name and label,
 # and the same name at the best-effort tier (tests/support/default_tier.py).
 DEFAULT_TIER_DECLINES = frozenset({
-    "C1CC2CCCN2C1",
-    "C1CCN2CCCC2C1",
-    "C1CCN2CCCCC2C1",
     "CC(=O)OCC(C)OC(=O)CC",
     "CC1(C)C(O)C(O)CC2(C)C1CCC13CC(CCC21)C1(C)OC31",
     "CC12CCC(=O)C=C1C=CC1[C@@H]2CCC2(C)[C@H]1CCC21CCC(=O)O1",
@@ -134,10 +135,8 @@ _DEMOTED = [
      "(tetracosanoyloxy)propane"),
     ("CCOCC(COC(C)=O)OC(C)=O", "1,2-bis(acetyloxy)-3-ethoxypropane"),
     ("CC(=O)OCC(C)OC(=O)CC", "1-(acetyloxy)-2-(propanoyloxy)propane"),
-    # catalog names with no Blue Book standing
-    ("C1CCN2CCCCC2C1", "quinolizidine"),
-    ("C1CC2CCCN2C1", "pyrrolizidine"),
-    ("C1CCN2CCCC2C1", "indolizidine"),
+    # catalog names with no Blue Book standing (the three saturated parents left this list in LO3:
+    # the builder's PIN is offered in place of the catalogue name, see _CONTROLS below)
     ("OCC1CCCN2CCCCC12", "(quinolizidin-1-yl)methanol"),
     # (rest-of-suite s16, '4-[(S)-2-amino-2-carboxyethoxy]-4-oxobutanoic acid', left this
     # list in decision A part 2, 2026-09-27: the substituent's own numbering now reaches
@@ -170,6 +169,14 @@ def test_carveout_stereoparent_is_labelled_by_its_list_identity():
 
 
 _CONTROLS = [
+    # LO3: (the Blue Book) "Preferred IUPAC names for the partially saturated and
+    # fully saturated compounds are formed by using 'hydro' prefixes"; (:17024),:17026
+    # "Total hydrogenation is indicated by the appropriate multiplicative prefixes... but locants
+    # are omitted"; 'quinolizidine' / 'pyrrolizidine' / 'indolizidine' have 0 hits in the book. OPSIN
+    # 2.9.0 reads the three names back to the inputs. ASSUMED: '2H' for quinolizine (1H cannot exist).
+    ("C1CCN2CCCCC2C1", "octahydro-2H-quinolizine"),
+    ("C1CC2CCCN2C1", "hexahydro-1H-pyrrolizine"),
+    ("C1CCN2CCCC2C1", "octahydroindolizine"),
     ("C1CC2CCC1C2", "bicyclo[2.2.1]heptane"),                    # BB:2038
     ("C1CC2CC1C1CC21", "tricyclo[3.2.1.0^2,4]octane"),           # cf. BB:48763
     ("C12C3C1C1C2C31", "tetracyclo[2.2.0.0^2,6.0^3,5]hexane"),   # BB:9897

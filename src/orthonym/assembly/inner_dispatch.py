@@ -417,10 +417,15 @@ def dispatch_inner(
         # ran) is correct but not the PIN: it is labelled below the PIN, the name is
         # kept -- '3-[(methylcarbamoyl)amino]propanenitrile' for the urea
         # "N-(2-cyanoethyl)-N'-methylurea".
-        if (entry.handler_id != "urea"
+        # The same holds for guanidine, ranked at that class too,:34266
+        # "In the presence of a characteristic group having seniority over guanidine (see
+        # item 11 in "): '2-[(diaminomethylidene)amino]ethan-1-ol' for
+        # N-(2-hydroxyethyl)guanidine.
+        if (entry.handler_id not in ("urea", "guanidine")
                 and getattr(features, "principal_group", None) is not None):
+            from .handlers.guanidine import guanidine_parent_expected
             from .handlers.urea import urea_parent_expected
-            if urea_parent_expected(features):
+            if urea_parent_expected(features) or guanidine_parent_expected(features):
                 _junior = getattr(result, "name", None)
                 if _junior:
                     from ..metrics.provenance import record_non_pin_label

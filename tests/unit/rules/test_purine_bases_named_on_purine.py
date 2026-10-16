@@ -47,9 +47,16 @@ def test_trivial_base_names_stay_general_only():
         assert GENERAL_RETAINED_NAMES.get(Chem.CanonSmiles(smi)) == name
 
 
-def test_a_xanthine_core_name_is_not_labelled_a_pin():
+def test_a_xanthine_core_name_is_the_purine_dione_not_xanthine():
+    """The xanthine core is named on purine, Table 2.8 (16):11595 'the PIN is 7H-purine'; (a)
+    :3227 purine keeps its numbering): '3,7-dihydro-1H-purine-2,6-dione' (PURINE_PIN_ROWS), never the trivial
+    'xanthine' as a PIN. Until LO4b the bridged fused builder had no purine parent, so this molecule (an N-hydroxymethyl
+    theobromine) was named with the trivial core name below the PIN and the default tier declined it
+    (``test_a_xanthine_core_name_is_not_labelled_a_pin``, which asserted exactly that); the builder now spells the
+    purine-dione PIN, read back to the input by an independent OPSIN call."""
     smi = "OCN1C(N(C=2N=CN(C2C1=O)C)C)=O"
+    pin = "1-(hydroxymethyl)-3,7-dimethyl-3,7-dihydro-1H-purine-2,6-dione"
+    assert name_is_rt_exact(pin, smi)
+    assert_pin_at_both_tiers(smi, pin)
     for res in (name_default(smi), name_breadth(smi)):
-        assert res.get("tier") != "pin_verified", res
-    b = name_breadth(smi)
-    assert b.get("name") and name_is_rt_exact(b["name"], smi), b
+        assert "xanthine" not in (res.get("name") or ""), res

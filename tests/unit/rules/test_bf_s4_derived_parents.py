@@ -168,8 +168,8 @@ def test_the_builder_names_the_epoxymorphinans_on_the_derived_parent(smiles, nam
 @pytest.mark.parametrize("smiles", [
     # (the ring ketones oxycodone and hydromorphone are named since slice S3:
     # test_bf_s3_morphinan.py)
-    # a stereocentre outside the ring system: buprenorphine
-    "C[C@]([C@H]1C[C@@]23CC[C@@]1([C@H]4[C@@]25CCN([C@@H]3CC6=C5C(=C(C=C6)O)O4)CC7CC7)OC)(C(C)(C)C)O",
+    # (the stereocentre outside the ring system of buprenorphine is cited in the prefix since LO4a:
+    # test_buprenorphine_is_named_with_its_side_chain_descriptor below)
     # an ester principal group: diamorphine
     "CN1CC[C@]23c4c5ccc(OC(C)=O)c4O[C@H]2[C@@H](OC(C)=O)C=C[C@H]3[C@H]1C5",
     # a morphinan without the 4,5-epoxy bridge: phenanthrene + azanoethano
@@ -178,3 +178,19 @@ def test_the_builder_names_the_epoxymorphinans_on_the_derived_parent(smiles, nam
 ])
 def test_the_builder_declines_what_it_does_not_certify(smiles):
     assert bfp.build(Chem.MolFromSmiles(smiles)) is None
+
+
+BUPRENORPHINE = "C[C@]([C@H]1C[C@@]23CC[C@@]1([C@H]4[C@@]25CCN([C@@H]3CC6=C5C(=C(C=C6)O)O4)CC7CC7)OC)(C(C)(C)C)O"
+
+
+def test_buprenorphine_is_named_with_its_side_chain_descriptor():
+    """LO4a: declined as "a stereocentre outside the ring system" until the builder proved its own name.
+     NAMING OF STEREOISOMERS (the Blue Book),:44643: "When they relate to substituent groups,
+    they are cited at the front of the corresponding prefix": '[(2S)-2-hydroxy-3,3-dimethylbutan-2-yl]'.
+    OPSIN 2.9.0 reads the name back to the input's full InChIKey and canonical SMILES."""
+    from tests.support.rt_assert import name_is_rt_exact
+    got = bfp.build(Chem.MolFromSmiles(BUPRENORPHINE))
+    name = ("(4R,4aS,6R,7R,7aR,12bS)-3-(cyclopropylmethyl)-6-[(2S)-2-hydroxy-3,3-dimethylbutan-2-yl]-7-methoxy-"
+            "1,2,3,4,5,6,7,7a-octahydro-4a,7-ethano-4,12-methano[1]benzofuro[3,2-e]isoquinolin-9-ol")
+    assert got is not None and got[0] == name, got
+    assert name_is_rt_exact(name, BUPRENORPHINE)

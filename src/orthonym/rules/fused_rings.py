@@ -530,19 +530,20 @@ def _retained_name_of_skeleton(mol, ring_atom_set: Set[int], descriptor: str) ->
     the PIN is 1H-pyrrolizine)": a fusion descriptor for such a skeleton
     ('pyrrolo[1,2-a]pyrrole') is not the PIN. Retained = a catalogue name whose stem
     (without indicated hydrogen) is a printed PIN parent of
-    ``bridged_fused_pin.parents.PIN_PARENT_NAMES``. The fusion producers reach such a
+    ``bridged_fused_pin.parents.is_pin_parent_name`` (the printed PIN parents and the book's other
+    printed names: 'pteridine', Table 2.8 (7),:11547). The fusion producers reach such a
     skeleton when the catalogue producers decline it (a tautomer the catalogue does not
     hold, '3H-pyrrolizine'; a =X group, '1H-pyrrolizin-2(3H)-one'); the name is kept and
     labelled below the PIN."""
     global _RETAINED_SKELETONS
     from ..data.fused_heterocycles import FUSED_HETEROCYCLE_DATA
-    from .bridged_fused_pin.parents import PIN_PARENT_NAMES
+    from .bridged_fused_pin.parents import is_pin_parent_name
     from .fusion_descriptors import _heavy_atom_skeleton_smiles
     if _RETAINED_SKELETONS is None:
         table: Dict[str, str] = {}
         for key, entry in FUSED_HETEROCYCLE_DATA.items():
             stem = re.sub(r'^(?:\d+[a-z]?H,)*\d+[a-z]?H-', '', entry.get('name') or '')
-            if stem not in PIN_PARENT_NAMES:
+            if not is_pin_parent_name(stem):
                 continue
             m = Chem.MolFromSmiles(key)
             sk = _heavy_atom_skeleton_smiles(m) if m is not None else None

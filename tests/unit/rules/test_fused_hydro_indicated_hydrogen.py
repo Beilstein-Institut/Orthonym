@@ -38,10 +38,14 @@ PIN_ROWS = [
     # suffix position, hydro prefixes before it:24768,:16880; was the
     # declined non-PIN '4-(prop-2-en-1-yl)-6H,7H-cyclopenta[c]pyridin-5-one' below)
     ("C=CCc1cncc2c1C(=O)CC2", "4-(prop-2-en-1-yl)-6,7-dihydro-5H-cyclopenta[c]pyridin-5-one"),
+    ("C1Cc2cc[nH]c2C1", "1,4,5,6-tetrahydrocyclopenta[b]pyrrole"),   # LO3, was 4H,5H,6H-cyclopenta[b]pyrrole
 ]
-# Valid names the producers cannot yet spell as the PIN (hydro pairs that are not adjacent):
-# the default tier declines them, best-effort keeps each name.
-NON_PIN_ROWS = [
+# LO3 (rules/fused_pin_offer.py): '4H,5H,6H-cyclopenta[b]pyrrole' (the fused namer's spelling, indicated
+# hydrogen on every saturated position, recorded as not a PIN::17026) gave way to the
+# builder's PIN, a row of PIN_ROWS now: the mancude parent 'cyclopenta[b]pyrrole' (OPSIN: N1=C2C(C=C1)=CC=C2)
+# has no indicated hydrogen to cite, and the hydro prefixes '1,4,5,6-tetrahydro' put the hydrogen on N1 as the
+# input has it (the FixedH check of ``test_hydro_name_cites...``).
+NON_PIN_NAMES_NOW_REPLACED = [
     ("C1Cc2cc[nH]c2C1", "4H,5H,6H-cyclopenta[b]pyrrole"),
 ]
 
@@ -69,14 +73,13 @@ def test_hydro_name_cites_the_mancude_parent_and_its_indicated_hydrogen(smiles, 
 
 
 @pytest.mark.opsin_gate
-@pytest.mark.parametrize("smiles,name", NON_PIN_ROWS)
-def test_a_spelling_that_is_not_the_pin_is_declined_and_kept_at_best_effort(smiles, name):
-    pin = _row(smiles, "pin")
-    assert pin["tier"] == "abstain", (pin.get("name"), pin["tier"])
-    be = _row(smiles, "best-effort")
-    assert be.get("name") == name, be.get("name")
-    assert be["tier"] == "systematic_verified" and be["is_pin"] is False, be["tier"]
+@pytest.mark.parametrize("smiles,name", NON_PIN_NAMES_NOW_REPLACED)
+def test_the_old_spelling_is_still_right_but_no_longer_shipped(smiles, name):
+    """The descriptor spelling reads back to the input (so the offer's replacement is a choice
+    between two right names) and neither tier ships it any more."""
     assert name_is_rt_exact(name, smiles)
+    for tier in ("pin", "best-effort"):
+        assert _row(smiles, tier).get("name") != name
 
 
 @pytest.mark.parametrize("smiles,count", [

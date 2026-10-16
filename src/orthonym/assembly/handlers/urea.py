@@ -24,10 +24,28 @@ from ..name_tree import NameTreeNode, NamingResult
 # amides, sulfonamides, amidines, hydrazonamides, N-hydroxy amides) and the esters
 # stay senior to it, while every hydrazide, the imides and every class from the
 # nitriles on rank below it.
-_PRINCIPALS_JUNIOR_TO_UREA_ABOVE_NITRILE = frozenset({
+# The hydrazide classes: the substituent namer spells the -NH-NH2 of such an acyl arm
+# 'aminoamino', not the Blue Book's 'hydrazinyl', the Blue Book
+# "3-hydrazinyl-3-oxopropanoic acid (PIN)"), so the urea and guanidine builders, which
+# cite the arm through it, cannot name a molecule whose principal group is one of them.
+HYDRAZIDE_PRINCIPALS = frozenset({
     "sulfonohydrazide", "sulfinohydrazonohydrazide", "hydrazide", "thiohydrazide",
-    "imidohydrazide", "imide",
+    "imidohydrazide",
 })
+_PRINCIPALS_JUNIOR_TO_UREA_ABOVE_NITRILE = HYDRAZIDE_PRINCIPALS | {"imide"}
+
+
+def acyclic_imide_present(mol, imide_matches) -> bool:
+    """True when one of the perceived 'imide' matches (C, O, N, C, O) has an imide nitrogen
+    outside every ring.
+
+     IMIDES, (the Blue Book): "Acyclic imides are N-acyl derivatives of
+    primary amides and are named as such (see. Cyclic imides are preferably named
+    as heterocyclic pseudoketones." So an acyclic -CO-NH-CO- (an N-acylurea too, 'N-carbamoyl-2-
+    phenylacetamide (PIN)',:33364) is an amide, class 11 of (:18184), and only the
+    cyclic imide is the class 13 / pseudoketone group that ranks below urea and guanidine."""
+    return any(len(m) >= 3 and not mol.GetAtomWithIdx(m[2]).IsInRing()
+               for m in imide_matches or ())
 
 
 def urea_is_senior_to(principal) -> bool:
@@ -61,6 +79,8 @@ def _urea_principal_rank(features) -> Optional[str]:
         return None
     if not urea_is_senior_to(principal):
         return None
+    if principal == "imide" and acyclic_imide_present(mol, fg.get('imide')):
+        return None   # an acyclic imide is an N-acyl amide, senior to urea
     from rdkit import Chem
     for match in matches:
         if len(match) < 4:

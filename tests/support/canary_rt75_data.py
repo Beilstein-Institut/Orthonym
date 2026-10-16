@@ -750,7 +750,7 @@ CANARY_COMPOUNDS = [
     # --- a phase: Stereochemistry Accuracy RT Fixes (9 compounds) ---
     (
         "COc1c(O)c(O)cc2c1CO[C@@H](C)C2=O",
-        "(3S)-6,7-dihydroxy-8-methoxy-3-methylisochroman-4-one",
+        "(3S)-6,7-dihydroxy-8-methoxy-3-methyl-1H-2-benzopyran-4(3H)-one",  # LO3 (was DK-INDH '...-3,4-dihydro-1H-2-benzopyran-4-one'): (3) the Blue Book,:24689; OPSIN 2.9.0 exact; was '(3S)-6,7-dihydroxy-8-methoxy-3-methylisochroman-4-one'
     ),
     (
         "O=C([O-])[C@@H](O)[C@H](O)[C@H](O)[C@@H](O)C(=O)[O-]",
